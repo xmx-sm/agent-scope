@@ -34,7 +34,7 @@
 | `mail` | 发信、收信、按条件查找、附件、分页 |
 | `mcp` | MCP 客户端与配置解析（stdio / http） |
 | `system` | Shell 命令执行 |
-| `rag` | 知识库写入 / 检索 / 删除 / 列表；默认 SQLite 后端 |
+| `rag` | 知识库写入 / 检索 / 删除 / 文档列表；默认 SQLite 后端；文件读取过闸门 |
 
 配置层的约定：
 
@@ -89,6 +89,9 @@ agent_scope/
     │   ├── schema.py            # 88 项配置的单一真相源
     │   ├── store.py             # 读写 + 进程级缓存 + 生命周期 API
     │   ├── merge.py             # pick / pick_str / pick_int
+    │   └── __init__.py
+    ├── common/                  # 跨层文件闸门
+    │   ├── fs.py                # check_read/check_write
     │   └── __init__.py
     ├── llm/                     # 模型工厂（Chat / Embedding / TTS / ASR）
     │   ├── agent_model.py       # 对外入口

@@ -8,6 +8,7 @@
 from .rag_main import (
     async_delete_collection,
     async_delete_rag,
+    async_list_documents,
     async_list_rag,
     async_rag_config,
     async_search_rag,
@@ -23,6 +24,7 @@ __all__ = [
     "async_delete_rag",
     "async_delete_collection",
     "async_list_rag",
+    "async_list_documents",
     "async_rag_config",
     "async_create_knowledge_base",
     "async_create_rag_middleware",

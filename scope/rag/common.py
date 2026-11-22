@@ -31,6 +31,11 @@ try:  # scope.rag 包导入
 except ImportError:  # 顶层 rag 导入（scope/ 在 sys.path）
     from llm.agent_model import async_get_embedding_model
 
+try:
+    from ..common.fs import check_read_path
+except ImportError:
+    from common.fs import check_read_path
+
 
 EMBED_BATCH_LIMIT = 64
 
@@ -122,6 +127,9 @@ async def async_file_parser(data: dict = None) -> Dict[str, Any]:
             path = cfg.get("file_path")
             if not path:
                 return _err("缺少 file_config.file_path", fn)
+            allowed, reason = check_read_path(str(path))
+            if not allowed:
+                return _err(f"读取路径被拒：{reason}", fn)
             if cfg.get("require_file", True) and not os.path.isfile(str(path)):
                 return _err(f"文件不存在或不是文件：{path}", fn)
             file_arg = str(path)

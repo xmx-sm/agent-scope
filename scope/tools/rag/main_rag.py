@@ -20,7 +20,8 @@ except ImportError:  # 顶层 tools 导入（scope/ 在 sys.path）
     from rag.rag_main import async_rag_config
 
 
-FUNCTIONS = ("write", "read", "search", "delete", "delete_collection", "list")
+FUNCTIONS = ("write", "read", "search", "delete", "delete_collection",
+             "list", "documents", "list_documents")
 
 
 def _err(message: str, fn: str = "async_rag_tools") -> Dict[str, Any]:
@@ -52,6 +53,7 @@ async def async_rag_tools(data: dict = None) -> Dict[str, Any]:
                doc_id(str, 必填)
         delete_collection  删除整个集合
         list    列出集合
+        documents / list_documents  列出集合内文档（按 doc_id 聚合）
 
     示例::
 

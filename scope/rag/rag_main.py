@@ -40,6 +40,7 @@ _FUNC_NAMES = {
     "delete": "async_delete_rag_{t}",
     "delete_collection": "async_delete_collection_{t}",
     "list": "async_list_rag_{t}",
+    "documents": "async_list_documents_rag_{t}",
 }
 
 _LOADED: Dict[str, Any] = {}
@@ -189,6 +190,23 @@ async def async_list_rag(data: dict = None) -> Dict[str, Any]:
         return _err(f"列出向量库失败：{type(e).__name__}: {e}", fn, code=500)
 
 
+async def async_list_documents(data: dict = None) -> Dict[str, Any]:
+    """列出集合内文档（按 doc_id 聚合）。"""
+    fn = "async_list_documents"
+    try:
+        prepared = _prepare(data, "documents", fn)
+        if prepared.get("code") != 200:
+            return prepared
+        prepared = prepared["data"]
+        rag_type = _rag_type(prepared)
+        h = _handler(rag_type, "documents")
+        if h is None:
+            return _unavailable(rag_type, fn)
+        return await h(prepared)
+    except Exception as e:
+        return _err(f"列出文档失败：{type(e).__name__}: {e}", fn, code=500)
+
+
 async def async_rag_config(data: dict = None) -> Dict[str, Any]:
     """按 ``rag_config.rag_function``（或 ``data.function``）分发。"""
     fn = "async_rag_config"
@@ -205,6 +223,8 @@ async def async_rag_config(data: dict = None) -> Dict[str, Any]:
         "delete": async_delete_rag,
         "delete_collection": async_delete_collection,
         "list": async_list_rag,
+        "documents": async_list_documents,
+        "list_documents": async_list_documents,
     }
     handler = routes.get(function)
     if handler is None:
@@ -218,5 +238,6 @@ __all__ = [
     "async_delete_rag",
     "async_delete_collection",
     "async_list_rag",
+    "async_list_documents",
     "async_rag_config",
 ]

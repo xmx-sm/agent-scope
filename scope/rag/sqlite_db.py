@@ -305,10 +305,43 @@ async def async_list_rag_sqlite(data: dict) -> Dict[str, Any]:
         return _err(f"列出集合失败：{type(e).__name__}: {e}", "async_list_rag_sqlite", code=500)
 
 
+async def async_list_documents_rag_sqlite(data: dict) -> Dict[str, Any]:
+    """列出集合内的文档（按 doc_id 聚合）。"""
+    fn = "async_list_documents_rag_sqlite"
+    try:
+        if not isinstance(data, dict):
+            return _err("data 必须是字典对象", fn)
+        db_file, name = _target(data)
+        if not os.path.isfile(db_file):
+            return _ok([], f"集合 {name} 不存在或为空")
+        conn = _connect(db_file)
+        try:
+            rows = conn.execute(
+                f"SELECT doc_id, text, metadata FROM {_TABLE} ORDER BY doc_id, chunk_index"
+            ).fetchall()
+        finally:
+            conn.close()
+        docs: Dict[str, Dict[str, Any]] = {}
+        for r in rows:
+            item = docs.setdefault(r["doc_id"], {
+                "document_id": r["doc_id"],
+                "source": r["doc_id"],
+                "chunk_count": 0,
+                "metadata": json.loads(r["metadata"] or "{}"),
+            })
+            item["chunk_count"] += 1
+        return _ok(list(docs.values()), f"共 {len(docs)} 个文档")
+    except (TypeError, ValueError) as e:
+        return _err(str(e), fn)
+    except Exception as e:
+        return _err(f"列出文档失败：{type(e).__name__}: {e}", fn, code=500)
+
+
 __all__ = [
     "async_write_rag_sqlite",
     "async_search_rag_sqlite",
     "async_delete_rag_sqlite",
     "async_delete_collection_sqlite",
     "async_list_rag_sqlite",
+    "async_list_documents_rag_sqlite",
 ]
