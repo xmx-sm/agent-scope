@@ -89,7 +89,8 @@ agent_scope/
     │   ├── merge.py             # pick / pick_str / pick_int
     │   └── __init__.py
     ├── llm/                     # 模型工厂（Chat / Embedding / TTS / ASR）
-    │   ├── factory.py
+    │   ├── agent_model.py       # 对外入口
+    │   ├── _factory.py          # 内部注册表与构造器
     │   ├── formatters.py        # 视频输入 formatter
     │   └── __init__.py
     ├── tools/
@@ -180,7 +181,7 @@ asyncio.run(main())
 
 | 优先级 | 内容 |
 |---|---|
-| P0 | 框架骨架：`llm/factory.py`、`agent/builder.py`、`agent/runtime.py`、Toolkit 装配、skills、`main.py`、`pyproject.toml` |
+| P0 | 框架骨架：`agent/builder.py`、`agent/runtime.py`、Toolkit 装配、skills、`main.py`、`pyproject.toml` |
 | P1 | `permission/`：基于 `agentscope.permission` 的规则、确认事件、SQLite 规则与审计、非交互自动拒绝 |
 | P1 | `rag/`：官方 `KnowledgeBase` + `RAGMiddleware`，文件解析/切片/embedding/注册表，多租户隔离 |
 | P2 | 子智能体与委派、A2A、Mem0/文件记忆、storage、agentscope.app 服务化 |

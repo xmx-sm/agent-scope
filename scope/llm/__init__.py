@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
-"""scope.llm — 模型工厂与多模态 formatter。"""
+"""scope.llm — 模型工厂与多模态 formatter。
 
-from .factory import (
+公共入口在 :mod:`scope.llm.agent_model`；内部实现见 ``_factory.py``。
+"""
+
+from .agent_model import (
     async_get_asr_model,
     async_get_embedding_model,
     async_get_llm_model,
