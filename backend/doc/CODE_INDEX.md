@@ -179,3 +179,32 @@ core.seed ──► services.config.meta / core.permissions
 3. 在 `services/<domain>/` 增加处理文件或扩展现有文件，函数接收单个 `params` 字典。
 4. 如新增权限点，改 `core/permissions.py` 并在 `routers` 上挂 `require_permission`。
 5. 同步《参数说明.md》《接口说明.md》《CODE_INDEX.md》和《开发记录.md》。
+
+---
+
+## 八、v0.3.0 新增：菜单与 AI/邮箱配置
+
+| 文件 | 行数 | 符号 | 职责 |
+|---|---:|---|---|
+| `app/models/menu.py` | 35 | `Menu` | 可配置菜单（两级、图标、排序、权限点、可见性） |
+| `app/schemas/menu.py` | 30 | `MenuCreateIn`、`MenuUpdateIn`、`MenuReorderIn` | 菜单请求模型 |
+| `app/routers/menu.py` | 55 | `my_menus`、`list_menus`、`create_menu`、`update_menu`、`delete_menu`、`reorder_menus` | 菜单路由 |
+| `app/services/menu/query.py` | 84 | `menu_public`、`async_list_all`、`async_mine` | 菜单读取与按有效权限过滤 |
+| `app/services/menu/command.py` | 128 | `async_create_menu`、`async_update_menu`、`async_delete_menu`、`async_reorder_menus` | 菜单写操作与排序 |
+| `app/services/system/email.py` | 61 | `async_send_email` | 按 `mail.*` 配置发送邮件 |
+| `app/utils/mask.py` | 19 | `SENTINEL`、`mask_secret`、`is_sentinel` | 密钥脱敏与回写哨兵 |
+| `app/schemas/email.py` | 11 | `EmailSendIn` | 测试邮件请求体 |
+
+### 新增路由 ↔ 服务映射
+
+| 路由 | 服务 |
+|---|---|
+| `GET /menus/mine` | `menu.query.async_mine` |
+| `GET /admin/menus` | `menu.query.async_list_all` |
+| `POST /admin/menus` | `menu.command.async_create_menu` |
+| `PUT /admin/menus/{id}` | `menu.command.async_update_menu` |
+| `DELETE /admin/menus/{id}` | `menu.command.async_delete_menu` |
+| `POST /admin/menus/reorder` | `menu.command.async_reorder_menus` |
+| `POST /admin/email/test` | `system.email.async_send_email` |
+
+菜单可见性：`super_only` 先按角色过滤，再按 `permission` 与用户**有效权限**过滤；分组没有可见子菜单时整组隐藏。

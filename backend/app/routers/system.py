@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import ok, require_permission
+from app.core.deps import SuperAdmin, ok, require_permission
+from app.schemas import EmailSendIn
+from app.services.system import email as email_service
 from app.services.system import site as site_service
 from app.services.system import status as status_service
 
@@ -27,3 +29,18 @@ async def system_status(
     db: AsyncSession = Depends(get_db),
 ):
     return ok(await status_service.async_status({"session": db}))
+
+
+@router.post("/admin/email/test")
+async def send_test_email(
+    body: EmailSendIn, _: SuperAdmin, db: AsyncSession = Depends(get_db)
+):
+    data = await email_service.async_send_email(
+        {
+            "session": db,
+            "to": body.to,
+            "subject": body.subject,
+            "content": body.content,
+        }
+    )
+    return ok(data, "邮件已发送")

@@ -10,24 +10,37 @@
         </div>
       </div>
       <nav class="menu">
-        <el-tooltip
-          v-for="item in menus"
-          :key="item.path"
-          :content="item.title"
-          placement="right"
-          :disabled="!collapsed"
-        >
+        <template v-for="item in auth.menus" :key="item.key">
+          <div v-if="item.children && item.children.length" class="menu-group">
+            <div class="menu-group-title">
+              <el-icon><component :is="item.icon || 'Menu'" /></el-icon>
+              <span>{{ item.title }}</span>
+            </div>
+            <router-link
+              v-for="child in item.children"
+              :key="child.key"
+              :to="child.path"
+              class="menu-item menu-item-child"
+              :class="{ active: route.path === child.path }"
+              @click="drawerVisible = false"
+            >
+              <el-icon><component :is="child.icon || 'Menu'" /></el-icon>
+              <span>{{ child.title }}</span>
+            </router-link>
+          </div>
           <router-link
+            v-else
             :to="item.path"
             class="menu-item"
-            :class="{ active: route.path === item.path, 'menu-item-collapsed': collapsed }"
+            :class="{ active: route.path === item.path }"
+            @click="drawerVisible = false"
           >
-            <el-icon><component :is="item.icon" /></el-icon>
-            <span v-if="!collapsed">{{ item.title }}</span>
+            <el-icon><component :is="item.icon || 'Menu'" /></el-icon>
+            <span>{{ item.title }}</span>
           </router-link>
-        </el-tooltip>
+        </template>
       </nav>
-      <div v-if="!collapsed" class="sidebar-footer">v0.2.0</div>
+      <div v-if="!collapsed" class="sidebar-footer">v0.3.0</div>
     </el-aside>
 
     <!-- 移动端抽屉 -->
@@ -138,21 +151,10 @@ const roleLabel = computed(() => roleLabels[auth.user?.role] || '用户')
 const initials = computed(() => (auth.user?.nickname || auth.user?.username || 'AS').slice(0, 2))
 const avatarText = computed(() => (auth.user?.nickname || auth.user?.username || 'U').slice(0, 1))
 
-const allMenus = [
-  { path: '/dashboard', title: '工作台', icon: Grid, permission: 'dashboard' },
-  { path: '/permissions', title: '我的权限', icon: Key, permission: 'permissions.self' },
-  { path: '/team/permissions', title: '团队权限', icon: Avatar, permission: 'permissions.team' },
-  { path: '/admin/users', title: '用户管理', icon: UserFilled, permission: 'admin.users', superAdmin: true },
-  { path: '/admin/settings', title: '默认设置', icon: Setting, permission: 'admin.settings', superAdmin: true },
-  { path: '/system/status', title: '运行状态', icon: Monitor, permission: 'system.status' },
-  { path: '/profile', title: '个人中心', icon: User, permission: 'profile' }
-]
-
-const menus = computed(() =>
-  allMenus.filter((item) => {
-    if (item.superAdmin && !auth.isSuperAdmin) return false
-    return auth.isSuperAdmin || auth.hasPermission(item.permission)
-  })
+const flatMenus = computed(() =>
+  auth.menus.flatMap((item) =>
+    item.children && item.children.length ? item.children : [item]
+  )
 )
 
 function toggleCollapse() {
@@ -168,6 +170,7 @@ function onResize() {
 onMounted(() => {
   window.addEventListener('resize', onResize)
   if (!auth.user) auth.fetchMe().catch(() => {})
+  else if (!auth.menus.length) auth.fetchMenus().catch(() => {})
 })
 onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 
@@ -284,6 +287,24 @@ async function onCommand(command) {
 .menu-item-collapsed {
   justify-content: center;
   padding: 11px 0;
+}
+
+.menu-group {
+  margin-top: 6px;
+}
+
+.menu-group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 4px;
+  color: #64748b;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.menu-item-child {
+  padding-left: 30px;
 }
 
 .sidebar-footer {

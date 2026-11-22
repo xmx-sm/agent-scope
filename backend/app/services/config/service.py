@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import ApiError
 from app.models import SystemConfig
 from app.services.config.meta import CONFIG_BY_KEY
+from app.utils.mask import SENTINEL, mask_secret
 
 
 async def async_get_config(params: dict) -> Any:
@@ -44,15 +45,18 @@ async def async_list_configs(params: dict) -> list[dict[str, Any]]:
         except (ValueError, TypeError):
             value = row.value
         meta = CONFIG_BY_KEY.get(row.key, {})
+        secret = bool(meta.get("secret"))
+        display_value = mask_secret(value) if secret else value
         result.append(
             {
                 "key": row.key,
-                "value": value,
+                "value": display_value,
                 "label": row.label,
                 "description": row.description,
                 "value_type": row.value_type,
                 "group": meta.get("group", "其他"),
                 "default": meta.get("value"),
+                "secret": secret,
                 "updated_at": row.updated_at.isoformat() if row.updated_at else None,
             }
         )
@@ -71,6 +75,10 @@ async def async_update_config(params: dict) -> dict:
     if row is None:
         raise ApiError("配置项不存在", code=404)
 
+    meta = CONFIG_BY_KEY.get(key, {})
+    if meta.get("secret") and value == SENTINEL:
+        value = json.loads(row.value)
+
     expected = row.value_type
     try:
         if expected == "bool":
@@ -78,6 +86,8 @@ async def async_update_config(params: dict) -> dict:
                 raise ValueError
         elif expected == "int":
             value = int(value)
+        elif expected == "float":
+            value = float(value)
         elif expected == "string":
             if not isinstance(value, str):
                 raise ValueError
@@ -92,12 +102,16 @@ async def async_update_config(params: dict) -> dict:
     row.updated_by = operator_id
     await session.commit()
     await session.refresh(row)
+    display_value = mask_secret(value) if meta.get("secret") else value
     return {
         "key": row.key,
-        "value": value,
+        "value": display_value,
         "label": row.label,
         "description": row.description,
         "value_type": row.value_type,
+        "group": meta.get("group", "其他"),
+        "default": meta.get("value"),
+        "secret": bool(meta.get("secret")),
     }
 
 

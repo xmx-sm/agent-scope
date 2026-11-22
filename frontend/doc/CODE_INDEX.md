@@ -157,3 +157,26 @@ dist/
 ```
 
 Vite 会按路由做动态 import，页面级 chunk 分离；Element Plus 主包仍较大（gzip 约 416KB），属于当前已知优化项。
+
+---
+
+## 七、v0.3.0 新增
+
+| 文件 | 行数 | 职责 |
+|---|---:|---|
+| `src/components/MenuConfig.vue` | 310 | 菜单配置表格、新增/编辑弹窗、图标选择、上移/下移 |
+| `src/views/Layout.vue` | 380 | 改为从 `/menus/mine` 动态渲染两级菜单 |
+| `src/views/admin/Settings.vue` | 317 | 新增「菜单配置」Tab；配置支持 float 与 secret |
+| `src/stores/auth.js` | 100 | 新增 `menus` 状态与 `fetchMenus()` |
+
+### 动态菜单依赖
+
+```text
+Login/fetchMe → GET /menus/mine → auth.menus
+Layout → auth.menus（两级渲染）
+Settings → MenuConfig → /admin/menus CRUD + reorder + /admin/permissions
+```
+
+### 菜单配置字段
+
+`key / parent_key / title / path / icon / permission / super_only / sort_order / is_visible`

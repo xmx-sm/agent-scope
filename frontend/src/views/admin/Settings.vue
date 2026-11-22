@@ -17,9 +17,11 @@
               <div class="config-control">
                 <el-switch v-if="item.value_type === 'bool'" v-model="item.value" />
                 <el-input-number
-                  v-else-if="item.value_type === 'int'"
+                  v-else-if="item.value_type === 'int' || item.value_type === 'float'"
                   v-model="item.value"
                   :min="0"
+                  :step="item.value_type === 'float' ? 0.1 : 1"
+                  :precision="item.value_type === 'float' ? 2 : 0"
                   controls-position="right"
                   style="width: 150px"
                 />
@@ -31,6 +33,13 @@
                   <el-option label="普通用户" value="user" />
                   <el-option label="管理员" value="admin" />
                 </el-select>
+                <el-input
+                  v-else-if="item.secret"
+                  v-model="item.value"
+                  type="password"
+                  show-password
+                  style="width: 220px"
+                />
                 <el-input v-else v-model="item.value" style="width: 220px" />
                 <el-button type="primary" :loading="savingKey === item.key" @click="saveConfig(item)">
                   保存
@@ -90,6 +99,12 @@
           </div>
         </div>
       </el-tab-pane>
+
+      <el-tab-pane label="菜单配置" name="menus">
+        <div class="panel">
+          <MenuConfig />
+        </div>
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -98,6 +113,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import api from '../../utils/api'
+import MenuConfig from '../../components/MenuConfig.vue'
 
 const activeTab = ref('configs')
 const configs = ref([])

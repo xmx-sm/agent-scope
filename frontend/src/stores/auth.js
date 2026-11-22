@@ -15,6 +15,7 @@ export const useAuthStore = defineStore('auth', () => {
   const refreshToken = ref(localStorage.getItem('refresh_token') || '')
   const user = ref(readJSON('user', null))
   const permissions = ref(readJSON('permissions', []))
+  const menus = ref(readJSON('menus', []))
 
   const isLoggedIn = computed(() => Boolean(accessToken.value))
   const isSuperAdmin = computed(() => user.value?.role === 'super_admin')
@@ -53,7 +54,14 @@ export const useAuthStore = defineStore('auth', () => {
   async function fetchMe() {
     const data = await api.get('/auth/me')
     persistMe(data)
+    await fetchMenus()
     return data
+  }
+
+  async function fetchMenus() {
+    menus.value = await api.get('/menus/mine')
+    localStorage.setItem('menus', JSON.stringify(menus.value))
+    return menus.value
   }
 
   function hasPermission(key) {
@@ -65,10 +73,12 @@ export const useAuthStore = defineStore('auth', () => {
     refreshToken.value = ''
     user.value = null
     permissions.value = []
+    menus.value = []
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
     localStorage.removeItem('user')
     localStorage.removeItem('permissions')
+    localStorage.removeItem('menus')
   }
 
   return {
@@ -76,12 +86,14 @@ export const useAuthStore = defineStore('auth', () => {
     refreshToken,
     user,
     permissions,
+    menus,
     isLoggedIn,
     isSuperAdmin,
     isAdmin,
     login,
     register,
     fetchMe,
+    fetchMenus,
     hasPermission,
     logout
   }
