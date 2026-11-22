@@ -5,6 +5,7 @@ from app.models.menu import Menu, UserMenuPref
 from app.models.system import RolePermission, SystemConfig
 from app.models.user import (
     ToolPermissionAudit,
+    ToolPolicy,
     User,
     UserPermissionState,
     UserToolMode,
@@ -17,6 +18,7 @@ __all__ = [
     "UserToolMode",
     "UserToolPermission",
     "ToolPermissionAudit",
+    "ToolPolicy",
     "SystemConfig",
     "RolePermission",
     "Menu",

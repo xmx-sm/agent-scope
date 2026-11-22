@@ -17,3 +17,8 @@ class ToolNarrowIn(BaseModel):
     group: str
     tool: str = ""
     enabled: bool = False
+
+
+class ToolPolicyIn(BaseModel):
+    new_user_mode: str = "all"
+    items: list[ToolItemIn] = Field(default_factory=list)

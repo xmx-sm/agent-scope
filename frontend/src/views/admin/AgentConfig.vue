@@ -160,6 +160,10 @@
             </el-collapse>
           </div>
         </el-tab-pane>
+
+        <el-tab-pane label="工具默认" name="tools">
+          <ToolPolicyPanel />
+        </el-tab-pane>
       </el-tabs>
 
       <div class="save-bar">
@@ -173,6 +177,7 @@
 import { computed, defineComponent, h, onMounted, reactive, ref } from 'vue'
 import { ElInput, ElInputNumber, ElOption, ElSelect, ElSwitch, ElMessage } from 'element-plus'
 import api from '../../utils/api'
+import ToolPolicyPanel from '../../components/ToolPolicyPanel.vue'
 
 const ConfigControl = defineComponent({
   name: 'ConfigControl',

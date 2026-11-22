@@ -7,8 +7,9 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser, SuperAdmin, ok, require_permission
 from app.core.tools import TOOL_GROUPS
 from app.models import User
-from app.schemas import ToolNarrowIn, ToolSetIn
+from app.schemas import ToolNarrowIn, ToolPolicyIn, ToolSetIn
 from app.services.tools import audit as tool_audit
+from app.services.tools import policy as tool_policy
 from app.services.tools import command as tool_command
 from app.services.tools import evaluate as tool_evaluate
 from app.services.user.query import async_get_user_or_404
@@ -103,6 +104,26 @@ async def tighten_team_mode(
         {"session": db, "actor": user, "target_id": user_id}
     )
     return ok(data, "已切换为按清单授权")
+
+
+@router.get("/admin/tool-policy")
+async def get_tool_policy(_: SuperAdmin, db: AsyncSession = Depends(get_db)):
+    return ok(await tool_policy.async_get_policy({"session": db}))
+
+
+@router.get("/admin/tool-policy/defaults")
+async def get_tool_policy_defaults(_: SuperAdmin, db: AsyncSession = Depends(get_db)):
+    return ok(await tool_policy.async_defaults_view({"session": db}))
+
+
+@router.put("/admin/tool-policy")
+async def set_tool_policy(
+    body: ToolPolicyIn, _: SuperAdmin, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await tool_policy.async_set_policy({"session": db, "data": body.model_dump()}),
+        "默认工具策略已保存",
+    )
 
 
 @router.get("/admin/tool-audits")

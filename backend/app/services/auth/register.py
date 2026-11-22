@@ -9,6 +9,7 @@ from app.models import User
 from app.services.auth.rate_limit import async_rate_limit
 from app.services.auth.token import async_issue_tokens
 from app.services.config.service import async_get_config
+from app.services.tools.policy import async_apply_new_user
 from app.services.user.common import async_assert_unique, clean_optional
 
 
@@ -71,6 +72,7 @@ async def async_register(params: dict) -> dict:
     session.add(user)
     await session.commit()
     await session.refresh(user)
+    await async_apply_new_user({"session": session, "user": user})
     return {
         "user": user_public(user),
         "tokens": await async_issue_tokens({"session": session, "user": user}),

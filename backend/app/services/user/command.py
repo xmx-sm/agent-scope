@@ -7,6 +7,7 @@ from app.core.deps import ApiError, user_public
 from app.core.permissions import ROLES
 from app.core.security import hash_password
 from app.models import User
+from app.services.tools.policy import async_apply_new_user
 from app.services.user.common import async_assert_unique, clean_optional
 
 
@@ -46,6 +47,7 @@ async def async_create_user(params: dict) -> dict:
     session.add(user)
     await session.commit()
     await session.refresh(user)
+    await async_apply_new_user({"session": session, "user": user})
     return user_public(user)
 
 

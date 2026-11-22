@@ -113,3 +113,16 @@ class ToolPermissionAudit(Base):
     prev_state: Mapped[str | None] = mapped_column(Text, nullable=True)
     new_state: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class ToolPolicy(Base):
+    """新用户 AI 工具默认策略（单行，id=1）。"""
+
+    __tablename__ = "tool_policies"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    new_user_mode: Mapped[str] = mapped_column(String(20), nullable=False, default="all")
+    default_grants: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )

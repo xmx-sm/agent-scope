@@ -36,7 +36,7 @@ TOOL_GROUPS: list[dict] = [
         "label": "邮件工具",
         "description": "收发邮件、附件与搜索",
         "tools": [
-            {"name": "async_mail_tools", "label": "邮件收发", "description": "发信、收信、查找"},
+            {"name": "async_email_tools", "label": "邮件收发", "description": "发信、收信、查找"},
         ],
     },
     {
@@ -48,11 +48,22 @@ TOOL_GROUPS: list[dict] = [
         ],
     },
     {
-        "name": "system",
+        "name": "sys",
         "label": "系统工具",
         "description": "Shell 命令执行",
         "tools": [
             {"name": "async_sys_tools", "label": "Shell 命令", "description": "执行系统命令"},
+        ],
+    },
+    {
+        "name": "plan",
+        "label": "计划模式",
+        "description": "结构化任务清单：拆解、追踪与依赖管理",
+        "tools": [
+            {"name": "TaskCreate", "label": "创建任务", "description": "拆解并创建任务"},
+            {"name": "TaskGet", "label": "查看任务", "description": "查看任务详情"},
+            {"name": "TaskList", "label": "任务列表", "description": "查看任务队列与阻塞"},
+            {"name": "TaskUpdate", "label": "更新任务", "description": "更新状态与依赖"},
         ],
     },
     {
