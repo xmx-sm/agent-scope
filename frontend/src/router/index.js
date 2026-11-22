@@ -58,6 +58,12 @@ const routes = [
         meta: { title: '用户管理', permission: 'admin.users' }
       },
       {
+        path: 'admin/agent',
+        name: 'AgentConfig',
+        component: () => import('../views/admin/AgentConfig.vue'),
+        meta: { title: 'Agent 配置', permission: 'ai.config', superAdminOnly: true }
+      },
+      {
         path: 'admin/settings',
         name: 'AdminSettings',
         component: () => import('../views/admin/Settings.vue'),

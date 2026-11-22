@@ -31,7 +31,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, Monitor, Setting, UserFilled } from '@element-plus/icons-vue'
+import { ArrowRight, Cpu, Monitor, Setting, UserFilled } from '@element-plus/icons-vue'
 import api from '../utils/api'
 
 const router = useRouter()
@@ -40,6 +40,7 @@ const stats = ref(null)
 const cards = [
   { path: '/admin/users', title: '用户管理', desc: '账号、角色、汇报线与权限配置', icon: UserFilled },
   { path: '/admin/settings', title: '系统配置', desc: '默认设置、角色权限与菜单配置', icon: Setting },
+  { path: '/admin/agent', title: 'Agent 配置', desc: '大模型、Embedding 与 Scope 默认参数', icon: Cpu },
   { path: '/system/status', title: '运行信息', desc: 'CPU、内存、GPU、Redis 与网络状态', icon: Monitor }
 ]
 

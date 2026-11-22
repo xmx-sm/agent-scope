@@ -206,3 +206,22 @@ MenuPersonalize → GET /menus/catalog + GET /menus/prefs
                 → PUT /menus/prefs
                 → auth.fetchMenus() → Layout 立即更新
 ```
+
+---
+
+## 九、v0.4.0 新增
+
+| 文件 | 行数 | 职责 |
+|---|---:|---|
+| `src/views/admin/AgentConfig.vue` | 340 | Agent 配置页，对话/向量/Scope 三 Tab，厂商选择与获取模型 |
+| `src/views/admin/Settings.vue` | 350 | 只加载 `domain=system` 配置 |
+| `src/views/AdminHome.vue` | 130 | 新增 Agent 配置入口卡片 |
+
+### 依赖
+
+```text
+AgentConfig → GET /admin/configs?domain=agent
+            → GET /admin/agent/providers
+            → POST /admin/agent/models
+            → PUT /admin/configs/{key}
+```

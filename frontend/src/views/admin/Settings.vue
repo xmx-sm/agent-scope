@@ -4,7 +4,7 @@
     <p class="page-desc">默认配置与角色权限（仅超级管理员）</p>
 
     <el-tabs v-model="activeTab" class="tabs">
-      <el-tab-pane label="默认设置" name="configs">
+      <el-tab-pane label="系统设置" name="configs">
         <div v-loading="loadingConfigs">
           <div class="config-toolbar">
             <span class="muted">共 {{ configs.length }} 项，按分组折叠展示</span>
@@ -157,7 +157,7 @@ function roleTag(role) {
 async function loadConfigs() {
   loadingConfigs.value = true
   try {
-    configs.value = await api.get('/admin/configs')
+    configs.value = await api.get('/admin/configs', { params: { domain: 'system' } })
     if (!openGroups.value.length) {
       openGroups.value = ['站点', '账号']
     }

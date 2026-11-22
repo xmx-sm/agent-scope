@@ -1,5 +1,6 @@
 """请求模型统一出口。"""
 
+from app.schemas.agent import ModelFetchIn
 from app.schemas.auth import ChangePasswordIn, LoginIn, RefreshIn, RegisterIn
 from app.schemas.config import ConfigUpdateIn
 from app.schemas.email import EmailSendIn
@@ -9,6 +10,7 @@ from app.schemas.user import ProfileUpdateIn, ResetPasswordIn, UserCreateIn, Use
 
 __all__ = [
     "RegisterIn",
+    "ModelFetchIn",
     "LoginIn",
     "RefreshIn",
     "ChangePasswordIn",

@@ -5,18 +5,44 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import SuperAdmin, ok
-from app.schemas import ConfigUpdateIn
+from app.schemas import ConfigUpdateIn, ModelFetchIn
+from app.services.config import agent as agent_service
 from app.services.config import service as config_service
 
-router = APIRouter(prefix="/admin/configs", tags=["默认配置"])
+router = APIRouter(tags=["配置"])
 
 
-@router.get("")
-async def list_configs(_: SuperAdmin, db: AsyncSession = Depends(get_db)):
-    return ok(await config_service.async_list_configs({"session": db}))
+@router.get("/admin/configs")
+async def list_configs(
+    _: SuperAdmin, domain: str = "", db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await config_service.async_list_configs({"session": db, "domain": domain})
+    )
 
 
-@router.put("/{key}")
+@router.get("/admin/agent/providers")
+async def list_providers(_: SuperAdmin, db: AsyncSession = Depends(get_db)):
+    return ok(await agent_service.async_list_providers({}))
+
+
+@router.post("/admin/agent/models")
+async def fetch_models(body: ModelFetchIn, _: SuperAdmin, db: AsyncSession = Depends(get_db)):
+    return ok(
+        await agent_service.async_fetch_models(
+            {
+                "provider": body.provider,
+                "base_url": body.base_url,
+                "api_key": body.api_key,
+                "key_config": body.key_config,
+                "session": db,
+            }
+        ),
+        "模型列表已获取",
+    )
+
+
+@router.put("/admin/configs/{key}")
 async def update_config(
     key: str, body: ConfigUpdateIn, operator: SuperAdmin, db: AsyncSession = Depends(get_db)
 ):
@@ -28,7 +54,7 @@ async def update_config(
     )
 
 
-@router.post("/{key}/reset")
+@router.post("/admin/configs/{key}/reset")
 async def reset_config(key: str, operator: SuperAdmin, db: AsyncSession = Depends(get_db)):
     return ok(
         await config_service.async_reset_config(

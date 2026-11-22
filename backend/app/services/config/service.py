@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import ApiError
 from app.models import SystemConfig
-from app.services.config.meta import CONFIG_BY_KEY
+from app.services.config.meta import CONFIG_BY_KEY, config_domain
 from app.utils.mask import SENTINEL, mask_secret
 
 
@@ -33,14 +33,17 @@ async def async_get_config(params: dict) -> Any:
 
 
 async def async_list_configs(params: dict) -> list[dict[str, Any]]:
-    """参数：session"""
+    """参数：session / domain（可选：system / agent）"""
     session: AsyncSession = params["session"]
+    domain = params.get("domain") or ""
     rows = (
         await session.execute(select(SystemConfig).order_by(SystemConfig.key))
     ).scalars().all()
     result = []
     for row in rows:
         if row.key.startswith("__meta."):
+            continue
+        if domain and config_domain(row.key) != domain:
             continue
         try:
             value = json.loads(row.value)
@@ -57,6 +60,7 @@ async def async_list_configs(params: dict) -> list[dict[str, Any]]:
                 "description": row.description,
                 "value_type": row.value_type,
                 "group": meta.get("group", "其他"),
+                "domain": config_domain(row.key),
                 "default": meta.get("value"),
                 "secret": secret,
                 "updated_at": row.updated_at.isoformat() if row.updated_at else None,
@@ -112,6 +116,7 @@ async def async_update_config(params: dict) -> dict:
         "description": row.description,
         "value_type": row.value_type,
         "group": meta.get("group", "其他"),
+        "domain": config_domain(row.key),
         "default": meta.get("value"),
         "secret": bool(meta.get("secret")),
     }

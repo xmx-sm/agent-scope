@@ -208,3 +208,19 @@ core.seed ──► services.config.meta / core.permissions
 | `POST /admin/email/test` | `system.email.async_send_email` |
 
 菜单可见性：`super_only` 先按角色过滤，再按 `permission` 与用户**有效权限**过滤；分组没有可见子菜单时整组隐藏。
+
+---
+
+## 九、v0.4.0 新增
+
+| 文件 | 行数 | 符号 | 职责 |
+|---|---:|---|---|
+| `app/services/config/agent.py` | 85 | `PROVIDERS`、`async_list_providers`、`async_fetch_models` | 厂商预设与 `/models` 拉取 |
+| `app/schemas/agent.py` | 9 | `ModelFetchIn` | 获取模型请求体 |
+| `app/routers/config.py` | 70 | 配置 + Agent 子路由 | `domain` 过滤、厂商、模型拉取 |
+
+### 配置域
+
+- `domain=system`：站点/账号/安全/界面/邮箱
+- `domain=agent`：对话模型/向量模型/Scope
+- 判定函数：`services/config/meta.py::config_domain`

@@ -37,38 +37,38 @@ CONFIG_DEFINITIONS: list[dict[str, Any]] = [
     {"key": "status_refresh_seconds", "value": 10, "label": "运行状态刷新间隔（秒）",
      "type": "int", "group": "界面", "description": "系统运行状态页面自动刷新间隔"},
     # ── AI 默认配置 ──────────────────────────────────────────────
-    {"key": "ai.enabled", "value": False, "label": "启用 AI", "type": "bool", "group": "AI",
+    {"key": "ai.enabled", "value": False, "label": "启用 AI", "type": "bool", "group": "对话模型",
      "description": "AI 能力总开关（默认关闭）"},
     {"key": "ai.provider", "value": "openai-compatible", "label": "模型服务商", "type": "string",
-     "group": "AI", "description": "openai-compatible / openai / dashscope 等"},
+     "group": "对话模型", "description": "openai-compatible / openai / dashscope 等"},
     {"key": "ai.base_url", "value": "", "label": "模型 API 地址", "type": "string",
-     "group": "AI", "description": "例如 http://127.0.0.1:1234/v1"},
+     "group": "对话模型", "description": "例如 http://127.0.0.1:1234/v1"},
     {"key": "ai.model", "value": "", "label": "对话模型", "type": "string",
-     "group": "AI", "description": "模型 ID，例如 qwen3-max"},
+     "group": "对话模型", "description": "模型 ID，例如 qwen3-max"},
     {"key": "ai.api_key", "value": "", "label": "模型 API Key", "type": "string",
-     "group": "AI", "description": "保存后前端以 ****** 显示", "secret": True},
+     "group": "对话模型", "description": "保存后前端以 ****** 显示", "secret": True},
     {"key": "ai.temperature", "value": 0.7, "label": "温度", "type": "float",
-     "group": "AI", "description": "0-2，越大越发散"},
+     "group": "对话模型", "description": "0-2，越大越发散"},
     {"key": "ai.max_tokens", "value": 4096, "label": "最大输出 tokens", "type": "int",
-     "group": "AI", "description": "单次回复上限"},
+     "group": "对话模型", "description": "单次回复上限"},
     {"key": "ai.context_window", "value": 131072, "label": "上下文窗口", "type": "int",
-     "group": "AI", "description": "模型上下文 token 上限"},
+     "group": "对话模型", "description": "模型上下文 token 上限"},
     {"key": "ai.stream", "value": True, "label": "流式输出", "type": "bool",
-     "group": "AI", "description": "默认是否开启 SSE 流式"},
+     "group": "对话模型", "description": "默认是否开启 SSE 流式"},
     {"key": "ai.system_prompt", "value": "", "label": "系统提示词", "type": "string",
-     "group": "AI", "description": "默认系统提示词"},
+     "group": "对话模型", "description": "默认系统提示词"},
     {"key": "ai.embedding.provider", "value": "", "label": "Embedding 服务商", "type": "string",
-     "group": "AI", "description": "向量模型服务商"},
+     "group": "向量模型", "description": "向量模型服务商"},
     {"key": "ai.embedding.model", "value": "", "label": "Embedding 模型", "type": "string",
-     "group": "AI", "description": "向量模型 ID"},
+     "group": "向量模型", "description": "向量模型 ID"},
     {"key": "ai.embedding.base_url", "value": "", "label": "Embedding API 地址", "type": "string",
-     "group": "AI", "description": "向量模型 API 地址"},
+     "group": "向量模型", "description": "向量模型 API 地址"},
     {"key": "ai.embedding.api_key", "value": "", "label": "Embedding API Key", "type": "string",
-     "group": "AI", "description": "保存后前端以 ****** 显示", "secret": True},
+     "group": "向量模型", "description": "保存后前端以 ****** 显示", "secret": True},
     {"key": "ai.embedding.dimensions", "value": 0, "label": "Embedding 维度", "type": "int",
-     "group": "AI", "description": "0 表示由模型决定"},
+     "group": "向量模型", "description": "0 表示由模型决定"},
     {"key": "ai.embedding.batch_size", "value": 64, "label": "Embedding 批大小", "type": "int",
-     "group": "AI", "description": "单批向量化条数"},
+     "group": "向量模型", "description": "单批向量化条数"},
     # ── Scope 默认配置（与 scope/config/schema.py 同名对齐）─────────
     {"key": "agent.context.trigger_ratio", "value": 0.8, "label": "上下文压缩触发比例",
      "type": "float", "group": "Scope", "description": "scope 默认 0.8，建议 ≤0.9"},
@@ -136,3 +136,10 @@ CONFIG_DEFINITIONS: list[dict[str, Any]] = [
 ]
 
 CONFIG_BY_KEY = {item["key"]: item for item in CONFIG_DEFINITIONS}
+
+
+def config_domain(key: str) -> str:
+    """配置所属域：agent 专属 vs 系统。"""
+    if key.startswith(("ai.", "agent.", "rag.")):
+        return "agent"
+    return "system"
