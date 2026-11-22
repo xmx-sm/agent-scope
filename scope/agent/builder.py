@@ -43,6 +43,16 @@ try:
 except ImportError:
     from llm.agent_model import async_get_llm_model
 
+try:
+    from ..skills.loader import build_skills
+except ImportError:
+    from skills.loader import build_skills
+
+try:
+    from config import get as _cfg_get
+except ImportError:
+    from scope.config import get as _cfg_get
+
 from .context import build_context_bundle
 
 
@@ -81,14 +91,57 @@ def _attach_mcps(toolkit: Toolkit, clients: list) -> Toolkit:
     )
 
 
-async def _build_mcps(cfg: Any) -> Dict[str, Any]:
+def _mcp_enabled(agent_cfg: dict, data: dict, cfg: Any) -> bool:
+    raw = agent_cfg.get("mcp_enabled")
+    if raw is None:
+        raw = data.get("mcp_enabled")
+    if raw is None and isinstance(cfg, dict) and "enabled" in cfg:
+        raw = cfg.get("enabled")
+    if raw is None:
+        raw = _cfg_get("agent.mcp.enabled", True)
+    return _as_bool(raw, True)
+
+
+def _as_bool(value: Any, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        s = value.strip().lower()
+        if s in ("1", "true", "yes", "on", "y"):
+            return True
+        if s in ("0", "false", "no", "off", "n", ""):
+            return False
+    raise ValueError(f"布尔开关非法：{value!r}")
+
+
+def _attach_skills(toolkit: Toolkit, skills: list) -> Toolkit:
+    basic = toolkit.tool_groups[0]
+    groups = toolkit.tool_groups[1:]
+    return Toolkit(
+        tools=list(basic.tools),
+        skills_or_loaders=list(skills),
+        mcps=list(basic.mcps),
+        tool_groups=groups,
+    )
+
+
+async def _build_mcps(cfg: Any, enabled: bool = True) -> Dict[str, Any]:
     """把字典配置转成 MCPClient 列表；支持 True / dict / list[MCPClient]。"""
-    if cfg is None or cfg is False or cfg == "":
+    if not enabled or cfg is None or cfg is False or cfg == "":
         return _ok([])
     if isinstance(cfg, list):
         if not all(isinstance(c, MCPClient) for c in cfg):
             return _err("mcps 列表元素必须是 MCPClient", "async_get_agent")
         return _ok(list(cfg))
+    if isinstance(cfg, dict):
+        cfg = dict(cfg)
+        cfg.pop("enabled", None)
+        if "servers" in cfg and "mcpServers" not in cfg:
+            cfg = {"mcpServers": cfg.get("servers") or {}}
     try:
         from tools.mcp.client import async_mcp_client
     except ImportError as e:
@@ -145,11 +198,19 @@ async def async_get_agent(data: dict = None) -> Dict[str, Any]:
             or data.get("mcp")
             or data.get("mcps")
         )
-        mcp_r = await _build_mcps(mcp_cfg)
+        mcp_r = await _build_mcps(mcp_cfg, enabled=_mcp_enabled(agent_cfg, data, mcp_cfg))
         if mcp_r.get("code") != 200:
             return mcp_r
         mcp_clients = mcp_r.get("data") or []
         toolkit = _attach_mcps(toolkit, mcp_clients)
+
+        skills_present = agent_cfg.get("skills") is not None or data.get("skills") is not None
+        skills_r = await build_skills(data)
+        if skills_r.get("code") != 200:
+            return skills_r
+        skills = skills_r.get("data") or []
+        if skills_present or skills:
+            toolkit = _attach_skills(toolkit, skills)
 
         bundle = await build_context_bundle(data)
         context_config = bundle["context_config"] or ContextConfig()
@@ -195,6 +256,7 @@ async def async_get_agent(data: dict = None) -> Dict[str, Any]:
             "injection_config": injection_config,
             "offloader": offloader,
             "mcps": mcp_clients,
+            "skills": skills,
         }, "Agent 初始化成功")
     except (TypeError, ValueError) as e:
         return _err(str(e), fn)

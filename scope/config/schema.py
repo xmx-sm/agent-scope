@@ -161,6 +161,10 @@ AGENT: List[Item] = [
     Item("agent.offload.enabled", False, "bool", "agent", "是否启用上下文卸载"),
     Item("agent.offload.type", "local", "str", "agent", "卸载器类型（当前 local）"),
     Item("agent.offload.workdir", None, "str", "agent", "卸载工作目录（不预置）"),
+    Item("agent.mcp.enabled", True, "bool", "agent", "是否启用 MCP"),
+    Item("agent.skills.enabled", False, "bool", "agent", "是否启用 Skills"),
+    Item("agent.skills.dirs", None, "list", "agent", "Skills 目录列表（不预置）"),
+    Item("agent.skills.ignore_missing", False, "bool", "agent", "Skills 目录不存在时是否跳过"),
 ]
 
 # ── rag 域 ───────────────────────────────────────────────────────
