@@ -20,4 +20,7 @@ class UserAgentConfigIn(BaseModel):
     max_tokens: int = 4096
     context_window: int = 131072
     stream: bool = True
+    think: bool = False
+    thinking_budget: int = 0
+    reasoning_effort: str = "medium"
     system_prompt: str = ""

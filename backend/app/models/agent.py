@@ -57,6 +57,9 @@ class UserAgentConfig(Base):
     max_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=4096)
     context_window: Mapped[int] = mapped_column(Integer, nullable=False, default=131072)
     stream: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    think: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    thinking_budget: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    reasoning_effort: Mapped[str] = mapped_column(String(20), nullable=False, default="medium")
     system_prompt: Mapped[str] = mapped_column(Text, nullable=False, default="")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now

@@ -18,6 +18,9 @@ FIELDS = (
     "max_tokens",
     "context_window",
     "stream",
+    "think",
+    "thinking_budget",
+    "reasoning_effort",
     "system_prompt",
 )
 
@@ -35,6 +38,9 @@ async def async_system_defaults(session: AsyncSession) -> dict[str, Any]:
         "max_tokens": await get("ai.max_tokens", 4096),
         "context_window": await get("ai.context_window", 131072),
         "stream": await get("ai.stream", True),
+        "think": await get("ai.think", False),
+        "thinking_budget": await get("ai.thinking_budget", 0),
+        "reasoning_effort": await get("ai.reasoning_effort", "medium"),
         "system_prompt": await get("ai.system_prompt", ""),
     }
 
@@ -56,6 +62,9 @@ async def async_effective(params: dict) -> dict[str, Any]:
         "max_tokens": row.max_tokens,
         "context_window": row.context_window,
         "stream": row.stream,
+        "think": row.think,
+        "thinking_budget": row.thinking_budget,
+        "reasoning_effort": row.reasoning_effort,
         "system_prompt": row.system_prompt or system["system_prompt"],
         "source": "user",
     }
@@ -77,6 +86,9 @@ async def async_view(params: dict) -> dict[str, Any]:
         "max_tokens": row.max_tokens if row else system["max_tokens"],
         "context_window": row.context_window if row else system["context_window"],
         "stream": row.stream if row else system["stream"],
+        "think": row.think if row else system["think"],
+        "thinking_budget": row.thinking_budget if row else system["thinking_budget"],
+        "reasoning_effort": row.reasoning_effort if row else system["reasoning_effort"],
         "system_prompt": row.system_prompt if row else "",
     }
     return {
@@ -118,6 +130,9 @@ async def async_save(params: dict) -> dict[str, Any]:
         row.max_tokens = int(data.get("max_tokens", 4096) or 4096)
         row.context_window = int(data.get("context_window", 131072) or 131072)
         row.stream = bool(data.get("stream", True))
+        row.think = bool(data.get("think", False))
+        row.thinking_budget = int(data.get("thinking_budget", 0) or 0)
+        row.reasoning_effort = str(data.get("reasoning_effort") or "medium")
         row.system_prompt = str(data.get("system_prompt") or "")
     await session.commit()
     return await async_view({"session": session, "user": user})

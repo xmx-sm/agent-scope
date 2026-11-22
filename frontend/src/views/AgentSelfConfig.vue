@@ -52,6 +52,19 @@
           <el-form-item label="流式输出">
             <el-switch v-model="form.stream" />
           </el-form-item>
+          <el-form-item label="思考模式">
+            <el-switch v-model="form.think" />
+          </el-form-item>
+          <el-form-item label="思考预算 tokens">
+            <el-input-number v-model="form.thinking_budget" :min="0" :step="256" />
+          </el-form-item>
+          <el-form-item label="思考强度">
+            <el-select v-model="form.reasoning_effort" style="width: 100%">
+              <el-option label="低" value="low" />
+              <el-option label="中" value="medium" />
+              <el-option label="高" value="high" />
+            </el-select>
+          </el-form-item>
         </div>
         <el-form-item label="系统提示词">
           <el-input v-model="form.system_prompt" type="textarea" :rows="5" placeholder="留空使用系统默认提示词" />
@@ -88,6 +101,9 @@ const form = reactive({
   max_tokens: 4096,
   context_window: 131072,
   stream: true,
+  think: false,
+  thinking_budget: 0,
+  reasoning_effort: 'medium',
   system_prompt: ''
 })
 
@@ -109,6 +125,9 @@ async function load() {
       max_tokens: config.user.max_tokens ?? config.system.max_tokens ?? 4096,
       context_window: config.user.context_window ?? config.system.context_window ?? 131072,
       stream: config.user.stream ?? config.system.stream ?? true,
+      think: config.user.think ?? config.system.think ?? false,
+      thinking_budget: config.user.thinking_budget ?? config.system.thinking_budget ?? 0,
+      reasoning_effort: config.user.reasoning_effort || config.system.reasoning_effort || 'medium',
       system_prompt: config.user.system_prompt || ''
     })
     providers.value = providerList || []

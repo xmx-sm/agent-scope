@@ -51,6 +51,24 @@ async def init_db() -> None:
                     "approval_status VARCHAR(20) NOT NULL DEFAULT 'approved'"
                 )
             )
+            await conn.execute(
+                text(
+                    "ALTER TABLE user_agent_configs ADD COLUMN IF NOT EXISTS "
+                    "think BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            )
+            await conn.execute(
+                text(
+                    "ALTER TABLE user_agent_configs ADD COLUMN IF NOT EXISTS "
+                    "thinking_budget INTEGER NOT NULL DEFAULT 0"
+                )
+            )
+            await conn.execute(
+                text(
+                    "ALTER TABLE user_agent_configs ADD COLUMN IF NOT EXISTS "
+                    "reasoning_effort VARCHAR(20) NOT NULL DEFAULT 'medium'"
+                )
+            )
 
 
 async def close_db() -> None:
