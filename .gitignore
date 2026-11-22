@@ -1,0 +1,72 @@
+# ── Python ──────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── 运行时数据（密钥三不进 + 不提交生成物）──────────────────────
+# 数据库：db 工具的 SQLite、rag 的标注库
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+# mail 工具附件落盘（async_email_tools 的 attachment_dir 缺省值）
+email_attachments/
+
+# agentscope workspace / 上下文卸载目录（Offloader、LocalWorkspace 默认落点）
+workspaces/
+
+# rag 向量库数据目录（各家后端的默认 base_dir）
+agent_dev/
+zvec_db/
+chroma_db/
+qdrant_db/
+faiss_db/
+milvus_db/
+rag_db/
+
+# MCP 配置文件：可能含 Authorization Bearer token 等凭证，
+# 一律不入库；模板见 scope/tools/mcp/mcp_servers.example.json
+scope/tools/mcp/mcp_servers.json
+
+# 本机环境变量（模板用 .env.example 入库）
+.env
+.env.*
+!.env.example
+
+# 下载/抓取的落盘产物（net download、crawl screenshot）
+*.download
+screenshots/
+crawl_downloads/
+
+# ── IDE ─────────────────────────────────────────────────────────
+.idea/
+.vscode/
+.qoder/
+*.swp
+*.swo
+
+# ── Node（将来加 platform 时生效）───────────────────────────────
+node_modules/
+dist/
+.npm
+.npmrc
+
+# ── OS / 日志 / 临时 ────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log
+logs/
+Temp/
+tmp/
+*.tmp
+backups/

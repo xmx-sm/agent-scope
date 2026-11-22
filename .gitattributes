@@ -1,0 +1,40 @@
+# 文本统一 LF 入库，避免各机器 core.autocrlf 差异造成整文件行尾 diff
+* text=auto
+
+# shell 脚本恒 LF（Linux 侧执行；老项目踩过 bat 被重写成 LF 后双击即崩的事故，
+# 见 agent_study/.gitattributes 注释。本项目暂无 bat，规则留着以防将来跨平台）
+*.sh text eol=lf
+*.bash text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Python / Markdown / JSON 按文本，参与 diff
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+
+# 二进制：别让 git 试图 diff 或改行尾
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.pdf binary
+*.so binary
+*.pyc binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+*.gz binary
+*.zip binary
+*.mp3 binary
+*.wav binary
+*.mp4 binary
+
+# 文档与源码不参与"换行符空白噪音"
+*.md text diff=utf8
+*.py text diff=python

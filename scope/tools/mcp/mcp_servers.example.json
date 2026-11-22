@@ -1,0 +1,29 @@
+{
+  "_comment": "复制为 mcp_servers.json 后填写。mcp_servers.json 已列入 .gitignore（可能含 Authorization token），不要入库。字段含义见 scope/tools/mcp/client.py 的 async_mcp_client docstring 与 _config.py 的 build_client。",
+
+  "mcpServers": {
+    "filesystem": {
+      "_comment": "stdio 传输：有 command 无 url 即自动识别为 stdio，type 可省略",
+      "type": "stdio",
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-filesystem", "/tmp"],
+      "env": {},
+      "cwd": "",
+      "is_stateful": true,
+      "enable_tools": [],
+      "disable_tools": [],
+      "execution_timeout": 60
+    },
+
+    "weather": {
+      "_comment": "http 传输：有 url 即自动识别；is_stateful 省略时默认 false（无状态）",
+      "type": "http",
+      "url": "https://example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer <在此填 token，勿提交真实值>"
+      },
+      "timeout": 30,
+      "is_stateful": false
+    }
+  }
+}
