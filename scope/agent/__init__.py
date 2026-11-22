@@ -10,6 +10,7 @@
 """
 
 from .delegate import (
+    async_cancel_subagent_task,
     async_delegate_tool,
     async_get_subagent_task,
     async_list_subagent_tasks,
@@ -17,9 +18,11 @@ from .delegate import (
     async_start_subagent_task,
     register_delegate_tool,
 )
+from .runtime import AgentRuntime
 from .subagents import async_get_subagents, normalize_tools, resolve_tools
 
 __all__ = [
+    "AgentRuntime",
     "async_get_subagents",
     "resolve_tools",
     "normalize_tools",
@@ -29,4 +32,5 @@ __all__ = [
     "async_start_subagent_task",
     "async_get_subagent_task",
     "async_list_subagent_tasks",
+    "async_cancel_subagent_task",
 ]

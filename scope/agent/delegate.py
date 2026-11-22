@@ -123,24 +123,19 @@ async def _run_reply_loop(
     tool_group_map: Dict[str, str] | None = None,
     approval_policy: Dict[str, str] | None = None,
     approval_handler: Any = None,
+    cancel_event: Any = None,
 ) -> Any:
-    """驱动子 agent 完整跑一轮，处理外部执行与确认事件。
-
-    审批策略：
-        tool_approval = {
-            "rag": "ask",              # 组级
-            "async_sys_tools": "deny", # 工具级覆盖组级
-            "default": "allow",
-        }
-    未配置时默认 allow，保持原有自动确认行为；ask 且没有 approval_handler
-    时按 fail-closed 拒绝。
-    """
+    """驱动子 agent 完整跑一轮，处理外部执行与确认事件。"""
     final = None
     policy = approval_policy or {}
     group_map = tool_group_map or {}
     while True:
+        if cancel_event is not None and cancel_event.is_set():
+            raise asyncio.CancelledError("subagent cancelled")
         pending_results, pending_confirms, reply_id = [], [], None
         async for evt in agent.reply_stream(inputs=inputs, yield_final_msg=True):
+            if cancel_event is not None and cancel_event.is_set():
+                raise asyncio.CancelledError("subagent cancelled")
             if isinstance(evt, Msg):
                 final = evt
             elif isinstance(evt, RequireExternalExecutionEvent):
@@ -418,6 +413,7 @@ async def async_run_subagent(data: dict = None) -> Dict[str, Any]:
             tool_group_map=group_map,
             approval_policy=approval_policy,
             approval_handler=approval_handler,
+            cancel_event=data.get("cancel_event"),
         )
         reply = _reply_text(final)
         out: Dict[str, Any] = {
@@ -473,6 +469,10 @@ async def _task_runner(task_id: str, run_data: dict) -> None:
         entry["status"] = "done" if result.get("code") == 200 else "failed"
         if result.get("code") != 200:
             entry["error"] = result.get("message")
+    except asyncio.CancelledError:
+        entry["status"] = "cancelled"
+        entry["error"] = "任务已取消"
+        raise
     except Exception as e:
         entry["status"] = "failed"
         entry["error"] = f"{type(e).__name__}: {e}"
@@ -527,6 +527,25 @@ def async_list_subagent_tasks(limit: int = 50, owner: str = None) -> Dict[str, A
     entries = [e for e in _TASKS.values() if _visible(e, owner)]
     entries.sort(key=lambda e: e.get("created_at") or "", reverse=True)
     return _ok([_public(e) for e in entries[:max(1, int(limit))]], "ok")
+
+
+async def async_cancel_subagent_task(task_id: str, owner: str = None) -> Dict[str, Any]:
+    """取消后台子智能体任务。"""
+    fn = "async_cancel_subagent_task"
+    _prune_tasks()
+    entry = _TASKS.get(str(task_id or ""))
+    if entry is None or not _visible(entry, owner):
+        return _err(f"任务不存在: {task_id}", fn)
+    if entry.get("status") in ("done", "failed", "cancelled"):
+        return _ok(_public(entry), "任务已结束，无需取消")
+    task = entry.get("_asyncio_task")
+    if task is not None and not task.done():
+        _TASKS.get(str(task_id), {})["status"] = "cancelling"
+        task.cancel()
+        return _ok(_public(_TASKS[str(task_id)]), "取消请求已发送")
+    entry["status"] = "cancelled"
+    entry["finished_at"] = datetime.now(timezone.utc).isoformat()
+    return _ok(_public(entry), "任务已取消")
 
 
 async def async_delegate_tool(data: dict = None) -> Dict[str, Any]:
@@ -621,6 +640,13 @@ async def register_delegate_tool(
         await toolkit.add_tool(FunctionTool(
             _task_status, name="subagent_task_status", is_read_only=True))
 
+        async def _task_cancel(task_id: str) -> dict:
+            """取消后台子智能体任务。"""
+            return await async_cancel_subagent_task(task_id, owner=owner)
+
+        await toolkit.add_tool(FunctionTool(
+            _task_cancel, name="subagent_task_cancel", is_read_only=False))
+
 
 __all__ = [
     "async_run_subagent",
@@ -629,4 +655,5 @@ __all__ = [
     "async_start_subagent_task",
     "async_get_subagent_task",
     "async_list_subagent_tasks",
+    "async_cancel_subagent_task",
 ]
