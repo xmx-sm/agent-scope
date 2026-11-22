@@ -31,6 +31,7 @@ from app.services.access.security.db_policy import (
     async_get_db_policy,
     sanitize_model_db_config,
 )
+from app.services.access.security.guard import _redact_obj
 from app.services.access.security.identity import merge_identity
 from app.services.access.tools.evaluate import async_tool_view
 from app.services.access.tools.tool_config import async_effective as async_tool_config
@@ -43,7 +44,12 @@ def _scope_tool(fn: Callable[..., Awaitable[Any]], name: str, description: str,
     """
     async def call(**kwargs):
         """包装 scope 工具并注入服务端身份。"""
-        return await fn(merge_identity({"identity": {"user_id": user_id, "_actor_kind": "ai"}, "params": kwargs}))
+        result = await fn(
+            merge_identity(
+                {"identity": {"user_id": user_id, "_actor_kind": "ai"}, "params": kwargs}
+            )
+        )
+        return _redact_obj(result)
 
     schema = {
         "type": "object",

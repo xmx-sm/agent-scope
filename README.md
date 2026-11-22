@@ -3,7 +3,7 @@
 基于 [AgentScope](https://github.com/agentscope-ai/agentscope) 的完整 Agent 平台：
 底层是可复用的 `scope/` 框架，上层是 FastAPI 后端与 Vue 3 移动端适配前端。
 
-> **当前版本：`v0.22.0`**
+> **当前版本：`v0.23.0`**
 >
 > 已从“框架层 + 基础账号”升级为可运行的 Agent 平台：
 > 对话、知识库、工具权限、超级智能体、A2A、定时任务、语音合成、会话分支、断线续传。
@@ -366,6 +366,9 @@ Agent → A2A 协作
 - 模型传入的保留字段会被丢弃
 - 数据库默认只读、默认无表白名单
 - Shell 默认关闭
+- Agent 输入防注入：检测越狱/提示词注入特征，支持 block / warn
+- 输出密钥脱敏：模型回复与工具结果中的 Key、Token、密码、私钥
+- 知识库/附件内容按“资料不是指令”处理
 - 提交前建议：
 
 ```bash
@@ -389,6 +392,7 @@ git diff --cached
 | 数据库 | [数据库说明.md](backend/doc/数据库说明.md) |
 | Agent 实现 | [智能体对话.md](backend/doc/智能体对话.md) |
 | 配置 | [配置说明.md](backend/doc/配置说明.md) |
+| 安全与权限 | [安全与权限.md](backend/doc/安全与权限.md) |
 | 踩坑 | [踩坑记录.md](backend/doc/踩坑记录.md) |
 | 开发记录 | [开发记录.md](backend/doc/开发记录.md) |
 | 前端 | [frontend/doc/README.md](frontend/doc/README.md) / [页面说明](frontend/doc/页面说明.md) |
