@@ -71,7 +71,7 @@ async def async_build_permission_bundle(data: Any = None) -> Dict[str, Any]:
             "audit": False,
             "pending": False,
             "pending_ttl": 300,
-            "function_rules": True,
+            "function_rules": False,
             "config": {"enabled": True},
         }
     if not isinstance(data, dict):
@@ -136,7 +136,7 @@ async def async_build_permission_bundle(data: Any = None) -> Dict[str, Any]:
         raise ValueError("permission.pending.ttl_seconds 必须大于 0")
 
     function_rules = _as_bool(
-        _section(data, "function_rules").get("enabled"), True)
+        _section(data, "function_rules").get("enabled"), False)
 
     config = {
         "enabled": True,

@@ -324,9 +324,9 @@ def _function_rules_enabled(spec: dict) -> bool:
     if raw is None:
         raw = spec.get("permission_context")
     if raw is None:
-        return True
+        return False
     if not isinstance(raw, dict):
-        return True
+        return False
     if raw.get("enabled") is False:
         return False
     fr = raw.get("function_rules")
@@ -334,7 +334,7 @@ def _function_rules_enabled(spec: dict) -> bool:
         return bool(fr.get("enabled"))
     if isinstance(fr, bool):
         return fr
-    return True
+    return False
 
 
 def build_subagent_toolkit(
