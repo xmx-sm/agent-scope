@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
-from app.routers import auth, config, menu, permissions, system, user
+from app.routers import auth, config, menu, permissions, system, tools, user
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, close_db, init_db
 from app.core.deps import ApiError
@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
     await close_db()
 
 
-app = FastAPI(title=settings.app_name, version="0.4.1", lifespan=lifespan)
+app = FastAPI(title=settings.app_name, version="0.5.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -95,5 +95,6 @@ for router in (
     config.router,
     menu.router,
     permissions.router,
+    tools.router,
 ):
     app.include_router(router, prefix=settings.api_prefix)

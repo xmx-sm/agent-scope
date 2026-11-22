@@ -6,6 +6,7 @@ from app.schemas.config import ConfigUpdateIn
 from app.schemas.email import EmailSendIn
 from app.schemas.menu import MenuCreateIn, MenuPrefIn, MenuReorderIn, MenuUpdateIn
 from app.schemas.permission import PermissionUpdateIn, TempGrantIn, UserPermissionUpdateIn
+from app.schemas.tool import ToolItemIn, ToolNarrowIn, ToolSetIn
 from app.schemas.user import ProfileUpdateIn, ResetPasswordIn, UserCreateIn, UserUpdateIn
 
 __all__ = [
@@ -27,4 +28,7 @@ __all__ = [
     "PermissionUpdateIn",
     "TempGrantIn",
     "UserPermissionUpdateIn",
+    "ToolItemIn",
+    "ToolSetIn",
+    "ToolNarrowIn",
 ]

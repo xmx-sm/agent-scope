@@ -41,8 +41,35 @@
         </div>
       </div>
 
+      <div v-if="toolView" class="panel">
+        <h3 class="card-title">AI 工具权限</h3>
+        <p class="muted">默认全部工具可用；可以自行关闭，恢复需要上级或超管操作。</p>
+        <div v-for="group in toolView.groups" :key="group.name" class="tool-group">
+          <div class="tool-group-head">
+            <b>{{ group.label }}</b>
+            <span class="muted">{{ group.tools.filter((t) => t.enabled).length }}/{{ group.tools.length }}</span>
+          </div>
+          <div class="tool-list">
+            <div v-for="tool in group.tools" :key="tool.name" class="tool-item">
+              <span>
+                {{ tool.label }}
+                <span class="muted tool-desc">{{ tool.description }}</span>
+              </span>
+              <div class="tool-actions">
+                <el-tag v-if="!tool.granted" size="small" type="info" effect="plain">未授权</el-tag>
+                <el-switch
+                  :model-value="tool.enabled"
+                  :disabled="!tool.granted || toolSavingKey === `${group.name}:${tool.name}`"
+                  @change="(checked) => toggleTool(group, tool, checked)"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="panel">
-        <h3 class="card-title">收缩自己的权限</h3>
+        <h3 class="card-title">收缩自己的页面权限</h3>
         <p class="muted">勾选后保存，这些权限会从你的账号中移除；收缩操作不可自行恢复。</p>
         <div v-if="detail.shrinkable?.length" class="shrink-box">
           <el-checkbox-group v-model="selected">
@@ -72,6 +99,8 @@ const loading = ref(false)
 const saving = ref(false)
 const selected = ref([])
 const detail = ref({ effective: [], shrunk: [], temp_grants: [], shrinkable: [], catalog: [] })
+const toolView = ref(null)
+const toolSavingKey = ref('')
 
 const roleLabels = { super_admin: '超级管理员', admin: '管理员', user: '普通用户' }
 function roleLabel(role) {
@@ -87,12 +116,33 @@ function formatTime(value) {
 async function load() {
   loading.value = true
   try {
-    detail.value = await api.get('/permissions/mine')
+    const [pageDetail, tools] = await Promise.all([
+      api.get('/permissions/mine'),
+      api.get('/tools/mine')
+    ])
+    detail.value = pageDetail
+    toolView.value = tools
     selected.value = []
   } catch {
     /* ignore */
   } finally {
     loading.value = false
+  }
+}
+
+async function toggleTool(group, tool, checked) {
+  toolSavingKey.value = `${group.name}:${tool.name}`
+  try {
+    toolView.value = await api.post('/tools/mine/narrow', {
+      group: group.name,
+      tool: tool.name,
+      enabled: checked
+    })
+    ElMessage.success(checked ? '已恢复该工具' : '已关闭该工具')
+  } catch {
+    /* ignore */
+  } finally {
+    toolSavingKey.value = ''
   }
 }
 
@@ -156,6 +206,44 @@ onMounted(load)
 .card-title {
   margin: 0 0 12px;
   font-size: 15px;
+}
+
+.tool-group {
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.tool-group-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tool-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13.5px;
+}
+
+.tool-desc {
+  font-size: 11.5px;
+  margin-left: 6px;
+}
+
+.tool-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .shrink-box {

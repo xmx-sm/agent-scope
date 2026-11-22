@@ -46,7 +46,7 @@
         <el-table-column label="操作" width="290" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-            <el-button v-if="row.role !== 'super_admin'" link type="success" @click="openPermission(row)">权限</el-button>
+            <el-button v-if="row.role !== 'super_admin'" link type="success" @click="openPermission(row)">AI 工具</el-button>
             <el-button link type="warning" @click="openReset(row)">重置密码</el-button>
             <el-button link type="danger" @click="removeUser(row)">删除</el-button>
           </template>
@@ -74,7 +74,7 @@
           </div>
           <div class="uc-actions">
             <el-button size="small" @click="openEdit(row)">编辑</el-button>
-            <el-button v-if="row.role !== 'super_admin'" size="small" type="success" plain @click="openPermission(row)">权限</el-button>
+            <el-button v-if="row.role !== 'super_admin'" size="small" type="success" plain @click="openPermission(row)">AI 工具</el-button>
             <el-button size="small" type="warning" plain @click="openReset(row)">重置密码</el-button>
             <el-button size="small" type="danger" plain @click="removeUser(row)">删除</el-button>
           </div>
@@ -138,60 +138,60 @@
       </template>
     </el-dialog>
 
-    <!-- 权限配置 -->
-    <el-dialog v-model="permissionVisible" title="用户权限配置" :width="isMobile ? '94%' : '640px'">
-      <div v-if="permissionDetail" class="perm-dialog">
+    <!-- AI 工具权限 -->
+    <el-dialog v-model="permissionVisible" title="AI 工具权限" :width="isMobile ? '94%' : '680px'">
+      <div v-if="toolDetail" class="perm-dialog">
         <div class="perm-user">
           <b>{{ permissionTarget?.nickname }}</b>
-          <span class="muted">@{{ permissionTarget?.username }} · {{ roleLabel(permissionTarget?.role) }}</span>
+          <span class="muted">@{{ permissionTarget?.username }} · 默认全部 AI 工具可用</span>
         </div>
-        <div class="perm-section">
-          <div class="perm-section-title">当前有效权限</div>
-          <div class="chip-list">
-            <el-tag v-for="key in permissionDetail.effective" :key="key" size="small" type="success" effect="light">
-              {{ permName(key) }}
-            </el-tag>
+
+        <el-radio-group v-model="toolMode" class="mode-switch">
+          <el-radio-button value="all">全部工具（默认）</el-radio-button>
+          <el-radio-button value="custom">单独授权</el-radio-button>
+        </el-radio-group>
+        <p class="muted mode-desc">
+          {{ toolMode === 'all'
+            ? '该用户默认拥有全部 AI 工具。需要收窄时切换到「单独授权」，只勾选允许的工具。'
+            : '仅勾选的工具/工具组对用户可用；未勾选即无权限。' }}
+        </p>
+
+        <div class="tool-groups">
+          <div v-for="group in toolDetail.groups" :key="group.name" class="tool-group">
+            <div class="tool-group-head">
+              <el-checkbox
+                v-if="toolMode === 'custom'"
+                :model-value="isGroupSelected(group)"
+                @change="(checked) => toggleGroup(group, checked)"
+              >
+                <b>{{ group.label }}</b>
+              </el-checkbox>
+              <b v-else>{{ group.label }}</b>
+              <span class="muted">{{ enabledCount(group) }}/{{ group.tools.length }}</span>
+            </div>
+            <div class="muted group-desc">{{ group.description }}</div>
+            <div class="tool-list">
+              <div v-for="tool in group.tools" :key="tool.name" class="tool-item">
+                <el-checkbox
+                  :model-value="isToolSelected(group, tool)"
+                  :disabled="toolMode !== 'custom'"
+                  @change="(checked) => toggleTool(group, tool, checked)"
+                >
+                  {{ tool.label }}
+                  <span class="muted tool-desc">{{ tool.description }}</span>
+                </el-checkbox>
+                <el-tag v-if="!tool.enabled" size="small" type="warning" effect="plain">
+                  已被收窄
+                </el-tag>
+              </div>
+            </div>
           </div>
-        </div>
-
-        <div class="perm-section">
-          <div class="perm-section-title">单独授权（叠加在角色权限之上）</div>
-          <el-checkbox-group v-model="grantedSel" class="perm-checks">
-            <el-checkbox v-for="item in assignablePerms" :key="item.key" :value="item.key" :label="item.key">
-              {{ item.name }}
-            </el-checkbox>
-          </el-checkbox-group>
-        </div>
-
-        <div class="perm-section">
-          <div class="perm-section-title">收缩权限（只增不减）</div>
-          <el-checkbox-group v-model="shrunkSel" class="perm-checks">
-            <el-checkbox v-for="item in assignablePerms" :key="item.key" :value="item.key" :label="item.key">
-              {{ item.name }}
-            </el-checkbox>
-          </el-checkbox-group>
-        </div>
-
-        <div class="perm-section">
-          <div class="perm-section-title">临时越级授权</div>
-          <div v-for="(item, index) in tempList" :key="index" class="temp-row">
-            <el-select v-model="item.permission" placeholder="选择权限" style="flex: 1">
-              <el-option v-for="perm in permissionCatalog" :key="perm.key" :label="perm.name" :value="perm.key" />
-            </el-select>
-            <el-date-picker
-              v-model="item.expires_at"
-              type="datetime"
-              placeholder="过期时间"
-              style="flex: 1"
-            />
-            <el-button text type="danger" @click="tempList.splice(index, 1)">移除</el-button>
-          </div>
-          <el-button size="small" plain @click="addTemp">+ 添加临时授权</el-button>
         </div>
       </div>
       <template #footer>
+        <el-button @click="resetTools" :loading="permResetting">恢复全部工具</el-button>
         <el-button @click="permissionVisible = false">取消</el-button>
-        <el-button type="primary" :loading="permSaving" @click="savePermissions">保存权限</el-button>
+        <el-button type="primary" :loading="permSaving" @click="savePermissions">保存</el-button>
       </template>
     </el-dialog>
 
@@ -241,21 +241,17 @@ const form = reactive(emptyForm())
 
 const permissionVisible = ref(false)
 const permissionTarget = ref(null)
-const permissionDetail = ref(null)
-const grantedSel = ref([])
-const shrunkSel = ref([])
-const tempList = ref([])
+const toolDetail = ref(null)
+const toolMode = ref('all')
+const selectedTools = ref(new Set())
 const permSaving = ref(false)
+const permResetting = ref(false)
 
 const resetVisible = ref(false)
 const resetTarget = ref(null)
 const resetPassword = ref('')
 const resetting = ref(false)
 
-const permissionCatalog = computed(() => permissionDetail.value?.catalog || [])
-const assignablePerms = computed(() =>
-  permissionCatalog.value.filter((item) => !item.super_only)
-)
 const leaderList = ref([])
 const leaderOptions = computed(() =>
   leaderList.value.filter((u) => !editing.value || u.id !== form.id)
@@ -373,53 +369,125 @@ async function save() {
   }
 }
 
-function permName(key) {
-  return permissionDetail.value?.catalog?.find((item) => item.key === key)?.name || key
+function toolKey(group, tool = '') {
+  return `${group}|${tool}`
+}
+
+function isGroupSelected(group) {
+  return selectedTools.value.has(toolKey(group.name))
+}
+
+function isToolSelected(group, tool) {
+  return (
+    selectedTools.value.has(toolKey(group.name)) ||
+    selectedTools.value.has(toolKey(group.name, tool.name))
+  )
+}
+
+function enabledCount(group) {
+  return group.tools.filter((tool) => tool.enabled).length
+}
+
+function toggleGroup(group, checked) {
+  const next = new Set(selectedTools.value)
+  next.delete(toolKey(group.name))
+  for (const tool of group.tools) next.delete(toolKey(group.name, tool.name))
+  if (checked) next.add(toolKey(group.name))
+  selectedTools.value = next
+}
+
+function toggleTool(group, tool, checked) {
+  const next = new Set(selectedTools.value)
+  if (next.has(toolKey(group.name))) {
+    next.delete(toolKey(group.name))
+    for (const item of group.tools) next.add(toolKey(group.name, item.name))
+  }
+  if (checked) next.add(toolKey(group.name, tool.name))
+  else next.delete(toolKey(group.name, tool.name))
+  selectedTools.value = next
+}
+
+function selectAllTools() {
+  const next = new Set()
+  for (const group of toolDetail.value?.groups || []) {
+    next.add(toolKey(group.name))
+  }
+  selectedTools.value = next
+}
+
+function readToolSelection(data) {
+  const next = new Set()
+  for (const group of data.groups || []) {
+    if (group.granted) {
+      next.add(toolKey(group.name))
+      continue
+    }
+    for (const tool of group.tools || []) {
+      if (tool.granted) next.add(toolKey(group.name, tool.name))
+    }
+  }
+  selectedTools.value = next
 }
 
 async function openPermission(row) {
   permissionTarget.value = row
   permissionVisible.value = true
-  permissionDetail.value = null
+  toolDetail.value = null
   try {
-    const data = await api.get(`/admin/users/${row.id}/permissions`)
-    permissionDetail.value = data
-    grantedSel.value = [...(data.granted || [])]
-    shrunkSel.value = [...(data.shrunk || [])]
-    tempList.value = (data.temp_grants || []).map((item) => ({
-      permission: item.permission,
-      expires_at: new Date(item.expires_at)
-    }))
+    const data = await api.get(`/admin/users/${row.id}/tools`)
+    toolDetail.value = data
+    toolMode.value = data.mode || 'all'
+    if (toolMode.value === 'all') selectAllTools()
+    else readToolSelection(data)
   } catch {
     permissionVisible.value = false
   }
 }
 
-function addTemp() {
-  const now = new Date(Date.now() + 24 * 3600 * 1000)
-  tempList.value.push({ permission: '', expires_at: now })
-}
-
 async function savePermissions() {
-  const temps = tempList.value
-    .filter((item) => item.permission && item.expires_at)
-    .map((item) => ({
-      permission: item.permission,
-      expires_at: new Date(item.expires_at).toISOString()
-    }))
+  if (toolMode.value === 'custom' && !selectedTools.value.size) {
+    ElMessage.warning('请至少选择一个工具或工具组')
+    return
+  }
+  const items = []
+  if (toolMode.value === 'custom') {
+    for (const group of toolDetail.value.groups) {
+      if (selectedTools.value.has(toolKey(group.name))) {
+        items.push({ group: group.name, tool: '' })
+        continue
+      }
+      for (const tool of group.tools) {
+        if (selectedTools.value.has(toolKey(group.name, tool.name))) {
+          items.push({ group: group.name, tool: tool.name })
+        }
+      }
+    }
+  }
   permSaving.value = true
   try {
-    await api.put(`/admin/users/${permissionTarget.value.id}/permissions`, {
-      granted: grantedSel.value,
-      shrunk: shrunkSel.value,
-      temp_grants: temps
+    await api.put(`/admin/users/${permissionTarget.value.id}/tools`, {
+      mode: toolMode.value,
+      items
     })
-    ElMessage.success('权限已保存')
+    ElMessage.success('AI 工具权限已保存')
     permissionVisible.value = false
   } catch {
     /* ignore */
   } finally {
     permSaving.value = false
+  }
+}
+
+async function resetTools() {
+  permResetting.value = true
+  try {
+    await api.post(`/admin/users/${permissionTarget.value.id}/tools/reset`)
+    ElMessage.success('已恢复全部工具')
+    permissionVisible.value = false
+  } catch {
+    /* ignore */
+  } finally {
+    permResetting.value = false
   }
 }
 
@@ -574,6 +642,60 @@ onMounted(() => {
   align-items: center;
 }
 
+.mode-switch {
+  margin-bottom: 6px;
+}
+
+.mode-desc {
+  margin: 0 0 14px;
+  font-size: 12.5px;
+}
+
+.tool-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.tool-group {
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.tool-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.group-desc {
+  font-size: 12px;
+  margin: 2px 0 8px;
+}
+
+.tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tool-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tool-desc {
+  font-size: 11px;
+  margin-left: 6px;
+}
+
 .pager {
   margin-top: 16px;
   display: flex;
@@ -623,6 +745,60 @@ onMounted(() => {
   gap: 8px;
   margin-bottom: 8px;
   align-items: center;
+}
+
+.mode-switch {
+  margin-bottom: 6px;
+}
+
+.mode-desc {
+  margin: 0 0 14px;
+  font-size: 12.5px;
+}
+
+.tool-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.tool-group {
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.tool-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.group-desc {
+  font-size: 12px;
+  margin: 2px 0 8px;
+}
+
+.tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tool-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tool-desc {
+  font-size: 11px;
+  margin-left: 6px;
 }
 
 .pager {

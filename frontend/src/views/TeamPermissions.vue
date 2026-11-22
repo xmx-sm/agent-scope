@@ -1,7 +1,7 @@
 <template>
   <div class="page">
-    <h2 class="page-title">团队权限</h2>
-    <p class="page-desc">你可以收缩自己管理链上全部下属的权限；收缩不可由下属自行恢复</p>
+    <h2 class="page-title">管理下级</h2>
+    <p class="page-desc">AI 工具权限：上级只能在超管授予的范围内收窄，不能给下级新增工具</p>
 
     <div class="panel" v-loading="loading">
       <div v-for="member in members" :key="member.id" class="member-card">
@@ -14,47 +14,50 @@
             </div>
             <div class="member-tags">
               <el-tag size="small" effect="plain">{{ roleLabel(member.role) }}</el-tag>
-              <el-tag v-if="!member.is_active" size="small" type="info">已禁用</el-tag>
-              <el-tag v-for="temp in member.temp_grants" :key="temp.permission" size="small" type="warning" effect="plain">
-                临时：{{ nameOf(temp.permission) }}
+              <el-tag size="small" :type="member.mode === 'all' ? 'success' : 'warning'" effect="light">
+                {{ member.mode === 'all' ? '全部工具' : '按清单授权' }}
               </el-tag>
+              <span class="muted">{{ member.enabled_count }}/{{ member.total_count }} 个工具可用</span>
             </div>
           </div>
-          <el-button
-            type="danger"
-            plain
-            size="small"
-            :disabled="!member.shrinkable.length"
-            @click="openShrink(member)"
-          >
-            收缩权限
-          </el-button>
-        </div>
-        <div class="chip-list">
-          <el-tag v-for="key in member.permissions" :key="key" size="small" type="success" effect="light">
-            {{ nameOf(key) }}
-          </el-tag>
-          <span v-if="!member.permissions.length" class="muted">暂无有效权限</span>
+          <el-button type="danger" plain size="small" @click="openAdjust(member)">收窄工具</el-button>
         </div>
       </div>
       <el-empty v-if="!members.length && !loading" description="暂无下属成员" />
     </div>
 
-    <el-dialog v-model="dialogVisible" title="收缩下属权限" :width="isMobile ? '92%' : '480px'">
-      <p class="muted">
-        正在调整：<b>{{ target?.nickname }}</b>。勾选要移除的权限，保存后立即生效。
-      </p>
-      <el-checkbox-group v-model="selected" class="shrink-list">
-        <el-checkbox v-for="key in target?.shrinkable || []" :key="key" :value="key" :label="key">
-          {{ nameOf(key) }}
-        </el-checkbox>
-      </el-checkbox-group>
-      <el-empty v-if="!target?.shrinkable?.length" description="没有可收缩的权限" :image-size="60" />
+    <el-dialog v-model="dialogVisible" title="收窄下级 AI 工具" :width="isMobile ? '94%' : '620px'">
+      <div v-if="target" class="adjust-body">
+        <p class="muted">
+          正在调整：<b>{{ target.nickname }}</b>。关闭后该工具对下级立即不可用；重新打开只能恢复到超管授权范围。
+        </p>
+        <div v-for="group in target.groups" :key="group.name" class="tool-group">
+          <div class="tool-group-head">
+            <b>{{ group.label }}</b>
+            <span class="muted">
+              {{ group.tools.filter((t) => t.enabled).length }}/{{ group.tools.length }}
+            </span>
+          </div>
+          <div class="tool-list">
+            <div v-for="tool in group.tools" :key="tool.name" class="tool-item">
+              <div>
+                <div class="tool-name">{{ tool.label }}</div>
+                <div class="muted tool-desc">{{ tool.description }}</div>
+              </div>
+              <div class="tool-actions">
+                <el-tag v-if="!tool.granted" size="small" type="info" effect="plain">未授权</el-tag>
+                <el-switch
+                  :model-value="tool.enabled"
+                  :disabled="!tool.granted || savingKey === `${group.name}:${tool.name}`"
+                  @change="(checked) => toggleTool(group, tool, checked)"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="danger" :disabled="!selected.length" :loading="saving" @click="shrink">
-          确定收缩
-        </el-button>
+        <el-button @click="dialogVisible = false">关闭</el-button>
       </template>
     </el-dialog>
   </div>
@@ -67,27 +70,20 @@ import api from '../utils/api'
 
 const isMobile = ref(window.innerWidth < 768)
 const loading = ref(false)
-const saving = ref(false)
 const members = ref([])
-const catalog = ref([])
 const dialogVisible = ref(false)
 const target = ref(null)
-const selected = ref([])
+const savingKey = ref('')
 
 const roleLabels = { super_admin: '超级管理员', admin: '管理员', user: '普通用户' }
 function roleLabel(role) {
   return roleLabels[role] || role
 }
-function nameOf(key) {
-  return catalog.value.find((item) => item.key === key)?.name || key
-}
 
 async function load() {
   loading.value = true
   try {
-    const data = await api.get('/permissions/team')
-    members.value = data.members
-    catalog.value = data.catalog
+    members.value = await api.get('/tools/team')
   } catch {
     /* ignore */
   } finally {
@@ -95,26 +91,34 @@ async function load() {
   }
 }
 
-function openShrink(member) {
+function openAdjust(member) {
   target.value = member
-  selected.value = []
   dialogVisible.value = true
 }
 
-async function shrink() {
-  if (!selected.value.length) return
-  saving.value = true
+async function toggleTool(group, tool, checked) {
+  const key = `${group.name}:${tool.name}`
+  savingKey.value = key
   try {
-    await api.post(`/permissions/team/${target.value.id}/shrink`, {
-      permissions: selected.value
+    const view = await api.post(`/tools/team/${target.value.id}/narrow`, {
+      group: group.name,
+      tool: tool.name,
+      enabled: checked
     })
-    ElMessage.success('下属权限已收缩')
-    dialogVisible.value = false
-    await load()
+    target.value = {
+      ...target.value,
+      mode: view.mode,
+      enabled_count: view.enabled_count,
+      total_count: view.total_count,
+      groups: view.groups
+    }
+    const index = members.value.findIndex((item) => item.id === target.value.id)
+    if (index >= 0) members.value[index] = target.value
+    ElMessage.success(checked ? '已恢复该工具' : '已收窄该工具')
   } catch {
     /* ignore */
   } finally {
-    saving.value = false
+    savingKey.value = ''
   }
 }
 
@@ -140,7 +144,6 @@ onMounted(load)
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 10px;
 }
 
 .member-avatar {
@@ -162,30 +165,61 @@ onMounted(load)
 
 .member-tags {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
   margin-top: 5px;
+  align-items: center;
 }
 
-.chip-list {
+.adjust-body {
+  max-height: 58vh;
+  overflow-y: auto;
+}
+
+.tool-group {
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.tool-group-head {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  justify-content: space-between;
+  margin-bottom: 8px;
 }
 
-.shrink-list {
+.tool-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 12px;
+  gap: 8px;
+}
+
+.tool-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tool-name {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.tool-desc {
+  font-size: 11.5px;
+}
+
+.tool-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 @media (max-width: 767px) {
   .member-head {
     flex-wrap: wrap;
-  }
-  .member-head .el-button {
-    margin-left: 48px;
   }
 }
 </style>

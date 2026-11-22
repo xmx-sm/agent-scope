@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <h2 class="page-title">角色权限</h2>
-    <p class="page-desc">按角色配置可分配权限；超级管理员固定拥有全部权限</p>
+    <p class="page-desc">页面与菜单访问权限（AI 工具权限在「用户管理 → AI 工具」中配置）</p>
 
     <div v-loading="loading">
       <el-alert

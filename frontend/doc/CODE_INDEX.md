@@ -244,3 +244,15 @@ AgentConfig → GET /admin/configs?domain=agent
 
 - `src/views/admin/Settings.vue`（左右 Tab）
 - `src/views/AdminHome.vue`（聚合入口）
+
+---
+
+## 十一、v0.5.0 AI 工具权限
+
+| 文件 | 行数 | 职责 |
+|---|---:|---|
+| `src/views/admin/UserManage.vue` | 808 | 权限弹窗改为 AI 工具模式/清单 |
+| `src/views/TeamPermissions.vue` | 225 | 上级收窄下属 AI 工具 |
+| `src/views/MyPermissions.vue` | 261 | 展示并自关闭 AI 工具 |
+
+接口：`/tools/mine`、`/tools/team`、`/admin/users/{id}/tools`。
