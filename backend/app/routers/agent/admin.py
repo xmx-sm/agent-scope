@@ -1,0 +1,64 @@
+"""Agent 对话路由。"""
+
+from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
+from fastapi.responses import FileResponse, StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.core.deps import ApiError, CurrentUser, SuperAdmin, ok, require_permission
+from app.models import User
+from app.schemas import (
+    KnowledgeSearchIn,
+    LibraryCreateIn,
+    LibraryShareIn,
+    LibraryUpdateIn,
+    ParseConfigIn,
+    SubagentSaveIn,
+    SuperAgentSaveIn,
+    SuperConversationIn,
+    A2APeerIn,
+    A2AInvokeIn,
+    RagSearchIn,
+    ScheduledSaveIn,
+    ScheduledToggleIn,
+    McpSaveIn,
+    ToggleIn,
+    ChatStreamIn,
+    ConversationBranchIn,
+    ConversationCreateIn,
+    ConversationRenameIn,
+    ModelFetchIn,
+    ToolConfigIn,
+    TtsIn,
+    UserAgentConfigIn,
+)
+from app.services.agent.conversation import conversations as conv_service
+from app.services.agent.resources import mcps as mcp_service
+from app.services.agent import knowledge as knowledge_service
+from app.services.agent.knowledge import rag as rag_service
+from app.services.agent.resources import skills as skill_service
+from app.services.agent.resources import subagents as subagent_service
+from app.services.agent.collaboration import super_agent as super_service
+from app.services.agent.collaboration import a2a as a2a_service
+from app.services.agent.automation import scheduled as scheduled_service
+from app.services.agent.media import speech as speech_service
+from app.services.agent import stats as stats_service
+from app.services.agent.conversation import attachments as attachment_service
+from app.services.agent.config import user_config as user_config_service
+from app.services.tools import tool_config as tool_config_service
+from app.services.agent.runtime.stream_manager import resume_events, stream_events
+from app.services.config import agent as agent_config_service
+from app.utils.mask import SENTINEL
+
+
+
+router = APIRouter()
+
+
+@router.get("/stats")
+async def admin_agent_stats(
+    _: SuperAdmin, days: int = 7, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await stats_service.async_stats({"session": db, "user_id": None, "days": days})
+    )

@@ -10,14 +10,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
-from app.routers import a2a, agent, auth, config, menu, permissions, system, tools, user
+from app.routers import agent, auth, config, menu, permissions, system, tools, user
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, close_db, init_db
 from app.core.deps import ApiError
 from app.core.seed import async_seed
 from app.utils.redis_util import async_close_redis, async_get_redis_client
-from app.services.agent.knowledge_worker import async_knowledge_worker
-from app.services.agent.scheduled import async_scheduler_worker
+from app.services.agent.knowledge.worker import async_knowledge_worker
+from app.services.agent.automation.scheduled import async_scheduler_worker
 
 logging.basicConfig(
     level=logging.INFO,
@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
     await close_db()
 
 
-app = FastAPI(title=settings.app_name, version="0.19.0", lifespan=lifespan)
+app = FastAPI(title=settings.app_name, version="0.20.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -107,6 +107,6 @@ for router in (
     tools.router,
     agent.router,
     agent.admin_router,
-    a2a.router,
+    agent.public_router,
 ):
     app.include_router(router, prefix=settings.api_prefix)

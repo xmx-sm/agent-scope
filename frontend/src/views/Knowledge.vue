@@ -23,7 +23,13 @@
             </el-table-column>
             <el-table-column prop="vector_type" label="类型" width="105" />
             <el-table-column prop="document_count" label="文档" width="70" />
-            <el-table-column prop="chunk_count" label="切片" width="70" />
+            <el-table-column label="切片" width="70">
+              <template #default="{ row }">
+                <span v-if="row.chunk_count">{{ row.chunk_count }}</span>
+                <el-tag v-else-if="row.parse_requested" size="small" type="warning">排队</el-tag>
+                <span v-else>0</span>
+              </template>
+            </el-table-column>
             <el-table-column label="自动解析" width="95">
               <template #default="{ row }">
                 <el-tag size="small" :type="row.auto_parse ? 'success' : 'info'">
@@ -83,6 +89,7 @@
               :disabled="!docLibraryId || !docWritable"
               @click="parsePending"
             >批量解析</el-button>
+            <el-button v-if="auth.isSuperAdmin" @click="openParseConfig">解析配置</el-button>
           </div>
           <el-alert
             v-if="docLibrary && !docWritable"
@@ -99,7 +106,13 @@
                 <el-tag size="small" :type="statusTag(row.status)">{{ statusText(row.status) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="chunk_count" label="切片" width="70" />
+            <el-table-column label="切片" width="70">
+              <template #default="{ row }">
+                <span v-if="row.chunk_count">{{ row.chunk_count }}</span>
+                <el-tag v-else-if="row.parse_requested" size="small" type="warning">排队</el-tag>
+                <span v-else>0</span>
+              </template>
+            </el-table-column>
             <el-table-column label="大小" width="95">
               <template #default="{ row }">{{ bytesText(row.filesize) }}</template>
             </el-table-column>
@@ -261,6 +274,27 @@
       <template #footer><el-button @click="shareDialog = false">关闭</el-button></template>
     </el-dialog>
 
+    <el-dialog v-model="parseConfigDialog" title="知识库解析配置" :width="isMobile ? '94%' : '420px'">
+      <el-form label-position="top">
+        <el-form-item label="同时解析文档数（1~8）">
+          <el-input-number v-model="parseConfig.parse_concurrency" :min="1" :max="8" />
+        </el-form-item>
+        <el-form-item label="排队顺序">
+          <el-select v-model="parseConfig.queue_mode" style="width:100%">
+            <el-option label="先进先出 FIFO" value="fifo" />
+            <el-option label="后进先出 LIFO" value="lifo" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="后台扫描间隔（秒）">
+          <el-input-number v-model="parseConfig.worker_interval" :min="2" :max="60" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="parseConfigDialog = false">取消</el-button>
+        <el-button type="primary" :loading="savingParseConfig" @click="saveParseConfig">保存</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="chunkDialog" :title="`切片预览 · ${chunkDoc?.filename || ''}`" :width="isMobile ? '94%' : '760px'">
       <div v-loading="loadingChunks" class="chunk-list">
         <div v-for="chunk in chunks" :key="chunk.id" class="chunk-item">
@@ -274,13 +308,19 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload } from '@element-plus/icons-vue'
 import api from '../utils/api'
+import { useAuthStore } from '../stores/auth'
 
 const isMobile = ref(window.innerWidth < 768)
+const auth = useAuthStore()
 const activeTab = ref('libraries')
+const parseConfigDialog = ref(false)
+const savingParseConfig = ref(false)
+const parseConfig = reactive({ parse_concurrency: 2, queue_mode: 'fifo', worker_interval: 5 })
+let pollTimer = null
 const libraries = ref([])
 const documents = ref([])
 const logs = ref([])
@@ -511,13 +551,13 @@ async function parseDocument(row) {
   parsingId.value = row.id
   try {
     await api.post(`/agent/knowledge/documents/${row.id}/parse`)
-    ElMessage.success('解析完成')
+    ElMessage.success('已加入解析队列')
+    startPolling()
   } catch {
     /* ignore */
   } finally {
     parsingId.value = ''
     await loadDocuments()
-    await loadLibraries()
   }
 }
 
@@ -525,13 +565,52 @@ async function parsePending() {
   parsingPending.value = true
   try {
     const data = await api.post(`/agent/knowledge/libraries/${docLibraryId.value}/parse-pending`)
-    ElMessage.success(`共 ${data.total} 个，成功 ${data.parsed}，失败 ${data.failed}`)
+    ElMessage.success(`已加入队列：${data.queued} 个`)
+    startPolling()
     await loadDocuments()
-    await loadLibraries()
   } catch {
     /* ignore */
   } finally {
     parsingPending.value = false
+  }
+}
+
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer)
+  let rounds = 0
+  pollTimer = setInterval(async () => {
+    rounds += 1
+    await loadDocuments()
+    await loadLibraries()
+    if (rounds >= 40) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    }
+  }, 3000)
+}
+
+async function openParseConfig() {
+  try {
+    Object.assign(parseConfig, await api.get('/agent/knowledge/parse-config'))
+  } catch {
+    /* ignore */
+  }
+  parseConfigDialog.value = true
+}
+
+async function saveParseConfig() {
+  savingParseConfig.value = true
+  try {
+    Object.assign(
+      parseConfig,
+      await api.put('/agent/knowledge/parse-config', { ...parseConfig })
+    )
+    ElMessage.success('解析配置已保存')
+    parseConfigDialog.value = false
+  } catch {
+    /* ignore */
+  } finally {
+    savingParseConfig.value = false
   }
 }
 
@@ -667,6 +746,9 @@ watch(activeTab, (tab) => {
 onMounted(async () => {
   await loadLibraries()
   if (libraries.value.length) docLibraryId.value = libraries.value[0].id
+})
+onBeforeUnmount(() => {
+  if (pollTimer) clearInterval(pollTimer)
 })
 </script>
 

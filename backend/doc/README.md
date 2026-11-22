@@ -35,8 +35,8 @@ await user_query.async_list_users({
 
 关键约定：
 
-1. **路由层只解析**：`app/routers/*.py` 不写业务。
-2. **服务层按域拆包**：`app/services/<domain>/`，与路由文件同名。
+1. **路由层只解析**：`app/routers/<domain>/` 或 `app/routers/<domain>.py` 不写业务。
+2. **服务层按域拆包**：`app/services/<domain>/`，Agent 领域再按子域拆分。
 3. **服务函数只收一个字典**：键名见《参数说明.md》。
 4. **身份只信 JWT**：不读前端传入的 user_id。
 5. **响应统一**：`{"code": 200, "data": ..., "msg": "success"}`。
@@ -95,7 +95,16 @@ backend/app/
 └── utils/                     # Redis / 限流
 ```
 
-文件级索引与行数见 [CODE_INDEX.md](./CODE_INDEX.md)。
+Agent 领域已按子域拆分：
+
+```text
+models/agent/          conversation / config / knowledge / collaboration / automation / resources
+schemas/agent/         同上
+routers/agent/         chat / config / knowledge / resources / collaboration / automation / media
+services/agent/        runtime / conversation / knowledge / resources / collaboration / automation / media / config
+```
+
+完整目录与“新功能放哪里”见 [项目结构.md](./项目结构.md)；文件级索引见 [CODE_INDEX.md](./CODE_INDEX.md)。
 
 ## 分层约定
 

@@ -39,6 +39,24 @@
     </div>
 
     <div class="panel" style="margin-top: 16px">
+      <h3 class="section-title">协作记忆</h3>
+      <el-table :data="sessions" size="small" stripe>
+        <el-table-column prop="peer_name" label="伙伴" width="120" />
+        <el-table-column prop="session_hint" label="远端会话" width="150" />
+        <el-table-column prop="conversation_title" label="本机会话" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="last_reply" label="最近回复" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="created_at" label="创建时间" width="175" />
+        <el-table-column label="操作" width="110">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openSession(row)">打开</el-button>
+            <el-button link type="danger" @click="forgetSession(row)">清除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-if="!sessions.length" description="暂无协作记忆" :image-size="60" />
+    </div>
+
+    <div class="panel" style="margin-top: 16px">
       <h3 class="section-title">调用留痕</h3>
       <el-table :data="invocations" size="small" stripe>
         <el-table-column prop="peer_name" label="伙伴" width="120" />
@@ -109,6 +127,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
 import api from '../utils/api'
 
 const isMobile = ref(window.innerWidth < 768)
@@ -117,6 +136,8 @@ const saving = ref(false)
 const testingId = ref('')
 const peers = ref([])
 const invocations = ref([])
+const sessions = ref([])
+const router = useRouter()
 const dialog = ref(false)
 const form = reactive({
   id: '', name: '', description: '', endpoint: '', api_key: '', remote_name: '',
@@ -137,6 +158,7 @@ async function load() {
   try {
     peers.value = await api.get('/agent/a2a/peers')
     invocations.value = await api.get('/agent/a2a/invocations')
+    sessions.value = await api.get('/agent/a2a/sessions')
   } catch {
     /* ignore */
   } finally {
@@ -231,6 +253,25 @@ async function testPeer(row) {
     /* ignore */
   } finally {
     testingId.value = ''
+  }
+}
+
+function openSession(row) {
+  if (row.conversation_id) router.push({ path: '/chat', query: { conversation: row.conversation_id } })
+}
+
+async function forgetSession(row) {
+  try {
+    await ElMessageBox.confirm('清除后，下一次调用会开启新的远端上下文；历史会话仍保留。', '清除协作记忆', { type: 'warning' })
+  } catch {
+    return
+  }
+  try {
+    await api.delete(`/agent/a2a/sessions/${row.id}`)
+    ElMessage.success('已清除')
+    await load()
+  } catch {
+    /* ignore */
   }
 }
 

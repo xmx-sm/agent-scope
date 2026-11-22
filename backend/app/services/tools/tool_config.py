@@ -203,7 +203,7 @@ async def async_test_email(params: dict) -> dict:
 
 async def async_test_db(params: dict) -> dict:
     """参数：session / user_id"""
-    from app.services.agent.scope_bridge import SCOPE_DIR  # noqa: F401
+    from app.services.agent.runtime.scope_bridge import SCOPE_DIR  # noqa: F401
     from scope.tools.db.main_db import async_db_tools
 
     session: AsyncSession = params["session"]

@@ -87,6 +87,12 @@ async def init_db() -> None:
                     "memory_enabled BOOLEAN NOT NULL DEFAULT FALSE"
                 )
             )
+            await conn.execute(
+                text(
+                    "ALTER TABLE vector_documents ADD COLUMN IF NOT EXISTS "
+                    "parse_requested BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            )
             for column, ddl in (
                 ("auto_parse", "BOOLEAN NOT NULL DEFAULT FALSE"),
                 ("parse_interval", "INTEGER NOT NULL DEFAULT 300"),
