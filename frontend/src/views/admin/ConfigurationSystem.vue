@@ -48,6 +48,14 @@
                 show-password
                 style="width: 220px"
               />
+              <el-input
+                v-else-if="isMultiline(item)"
+                v-model="item.value"
+                type="textarea"
+                :rows="3"
+                placeholder="逗号或换行分隔；每行一个"
+                style="width: 320px"
+              />
               <el-input v-else v-model="item.value" style="width: 220px" />
               <el-button type="primary" :loading="savingKey === item.key" @click="save(item)">
                 保存
@@ -87,6 +95,16 @@ const groups = computed(() => {
   }
   return [...map.values()]
 })
+
+function isMultiline(item) {
+  return (
+    item.key === 'security.prompt_guard_text' ||
+    item.key.endsWith('.allowed_tables') ||
+    item.key.endsWith('.allowed_databases') ||
+    item.key.endsWith('.denied_tables') ||
+    item.key.endsWith('.denied_databases')
+  )
+}
 
 async function load() {
   loading.value = true
