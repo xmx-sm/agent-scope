@@ -27,6 +27,7 @@ import aioimaplib
 from aiosmtplib import SMTP
 
 from ._helper import _err, _ok, imap_connect_error, imap_ssl_contexts
+from config import get as _cfg_get
 
 
 async def _abandon_imap(data: dict = None) -> None:
@@ -120,9 +121,9 @@ async def async_open_imap(data: dict = None) -> Dict[str, Any]:
         port = int(port_raw)
     except (TypeError, ValueError):
         return _err(f"cfg.imap_port 必须是整数，收到 {port_raw!r}", "async_open_imap")
-    raw_timeout = data.get("timeout", 30)
+    raw_timeout = data.get("timeout")
     if raw_timeout in (None, ""):
-        raw_timeout = 30
+        raw_timeout = _cfg_get("mail.connect_timeout", 30)
     if isinstance(raw_timeout, (dict, list, tuple, set)):
         return _err(f"timeout 必须是数字，收到 {type(raw_timeout).__name__}", "async_open_imap")
     try:
@@ -193,9 +194,9 @@ async def async_open_smtp(data: dict = None) -> Dict[str, Any]:
         port = int(port_raw)
     except (TypeError, ValueError):
         return _err(f"cfg.smtp_port 必须是整数，收到 {port_raw!r}", "async_open_smtp")
-    raw_timeout = data.get("timeout", 30)
+    raw_timeout = data.get("timeout")
     if raw_timeout in (None, ""):
-        raw_timeout = 30
+        raw_timeout = _cfg_get("mail.connect_timeout", 30)
     if isinstance(raw_timeout, (dict, list, tuple, set)):
         return _err(f"timeout 必须是数字，收到 {type(raw_timeout).__name__}", "async_open_smtp")
     try:

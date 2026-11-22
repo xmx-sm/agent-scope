@@ -1,20 +1,24 @@
 # scope/docs
 
-`scope/tools/` 的配套文档。四份，按用途查，不必通读。
+`scope/` 的配套文档。五份，按用途查，不必通读。
 
 | 文档 | 什么时候读 | 内容 |
 |------|-----------|------|
 | **[参数说明.md](参数说明.md)** | **调任何工具前** | 五个域的入口签名、`function` 清单、入参表、返回契约、`db_config` 管控字段；开头「〇′ 统一契约」与「〇 全局调用契约」**必读** |
 | **[CODE_INDEX.md](CODE_INDEX.md)** | 找文件 / 改代码前 | 39 个文件的行数、符号清单、依赖图；db 四层结构的成环约束；net 的双入口与四段辅助层；第三方依赖清单与已装状态 |
 | **[工具拆分规范.md](工具拆分规范.md)** | 加新功能 / 重跑验证 | 六条组织规则（含入参统一与两类豁免）+ 刻意偏离及理由 + 新增功能流程 + **两轮各自的验证方法**（脚本已丢弃，方法留此）+ 切分器实现约束 |
-| **[踩坑记录.md](踩坑记录.md)** | 报错时 / 装配前 | A 类 22 条使用侧坑（含 **A17 未修的 IMAP 搜索注入**）、B 类 6 条 agentscope 集成坑、C 类 6 条**误诊与自查纠正** |
+| **[踩坑记录.md](踩坑记录.md)** | 报错时 / 装配前 | A 类 22 条使用侧坑（含 **A17 未修的 IMAP 搜索注入**）、B 类 6 条 agentscope 集成坑、C 类 8 条**误诊与自查纠正** |
+| **[配置说明.md](配置说明.md)** | 装配 Agent 前 / 改默认值前 | config 层（SQLite 默认配置中心）：读取优先级 data > sqlite > None、73 项配置表、三类语义（57 自由 / 10 钳制只收紧 / 6 敏感出厂 None）、生命周期 API、**mail 环境变量移除的破坏性变更**、什么进 config 什么不进 |
 
 ---
 
 ## 三十秒上手
 
 ```python
-import sys; sys.path.insert(0, "<scope 目录>")   # 使 tools.* 可作包导入
+import sys; sys.path.insert(0, "<scope 目录>")   # 使 tools.* / config 可作包导入
+
+# 装配期预载默认配置（可选；不载则首次 get 惰性建库）
+import config; import asyncio; asyncio.run(config.aload())
 
 from agentscope.credential import OpenAICredential
 from agentscope.model import OpenAIChatModel
@@ -54,7 +58,7 @@ print(r["code"], r["message"], r["data"])     # 字段是 message，不是 msg
 
 ---
 
-## 五个最容易致命的点
+## 六个最容易致命的点
 
 1. **`download` 现在也过文件闸门**（crawl 合并时补上）：写 cwd 之外的路径会被拒 400。
    合并前它完全不过闸门，所以**老调用方会突然失效**——平台必须注入 `check_write`
@@ -65,12 +69,14 @@ print(r["code"], r["message"], r["data"])     # 字段是 message，不是 msg
 3. **参数平铺顶层**，嵌进 `arguments` 会得到误导性错误「非法表名: None」→ 参数说明.md 〇-1
 4. **经 `FunctionTool` 调用要包一层 `{"data": {...}}`**，否则 `unexpected keyword argument 'function'` → 踩坑记录.md B1
 5. **`net` 的文件闸门必须服务端注入**，不注入只走 cwd 兜底 → 踩坑记录.md A10
+6. **mail 的 `EMAIL_*` 环境变量已失效**（④ 移除）：靠环境变量注入邮箱配置的部署，
+   必须改成写 `config.db`（`config.set_value("mail.account.user", ...)`）→ 配置说明.md 八-①
 
 ---
 
 ## 现状与出处
 
-五个域经过**三轮改造**，基线不同（详见 工具拆分规范.md 第〇节）：
+五个域经过**四轮改造**，基线不同（详见 工具拆分规范.md 第〇节）：
 
 | 轮次 | 内容 | 与原件关系 |
 |---|---|---|
@@ -82,7 +88,10 @@ mcp 68 / 跨域一致性与 download 闸门 19。方法见 工具拆分规范.md
 
 | ③ crawl 合并回 net | 原独立成域的 `crawl/` 并回 `net/`，定位「高级网络请求」；`_helper.py` 拆为 `_envelope`/`_fs`/`_render`，download 补闸门（A21）、`_err` 签名倒置消除（A22） | 目录重组，行为对撞仍逐函数验证（175 项） |
 
-- 改造后规模：**39 文件 / 117 函数 / 6558 行**（①后 3906 → ②后 6550 → ③后 6558）
+- 改造后规模：工具层 **39 文件 / 117 函数 / 6558 行** + 基础设施层 `config/` 4 文件（73 项默认配置，SQLite）
+- ④ config 层：散落在各域的硬编码默认值收敛到 `config.db`，读取优先级 **data > sqlite > None**；
+  10 个钳制项走 `clamp_get` 只收紧不放宽（铁律 #11），6 个敏感项出厂 None 仅库注入；
+  **破坏性**：mail 的 `EMAIL_*` 环境变量兜底彻底移除（默认值只此一源）
 - **原件仍是行为基准，不要删** `agent_study/scope/tools/`——所有对撞验证仍以它为准
 - 未复制：`dingtalk_tools/`（`_config.py` 含明文生产密钥，按「密钥三不进」不入）、
   `async_rag_tools.py`（跨目录依赖 `rag/`，且检索职责已由官方 `RAGMiddleware` 覆盖）。
@@ -129,3 +138,4 @@ mcp 68 / 跨域一致性与 download 闸门 19。方法见 工具拆分规范.md
 |------|------|
 | 2026-11-22 | 首版。四份文档的导航、三十秒上手示例、三个致命点索引、已知未修清单 |
 | 2026-11-22 | **第二轮改造同步**。致命点 3→4 条（首位是 mail 分页元数据位置变更，平台侧必须改）；「已知未修」重写为「已修 / 仍未修」两栏（9 项已修、6 项仍未修含 **A17 未修的 IMAP 注入**）；现状段区分两轮基线并给出 632 项验证分解；导航计数 A 类 15→20、C 类 3→5 |
+| 2026-11-22 | **④ config 层同步**。导航加配置说明.md（四→五份）；现状段三轮→四轮并加 config 层规模；致命点 5→6 条（新增 mail `EMAIL_*` 环境变量移除的破坏性变更）；三十秒上手加 config 装配；C 类 6→8 条 |

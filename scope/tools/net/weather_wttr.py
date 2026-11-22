@@ -7,6 +7,7 @@ function="get_weather_wttr" — wttr.in 天气查询。
 from typing import Dict, Any
 
 from ._client import get_http_client, get_timeout
+from config import get as _c
 from ._envelope import _err, _ok
 
 
@@ -29,7 +30,7 @@ async def async_get_weather_wttr(data: dict) -> Dict[str, Any]:
     city = str(data.get("city", "") or "").strip()
     if not city:
         return _err("data 中缺少 city 字段", "get_weather_wttr")
-    fmt = str(data.get("format", "j1") or "j1").strip()
+    fmt = str(data.get("format") or _c("net.weather_wttr.format", "j1")).strip()
     if fmt not in ("j1", "3"):
         return _err("format 仅支持 j1(JSON) 或 3(简洁文本)", "get_weather_wttr")
     timeout_r = get_timeout({"data": data, "func_name": "get_weather_wttr"})

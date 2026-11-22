@@ -13,7 +13,8 @@ from typing import Any, Dict
 
 from ._crawler import _get_crawler, _reset_crawler
 from ._envelope import _err, _ok
-from ._render import _OUTPUT_MAX_LENGTH_DEFAULT, _apply_extraction, _apply_wait_for, _build_config, _clamp_configs, _fail, _pick_output, logger
+from config import pick_str as _ps
+from ._render import _apply_extraction, _apply_wait_for, _build_config, _clamp_configs, _fail, _pick_output, logger
 
 
 async def async_crawl(data: dict = None) -> Dict[str, Any]:
@@ -84,8 +85,8 @@ async def async_crawl(data: dict = None) -> Dict[str, Any]:
         if not res.success:
             return _fail({"where": "async_crawl", "res": res})
         po = _pick_output({"res": res,
-                           "output_format": str(data.get("output_format", "markdown")),
-                           "max_length": data.get("max_length", _OUTPUT_MAX_LENGTH_DEFAULT)})
+                           "output_format": _ps(data.get("output_format"), "crawl.output_format", "markdown"),
+                           "max_length": data.get("max_length")})
         if po.get("code") != 200:
             return po
         out = po["data"]

@@ -31,6 +31,8 @@ from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any, Dict
 
+from config import clamp_get as _clamp_get, get as _cfg_get, pick_int as _pick_int
+
 
 _DEFAULT_PORTS = {"postgresql": 5432, "mysql": 3306, "mongodb": 27017}
 _SQLITE_EXTS = (".db", ".sqlite", ".sqlite3")
@@ -45,6 +47,60 @@ _FORBIDDEN_WRITE_RE = re.compile(
     r"shutdown|kill|lock|unlock|outfile|dumpfile|load_file|sleep|benchmark|load\s+data|"
     r"attach|detach|pragma|reindex)\b", re.I)
 _MAX_AFFECT = 100
+
+
+# ── 生效值 getter：db 域默认值统一从这里读（config.db > 源码常量兜底）──────────
+# 钳制项走 clamp_get（只收紧不放宽）；缺省项走 _cfg_get/_pick_int。
+# dialect / executors / 方言入口 只调这些，不各自 import config。
+def eff_max_rows() -> int:
+    """查询行数硬上限（钳制项，默认 500，库内只能调小）。"""
+    return _clamp_get("db.max_rows", _MAX_ROWS)
+
+
+def eff_max_affect() -> int:
+    """写影响行数上限（钳制项，默认 100，超限回滚，库内只能调小）。"""
+    return _clamp_get("db.max_affect", _MAX_AFFECT)
+
+
+def eff_list_tables_limit() -> int:
+    """list_tables 返回条数上限（钳制项，默认 200）。"""
+    return _clamp_get("db.list_tables.limit", 200)
+
+
+def eff_connect_timeout() -> int:
+    """建连超时秒数（缺省项，默认 15，可自由调）。"""
+    v = _cfg_get("db.connect_timeout", 15)
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return 15
+
+
+def eff_mongo_selection_timeout() -> int:
+    """MongoDB 选主超时毫秒（缺省项，默认 10000）。"""
+    v = _cfg_get("db.mongo.selection_timeout_ms", 10000)
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return 10000
+
+
+def eff_table_data_limit(passed: Any) -> Any:
+    """table_data 的 limit 生效值：传入(非 0/非空) > sqlite(db.table_data.limit) > 50。
+    ⚠️ limit=0 视为"未传"回落（0 行无意义，与原实现 `or 50` 一致），
+    区别于 verify/max_size 那种 0 有明确语义的字段（那些用 pick 保 0）。
+    传入是坏类型时原样返回，交调用方 int() 校验报错。"""
+    if passed in (None, "", 0):
+        return _cfg_get("db.table_data.limit", 50)
+    return passed
+
+
+def eff_run_query_limit(passed: Any) -> Any:
+    """run_query 自动补 LIMIT 的缺省：传入(非 0/非空) > sqlite(db.run_query.limit) > 100。
+    limit=0 同样回落（原实现 `or 100`）。"""
+    if passed in (None, "", 0):
+        return _cfg_get("db.run_query.limit", 100)
+    return passed
 
 
 def _err(msg: str, where: str = "async_db_tools") -> Dict[str, Any]:
@@ -83,6 +139,16 @@ def _resolve(data: dict = None) -> Dict[str, Any]:
     for k in ("db_type", "host", "port", "user", "password", "database", "path", "dir"):
         if k in data and data[k] not in (None, ""):
             cfg.setdefault(k, data[k])
+    # 调用没给的字段，从 config.db 默认补（优先级 data > sqlite > None）。
+    # 敏感项 host/user/password/database 出厂为 None，sqlite 补不进值 → 保持缺失，
+    # 由下方原校验按原逻辑报「缺少 db_config.host」等，本层不额外防御。
+    for k, key in (("db_type", "db.type"), ("host", "db.host"), ("user", "db.user"),
+                   ("password", "db.password"), ("database", "db.database"),
+                   ("path", "db.sqlite.path"), ("dir", "db.sqlite.dir")):
+        if cfg.get(k) in (None, ""):
+            v = _cfg_get(key, None)
+            if v is not None and v != "":
+                cfg[k] = v
     for k in ("db_type", "host", "user", "password", "database", "port", "path", "dir"):
         if isinstance(cfg.get(k), str):
             cfg[k] = cfg[k].strip()
@@ -101,7 +167,9 @@ def _resolve(data: dict = None) -> Dict[str, Any]:
         return _ok({"db_type": db_type, "cfg": cfg})
     if not cfg.get("host"):
         return _err("缺少数据库连接配置（db_config.host）", "_resolve")
-    cfg.setdefault("port", _DEFAULT_PORTS[db_type])
+    # port：调用没给 → sqlite 按 db_type 取 → 常量 _DEFAULT_PORTS 兜底
+    if cfg.get("port") in (None, ""):
+        cfg["port"] = _cfg_get(f"db.port.{db_type}", _DEFAULT_PORTS[db_type])
     return _ok({"db_type": db_type, "cfg": cfg})
 
 

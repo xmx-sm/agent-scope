@@ -21,6 +21,7 @@ function="find_email" — 按条件查找邮件（分页）。
 from typing import Any, Dict
 
 from ._helper import _err, build_date_criteria, parse_int
+from config import get as _cfg_get
 from .search import async_search_mailbox
 
 
@@ -55,11 +56,13 @@ async def async_find_email(data: dict = None) -> Dict[str, Any]:
     keyword = str(data.get("keyword", "") or "").strip()
     subject = str(data.get("subject", "") or "").strip()
     sender = str(data.get("sender", "") or "").strip()
-    offset_r = parse_int({"data": data, "key": "offset", "default": 0,
+    offset_r = parse_int({"data": data, "key": "offset",
+                          "default": _cfg_get("mail.find.offset", 0),
                           "func_name": "find_email"})
     if offset_r.get("code") != 200:
         return offset_r
-    count_r = parse_int({"data": data, "key": "count", "default": 10,
+    count_r = parse_int({"data": data, "key": "count",
+                         "default": _cfg_get("mail.find.count", 10),
                          "func_name": "find_email"})
     if count_r.get("code") != 200:
         return count_r
@@ -77,7 +80,9 @@ async def async_find_email(data: dict = None) -> Dict[str, Any]:
         return bc
     criteria = bc["data"]["criteria"]
     sa = data.get("save_attachments")
-    save_attachments = True if sa is None or sa == "" else bool(sa)
+    if sa is None or sa == "":
+        sa = _cfg_get("mail.save_attachments", True)
+    save_attachments = bool(sa)
     attachment_dir = str(data.get("attachment_dir", "") or "").strip()
     return await async_search_mailbox({
         "data": data, "criteria": criteria,

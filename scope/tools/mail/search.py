@@ -23,6 +23,7 @@ import email as email_lib
 import os
 from typing import Any, Dict
 
+from config import get as _cfg_get, pick_str as _pick_str
 from ._connection import async_open_imap
 from ._helper import (
     _err,
@@ -199,7 +200,9 @@ async def async_search_mailbox(data: dict = None) -> Dict[str, Any]:
     if e:
         return e
     sa = data.get("save_attachments")
-    save_attachments = True if sa is None or sa == "" else bool(sa)
+    if sa is None or sa == "":
+        sa = _cfg_get("mail.save_attachments", True)
+    save_attachments = bool(sa)
     attachment_dir = str(data.get("attachment_dir", "") or "").strip()
 
     try:
@@ -219,7 +222,7 @@ async def async_search_mailbox(data: dict = None) -> Dict[str, Any]:
             await conn.logout()
             return {"code": 500, "data": f"{os.path.abspath(__file__)}_{func_name}",
                     "message": f"登录失败：{resp.result}"}
-        mailbox = str(biz.get("mailbox", "INBOX") or "INBOX")
+        mailbox = _pick_str(biz.get("mailbox"), "mail.mailbox", "INBOX")
         resp = await conn.select(mailbox)
         if resp.result != "OK":
             await conn.logout()
@@ -249,7 +252,7 @@ async def async_search_mailbox(data: dict = None) -> Dict[str, Any]:
         page_ids = ids[start:end]
         emails = []
         if not attachment_dir:
-            attachment_dir = "email_attachments"
+            attachment_dir = _cfg_get("mail.attachment_dir", "email_attachments")
         # 第二层目录用 profile_name（agent 配置里的邮箱名）；未注入则回退邮箱地址，保证不同邮箱分目录
         mail_box_name = cfg.get("profile_name", "") or cfg.get("host_user", "")
         for mid in reversed(page_ids):

@@ -21,6 +21,7 @@ from aiosmtplib import errors as smtp_errors
 
 from ._connection import async_open_smtp
 from ._helper import _err, _ok, check_email_config, error_text, get_email_config, strip_html
+from config import get as _cfg_get
 
 
 async def async_send_email(data: dict = None) -> Dict[str, Any]:
@@ -103,9 +104,8 @@ async def async_send_email(data: dict = None) -> Dict[str, Any]:
         else:
             msg = MIMEText(content or "", "plain", "utf-8")
 
-        # TODO(既有行为): 发件人显示名硬编码 "MX"，未从配置读取。
-        #   改这里会影响所有已发出去的邮件头，属独立决策，本次改造未动。
-        msg["from"] = formataddr(("MX", cfg["host_user"]))
+        # 发件人显示名：原硬编码 "MX"，现读 config.db（mail.from_name，出厂 "MX"）。
+        msg["from"] = formataddr((_cfg_get("mail.from_name", "MX"), cfg["host_user"]))
         msg["to"] = email
         msg["Subject"] = subject
 

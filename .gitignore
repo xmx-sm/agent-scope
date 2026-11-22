@@ -45,8 +45,12 @@ scope/tools/mcp/mcp_servers.json
 
 # 下载/抓取的落盘产物（net download、crawl screenshot）
 *.download
+*.bin
 screenshots/
 crawl_downloads/
+# config 层运行时库（含部署方注入的敏感凭证，绝不入库）
+scope/config/config.db*
+config.db*
 
 # ── IDE ─────────────────────────────────────────────────────────
 .idea/

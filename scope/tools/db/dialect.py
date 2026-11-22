@@ -25,7 +25,6 @@ from typing import Any, Dict
 
 from ._helper import (
     _FORBIDDEN_RE,
-    _MAX_ROWS,
     _READONLY_RE,
     _WRITE_START_RE,
     _FORBIDDEN_WRITE_RE,
@@ -38,6 +37,9 @@ from ._helper import (
     _rows_to_dicts,
     _wph,
     _write_where,
+    eff_max_rows,
+    eff_run_query_limit,
+    eff_table_data_limit,
 )
 from .executors import _lt_exec, _lt_write, _my_exec, _my_write, _pg_exec, _pg_write
 
@@ -144,12 +146,12 @@ async def _sql_dialect_table(data: dict = None) -> Dict[str, Any]:
             return _err(f"order_by 仅支持 \"列名\" 或 \"列名:asc|desc\"，收到 {ob!r}",
                         "_sql_dialect_table")
         q += f" order by {qcol(parts[0])}" + (f" {parts[1].upper()}" if len(parts) > 1 else "")
-    raw_limit = args.get("limit") or 50
+    raw_limit = eff_table_data_limit(args.get("limit"))
     raw_offset = args.get("offset") or 0
     if isinstance(raw_limit, (dict, list, tuple, set)) or isinstance(raw_offset, (dict, list, tuple, set)):
         return _err("limit / offset 必须是整数", "_sql_dialect_table")
     try:
-        limit = min(int(raw_limit), _MAX_ROWS)
+        limit = min(int(raw_limit), eff_max_rows())
         offset = max(int(raw_offset), 0)
     except (TypeError, ValueError):
         return _err("limit / offset 必须是整数", "_sql_dialect_table")
@@ -200,11 +202,11 @@ async def _sql_dialect_query(data: dict = None) -> Dict[str, Any]:
         return _err("仅允许只读语句（select/with/show/desc/explain），写操作请使用 async_db_write_tools",
                     "_sql_dialect_query")
     db = args.get("database") or cfg.get("database")
-    raw_limit = args.get("limit") or 100
+    raw_limit = eff_run_query_limit(args.get("limit"))
     if isinstance(raw_limit, (dict, list, tuple, set)):
         return _err("limit 必须是整数", "_sql_dialect_query")
     try:
-        limit = min(int(raw_limit), _MAX_ROWS)
+        limit = min(int(raw_limit), eff_max_rows())
     except (TypeError, ValueError):
         return _err("limit 必须是整数", "_sql_dialect_query")
     q = sql if re.search(r"\blimit\b", sql, re.I) else f"{sql} limit {limit}"

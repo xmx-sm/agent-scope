@@ -18,6 +18,7 @@ import json
 import logging
 from typing import Any, Dict
 
+from config import clamp_get as _clamp, get as _c, pick_str as _ps
 from ._envelope import _err, _ok
 from ._fs import _HOST_CTX, _check_write
 # _HOST_CTX 由 configure_fs_policy() **原地 update** 而非重新绑定，
@@ -116,7 +117,8 @@ def _apply_wait_for(data: dict = None) -> None:
     if not sel or run_cfg.js_code:
         return
     timeout_ms = int(run_cfg.page_timeout or 60_000)
-    cap = max(1_000, min(timeout_ms - 5_000, 15_000))
+    cap = max(int(_c("crawl.apply_wait_for.min_ms", 1_000)),
+                min(timeout_ms - 5_000, _clamp("crawl.apply_wait_for.cap_ms", 15_000)))
     esc = json.dumps(sel)   # JSON 字符串转义，选择器含引号也安全
     run_cfg.js_code = (
         "() => { return new Promise(r => { const t = setInterval(() => {"
@@ -140,16 +142,19 @@ def _clamp_configs(data: dict = None) -> None:
     if run_cfg is None:
         raise ValueError("缺少 run_cfg 字段")
     br_cfg = data.get("br_cfg")
-    if run_cfg.page_timeout is None or run_cfg.page_timeout > _PAGE_TIMEOUT_MAX_MS:
-        run_cfg.page_timeout = _PAGE_TIMEOUT_MAX_MS
-    if run_cfg.semaphore_count is None or run_cfg.semaphore_count > _SEMAPHORE_MAX:
-        run_cfg.semaphore_count = _SEMAPHORE_MAX
+    _pt_max = _clamp("crawl.page_timeout_max", _PAGE_TIMEOUT_MAX_MS)
+    if run_cfg.page_timeout is None or run_cfg.page_timeout > _pt_max:
+        run_cfg.page_timeout = _pt_max
+    _sem_max = _clamp("crawl.semaphore_max", _SEMAPHORE_MAX)
+    if run_cfg.semaphore_count is None or run_cfg.semaphore_count > _sem_max:
+        run_cfg.semaphore_count = _sem_max
     if br_cfg is not None:
         if not _HOST_CTX.get("allow_headed") and br_cfg.headless is not True:
             br_cfg.headless = True
+        _rc_max = _clamp("crawl.recycle_max", _RECYCLE_MAX)
         if br_cfg.max_pages_before_recycle is None or \
-                br_cfg.max_pages_before_recycle > _RECYCLE_MAX:
-            br_cfg.max_pages_before_recycle = _RECYCLE_MAX
+                br_cfg.max_pages_before_recycle > _rc_max:
+            br_cfg.max_pages_before_recycle = _rc_max
         if getattr(br_cfg, "downloads_path", None):
             cw = _check_write({"path": str(br_cfg.downloads_path)})
             if cw.get("code") != 200:
@@ -186,7 +191,7 @@ def _apply_extraction(data: dict = None) -> None:
     if not isinstance(extraction, dict):
         raise ValueError(f"extraction 必须是字典，收到 {type(extraction).__name__}")
     import crawl4ai
-    etype = str(extraction.get("type", "css")).lower()
+    etype = _ps(extraction.get("type"), "crawl.extraction.type", "css").lower()
     if etype == "css":
         run_cfg.extraction_strategy = crawl4ai.JsonCssExtractionStrategy(
             extraction.get("schema"))
@@ -220,13 +225,13 @@ def _pick_output(data: dict = None) -> Dict[str, Any]:
     res = data.get("res")
     if res is None:
         return _err("缺少 res 字段（抓取响应对象）", "_pick_output")
-    output_format = str(data.get("output_format") or "markdown").strip().lower()
+    output_format = str(data.get("output_format") or _c("crawl.output_format", "markdown")).strip().lower()
     if output_format not in ("markdown", "html", "links"):
         return _err(f"output_format 仅支持 markdown / html / links，收到 {output_format!r}",
                     "_pick_output")
-    raw_max = data.get("max_length", _OUTPUT_MAX_LENGTH_DEFAULT)
+    raw_max = data.get("max_length")
     if raw_max in (None, ""):
-        raw_max = _OUTPUT_MAX_LENGTH_DEFAULT
+        raw_max = _c("crawl.output_max_length_default", _OUTPUT_MAX_LENGTH_DEFAULT)
     if isinstance(raw_max, (dict, list, tuple, set)):
         return _err(f"max_length 必须是整数，收到 {type(raw_max).__name__}", "_pick_output")
     try:
@@ -241,8 +246,9 @@ def _pick_output(data: dict = None) -> Dict[str, Any]:
                            "success": bool(getattr(res, "success", False))}
     if output_format == "links":
         links = getattr(res, "links", None) or {}
+        _ll = _clamp("crawl.links_limit", 200)
         trim = lambda vs: [{"href": v.get("href"), "text": (v.get("text") or "").strip()}
-                           for v in (vs or [])][:200]
+                           for v in (vs or [])][:_ll]
         return _ok({**out, "links": {"internal": trim(links.get("internal")),
                                      "external": trim(links.get("external"))}})
     if output_format == "html":

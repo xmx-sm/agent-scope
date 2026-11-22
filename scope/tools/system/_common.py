@@ -9,6 +9,8 @@ subprocess 可选参数归一化：timeout/shell/capture_output/text/encoding/er
 import os
 from typing import Any, Dict
 
+from config import get as _cfg_get, pick as _pick, pick_int as _pick_int
+
 
 def _where(func_name: str) -> str:
     """错误位置标识，指向本文件_函数名。"""
@@ -61,7 +63,7 @@ def get_common_args(data: dict = None) -> Dict[str, Any]:
         return _err(f"data 必须是字典，收到 {type(biz).__name__}", "get_common_args")
     func_name = str(data.get("func_name") or "get_common_args").strip() or "get_common_args"
 
-    raw_timeout = biz.get("timeout", 30)
+    raw_timeout = _pick_int(biz.get("timeout"), "system.cmd_run.timeout", 30)
     if raw_timeout in (None, ""):
         raw_timeout = 30
     if isinstance(raw_timeout, (dict, list, tuple, set)):
@@ -73,8 +75,9 @@ def get_common_args(data: dict = None) -> Dict[str, Any]:
     if timeout <= 0:
         return _err("timeout 必须大于 0", func_name)
 
-    def _bool(key: str, default: bool) -> Dict[str, Any]:
-        val = biz.get(key, default)
+    def _bool(key: str, cfg_key: str, fallback: bool) -> Dict[str, Any]:
+        # _pick 已处理"未传→sqlite→fallback"，False 传入不会被吞（pick 认 0/False 为有效）
+        val = _pick(biz.get(key), cfg_key, fallback)
         if isinstance(val, bool):
             return _ok({"value": val})
         if isinstance(val, str):
@@ -86,14 +89,19 @@ def get_common_args(data: dict = None) -> Dict[str, Any]:
         return _err(f"{key} 必须是布尔值（true/false）", func_name)
 
     common_args: Dict[str, Any] = {"timeout": timeout}
-    for key, default in (("shell", True), ("capture_output", True), ("text", True)):
-        r = _bool(key, default)
+    for key, cfg_key in (("shell", "system.cmd_run.shell"),
+                         ("capture_output", "system.cmd_run.capture_output"),
+                         ("text", "system.cmd_run.text")):
+        r = _bool(key, cfg_key, True)
         if r.get("code") != 200:
             return r
         common_args[key] = r["data"]["value"]
-    for key, default in (("encoding", "utf-8"), ("errors", "ignore")):
-        val = biz.get(key, default)
+    for key, cfg_key, fb in (("encoding", "system.cmd_run.encoding", "utf-8"),
+                             ("errors", "system.cmd_run.errors", "ignore")):
+        val = biz.get(key)
+        if val is None or val == "":
+            val = _cfg_get(cfg_key, fb)
         if isinstance(val, (dict, list, tuple, set)):
             return _err(f"{key} 必须是字符串，收到 {type(val).__name__}", func_name)
-        common_args[key] = str(val or default)
+        common_args[key] = str(val or fb)
     return _ok({"value": common_args})

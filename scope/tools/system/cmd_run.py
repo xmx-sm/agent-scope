@@ -14,6 +14,7 @@ import platform
 from typing import Dict, Any
 
 from ._common import _err, _ok, get_common_args
+from config import get as _cfg_get, pick_int as _pick_int
 
 
 
@@ -61,7 +62,7 @@ async def async_cmd_run(data: dict) -> Dict[str, Any]:
     args_r = get_common_args({"data": data, "func_name": "cmd_run"})
     if args_r.get("code") != 200:
         return args_r
-    raw_limit = data.get("output_limit", 0)
+    raw_limit = _pick_int(data.get("output_limit"), "system.cmd_run.output_limit", 0)
     if raw_limit in (None, ""):
         raw_limit = 0
     if isinstance(raw_limit, (dict, list, tuple, set)):
@@ -72,7 +73,9 @@ async def async_cmd_run(data: dict) -> Dict[str, Any]:
         return _err("output_limit 必须是整数", "cmd_run")
     if output_limit < 0:
         output_limit = 0
-    raw_part = data.get("output_part", "tail")
+    raw_part = data.get("output_part")
+    if raw_part is None or raw_part == "":
+        raw_part = _cfg_get("system.cmd_run.output_part", "tail")
     if isinstance(raw_part, (dict, list, tuple, set)):
         return _err(f"output_part 必须是字符串，收到 {type(raw_part).__name__}", "cmd_run")
     output_part = str(raw_part or "tail").strip().lower()

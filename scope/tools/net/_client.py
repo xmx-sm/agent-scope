@@ -17,10 +17,12 @@ net 工具共享辅助：进程级 httpx 客户端单例与 timeout 参数归一
 import httpx
 from typing import Any, Dict
 
+from config import get as _cfg_get, pick as _pick
+
 from ._envelope import _err, _ok
 
 
-# 共享异步 HTTP 客户端：进程内复用同一连接池，避免每请求新建 client 的连接建立/关闭开销，
+# 共享异步 HTTP 客户端：进程内复用同一连接池（连接池上限见 _eff_limits，读 config.db），避免每请求新建 client 的连接建立/关闭开销，
 # 高并发下大幅降低延迟与事件循环阻塞。timeout 通过每请求参数覆盖。
 #
 # verify=False 走独立单例 _HTTP_CLIENT_INSECURE。原件在此处每次新建 AsyncClient 且
@@ -29,8 +31,15 @@ from ._envelope import _err, _ok
 _HTTP_CLIENT = None
 _HTTP_CLIENT_INSECURE = None
 
-_HTTP_CLIENT_LIMITS = httpx.Limits(max_connections=1000, max_keepalive_connections=200)
 _HTTP_CLIENT_TIMEOUT = 30
+
+
+def _eff_limits() -> httpx.Limits:
+    """连接池上限：sqlite > 源码常量兜底（config.db 未建时 fail-safe）。"""
+    return httpx.Limits(
+        max_connections=int(_cfg_get("net.http_client.max_connections", 1000)),
+        max_keepalive_connections=int(_cfg_get("net.http_client.max_keepalive", 200)),
+    )
 
 
 def get_http_client(data: dict = None) -> Dict[str, Any]:
@@ -56,7 +65,7 @@ def get_http_client(data: dict = None) -> Dict[str, Any]:
         data = {}
     if not isinstance(data, dict):
         return _err("data 必须是字典对象", "get_http_client")
-    raw_verify = data.get("verify", True)
+    raw_verify = _pick(data.get("verify"), "net.verify", True)
     if raw_verify in (None, ""):
         raw_verify = True
     if not isinstance(raw_verify, bool):
@@ -71,7 +80,7 @@ def get_http_client(data: dict = None) -> Dict[str, Any]:
         else:
             return _err(f"verify 必须是布尔值，收到 {type(raw_verify).__name__}", "get_http_client")
     raw_timeout = data.get("timeout")
-    timeout = _HTTP_CLIENT_TIMEOUT
+    timeout = float(_cfg_get("net.http_client.timeout", _HTTP_CLIENT_TIMEOUT))
     if raw_timeout not in (None, ""):
         if isinstance(raw_timeout, (dict, list, tuple, set)):
             return _err(f"timeout 必须是数字，收到 {type(raw_timeout).__name__}", "get_http_client")
@@ -85,7 +94,7 @@ def get_http_client(data: dict = None) -> Dict[str, Any]:
     global _HTTP_CLIENT, _HTTP_CLIENT_INSECURE
     slot = _HTTP_CLIENT if raw_verify else _HTTP_CLIENT_INSECURE
     if slot is None or slot.is_closed:
-        slot = httpx.AsyncClient(timeout=timeout, verify=raw_verify, limits=_HTTP_CLIENT_LIMITS)
+        slot = httpx.AsyncClient(timeout=timeout, verify=raw_verify, limits=_eff_limits())
         if raw_verify:
             _HTTP_CLIENT = slot
         else:
@@ -113,9 +122,9 @@ def get_timeout(data: dict = None) -> Dict[str, Any]:
     if not isinstance(biz, dict):
         return _err(f"data 必须是字典，收到 {type(biz).__name__}", "get_timeout")
     func_name = str(data.get("func_name") or "get_timeout").strip() or "get_timeout"
-    raw_default = data.get("default", 5)
+    raw_default = data.get("default")
     if raw_default in (None, ""):
-        raw_default = 5
+        raw_default = _cfg_get("net.timeout.default", 5)
     if isinstance(raw_default, (dict, list, tuple, set)):
         return _err(f"default 必须是数字，收到 {type(raw_default).__name__}", func_name)
     try:

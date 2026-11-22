@@ -9,6 +9,7 @@ import httpx
 from typing import Dict, Any
 
 from ._client import get_http_client, get_timeout
+from config import get as _c, pick_str as _ps
 from ._envelope import _err, _ok
 
 
@@ -39,7 +40,7 @@ async def async_http_request(data: dict) -> Dict[str, Any]:
     url = str(data.get("url", "") or "").strip()
     if not url:
         return _err("data 中缺少 url 字段", "http_request")
-    method = str(data.get("method", "GET") or "GET").strip().upper()
+    method = _ps(data.get("method"), "net.http_request.method", "GET").strip().upper()
     if method not in ("GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"):
         return _err(f"错误：暂不支持的 method: {method}", "http_request")
     headers = data.get("headers")
@@ -52,18 +53,19 @@ async def async_http_request(data: dict) -> Dict[str, Any]:
     json_body = data.get("json")
     if body is not None and json_body is not None:
         return _err("data 与 json 不能同时提供", "http_request")
-    timeout_r = get_timeout({"data": data, "func_name": "http_request", "default": 10})
+    timeout_r = get_timeout({"data": data, "func_name": "http_request",
+                             "default": _c("net.http_request.timeout", 10)})
     if timeout_r.get("code") != 200:
         return timeout_r
     try:
-        max_length = int(data.get("max_length", 10000) or 10000)
+        max_length = int(data.get("max_length") or _c("net.http_request.max_length", 10000))
     except (TypeError, ValueError):
         return _err("max_length 必须是整数", "http_request")
-    response_type = str(data.get("response_type", "auto") or "auto").strip().lower()
+    response_type = str(data.get("response_type") or _c("net.http_request.response_type", "auto")).strip().lower()
     if response_type not in ("auto", "json", "text"):
         return _err("response_type 仅支持 auto/json/text", "http_request")
     # verify 交由 get_http_client 统一判定：无法识别的值报 400，不再静默降级为禁用 TLS 校验
-    cr = get_http_client({"verify": data.get("verify", True)})
+    cr = get_http_client({"verify": data.get("verify")})   # 传 None 让 _pick 读 sqlite net.verify
     if cr.get("code") != 200:
         return cr
     client = cr["data"]

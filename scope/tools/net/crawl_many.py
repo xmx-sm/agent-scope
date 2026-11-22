@@ -11,6 +11,7 @@
 from typing import Any, Dict
 
 from ._envelope import _err, _ok
+from config import clamp_get as _clamp
 from ._render import _BATCH_URLS_MAX
 from .crawl import async_crawl
 
@@ -36,8 +37,9 @@ async def async_crawl_many(data: dict = None) -> Dict[str, Any]:
     urls = data.get("urls")
     if not isinstance(urls, list) or not urls:
         return _err("urls 必须是非空列表", "async_crawl_many")
-    if len(urls) > _BATCH_URLS_MAX:
-        return _err(f"单次最多 {_BATCH_URLS_MAX} 个 URL", "async_crawl_many")
+    _bm = _clamp("crawl.batch_urls_max", _BATCH_URLS_MAX)
+    if len(urls) > _bm:
+        return _err(f"单次最多 {_bm} 个 URL", "async_crawl_many")
     results = []
     for u in urls:
         r = await async_crawl({**data, "url": str(u)})

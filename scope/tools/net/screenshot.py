@@ -15,6 +15,7 @@ from typing import Any, Dict
 
 from ._envelope import _err, _ok
 from ._fs import _check_write
+from config import pick_int as _pi
 from .crawl import async_crawl
 
 
@@ -50,7 +51,7 @@ async def async_screenshot(data: dict = None) -> Dict[str, Any]:
     if not cw["data"]["allowed"]:
         return _err(f"保存路径被拒：{cw['data']['reason']}", "async_screenshot")
     rc: Dict[str, Any] = {"screenshot": True}
-    raw_wait = data.get("wait_ms", 1000)
+    raw_wait = _pi(data.get("wait_ms"), "crawl.screenshot.wait_ms", 1000)
     if raw_wait in (None, ""):
         raw_wait = 1000
     if isinstance(raw_wait, (dict, list, tuple, set)):

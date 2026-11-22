@@ -10,6 +10,7 @@ import os
 from typing import Dict, Any
 
 from ._client import get_http_client, get_timeout
+from config import get as _c, pick as _pk
 from ._envelope import _err, _ok
 from ._fs import _check_write
 
@@ -49,20 +50,21 @@ async def async_req_download(data: dict) -> Dict[str, Any]:
         return gw
     if not gw["data"]["allowed"]:
         return _err(f"保存路径被拒：{gw['data']['reason']}", "download")
-    timeout_r = get_timeout({"data": data, "func_name": "download", "default": 30})
+    timeout_r = get_timeout({"data": data, "func_name": "download",
+                           "default": _c("net.download.timeout", 30)})
     if timeout_r.get("code") != 200:
         return timeout_r
     try:
-        max_size = int(data.get("max_size", 0) or 0)
+        max_size = int(_pk(data.get("max_size"), "net.download.max_size", 0))  # 0=不限，有效值
         if max_size < 0:
             max_size = 0
-        report_every = int(data.get("report_every", 1048576) or 1048576)
+        report_every = int(data.get("report_every") or _c("net.download.report_every", 1048576))
         if report_every <= 0:
             report_every = 1048576
     except (TypeError, ValueError):
         return _err("max_size / report_every 必须是整数", "download")
     # verify 交由 get_http_client 统一判定：无法识别的值报 400，不再静默降级为禁用 TLS 校验
-    cr = get_http_client({"verify": data.get("verify", True)})
+    cr = get_http_client({"verify": data.get("verify")})   # 传 None 让 _pick 读 sqlite net.verify
     if cr.get("code") != 200:
         return cr                      # 外层是普通 async 函数：校验失败直接返回信封，
     client = cr["data"]                # 成功才 return stream()（异步生成器）

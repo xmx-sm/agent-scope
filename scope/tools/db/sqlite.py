@@ -12,7 +12,7 @@ SQLite 入口 _lite：结构化取数 / 只读 SQL；list_databases 枚举文件
 import asyncio
 from typing import Any, Dict
 
-from ._helper import _check_ident, _err, _ok, _sqlite_databases
+from ._helper import _check_ident, _err, _ok, _sqlite_databases, eff_list_tables_limit
 from .dialect import _sql_dialect_query, _sql_dialect_table
 from .executors import _lt_exec
 
@@ -53,7 +53,7 @@ async def _lite(data: dict = None) -> Dict[str, Any]:
         if args.get("pattern"):
             sql += " and name like ?"
             a.append(args["pattern"])
-        sql += " order by name limit 200"
+        sql += f" order by name limit {eff_list_tables_limit()}"
         rc = await _lt_exec({"cfg": cfg, "database": args.get("database") or cfg.get("database"),
                              "sql": sql, "args": a, "fetch": True})
         if rc.get("code") != 200:

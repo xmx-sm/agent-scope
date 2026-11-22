@@ -11,7 +11,7 @@ PostgreSQL 入口 _pg：按 function 分流到结构化取数 / 只读 SQL。
 
 from typing import Any, Dict
 
-from ._helper import _check_ident, _err, _ok
+from ._helper import _check_ident, _err, _ok, eff_list_tables_limit
 from .dialect import _sql_dialect_query, _sql_dialect_table
 from .executors import _pg_exec
 
@@ -61,7 +61,7 @@ async def _pg(data: dict = None) -> Dict[str, Any]:
         if db:
             sql += " and table_catalog = $" + str(len(a) + 1)
             a.append(db)
-        sql += " limit 200"
+        sql += f" limit {eff_list_tables_limit()}"
         rc = await _pg_exec({"cfg": cfg, "database": db or cfg.get("database") or "postgres",
                              "sql": sql, "args": a, "fetch": True})
         if rc.get("code") != 200:

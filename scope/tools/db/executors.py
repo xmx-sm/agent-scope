@@ -7,7 +7,7 @@
 
 与 dialect.py 分开是**必要的**：dialect 编排调用本层，而上层 _pg/_my 又调用 dialect，
 合并成一层会造成循环依赖。
-写执行器影响行数超 _MAX_AFFECT 自动回滚；SQLite 只读以 mode=ro URI 打开（连接层即不可写）。
+写执行器影响行数超 db.max_affect（钳制项）自动回滚；SQLite 只读以 mode=ro URI 打开（连接层即不可写）。
 同步驱动（sqlite3）经 asyncio.to_thread 包装，避免阻塞事件循环。
 
 原实现用 `raise ValueError(原因)` 作为"业务校验失败"的信号，靠入口 except ValueError 转 400；
@@ -19,7 +19,8 @@
 import asyncio
 from typing import Any, Dict
 
-from ._helper import _MAX_AFFECT, _err, _ok, _sqlite_target_path
+from ._helper import (_err, _ok, _sqlite_target_path, eff_connect_timeout,
+                      eff_max_affect, eff_mongo_selection_timeout)
 
 
 
@@ -66,7 +67,7 @@ async def _pg_exec(data: dict = None) -> Dict[str, Any]:
         conn = await asyncpg.connect(host=cfg["host"], port=int(cfg["port"]),
                                      user=cfg.get("user"), password=cfg.get("password"),
                                      database=data.get("database") or cfg.get("database") or "postgres",
-                                     timeout=15)
+                                     timeout=eff_connect_timeout())
     except (TypeError, ValueError, OverflowError) as e:
         return _err(f"连接参数无效：{e}", "_pg_exec")
     try:
@@ -83,7 +84,7 @@ async def _pg_exec(data: dict = None) -> Dict[str, Any]:
 async def _pg_write(data: dict = None) -> Dict[str, Any]:
     """PG 事务执行单条写语句，影响行数超上限自动回滚。
 
-    入参 (data): cfg/database/sql/args 同 _pg_exec；cap(int, 可选, 默认 _MAX_AFFECT)
+    入参 (data): cfg/database/sql/args 同 _pg_exec；cap(int, 可选, 默认读 db.max_affect)
     返回:
         {"code":200, "data":{"affected": int}, "message":"success"}
         {"code":400, ...} 影响行数超 cap（已回滚）
@@ -105,11 +106,13 @@ async def _pg_write(data: dict = None) -> Dict[str, Any]:
     args = data.get("args")
     if args is not None and not isinstance(args, (list, tuple)):
         return _err(f"args 必须是列表，收到 {type(args).__name__}", "_pg_write")
-    raw_cap = data.get("cap", _MAX_AFFECT)
+    raw_cap = data.get("cap")
+    if raw_cap in (None, ""):
+        raw_cap = eff_max_affect()
     if isinstance(raw_cap, (dict, list, tuple, set)):
         return _err(f"cap 必须是整数，收到 {type(raw_cap).__name__}", "_pg_write")
     try:
-        cap = int(raw_cap if raw_cap not in (None, "") else _MAX_AFFECT)
+        cap = int(raw_cap)
     except (TypeError, ValueError):
         return _err("cap 必须是整数", "_pg_write")
     try:
@@ -120,7 +123,7 @@ async def _pg_write(data: dict = None) -> Dict[str, Any]:
         conn = await asyncpg.connect(host=cfg["host"], port=int(cfg["port"]),
                                      user=cfg.get("user"), password=cfg.get("password"),
                                      database=data.get("database") or cfg.get("database") or "postgres",
-                                     timeout=15)
+                                     timeout=eff_connect_timeout())
     except (TypeError, ValueError, OverflowError) as e:
         return _err(f"连接参数无效：{e}", "_pg_write")
     try:
@@ -212,11 +215,13 @@ async def _my_write(data: dict = None) -> Dict[str, Any]:
     args = data.get("args")
     if args is not None and not isinstance(args, (list, tuple)):
         return _err(f"args 必须是列表，收到 {type(args).__name__}", "_my_write")
-    raw_cap = data.get("cap", _MAX_AFFECT)
+    raw_cap = data.get("cap")
+    if raw_cap in (None, ""):
+        raw_cap = eff_max_affect()
     if isinstance(raw_cap, (dict, list, tuple, set)):
         return _err(f"cap 必须是整数，收到 {type(raw_cap).__name__}", "_my_write")
     try:
-        cap = int(raw_cap if raw_cap not in (None, "") else _MAX_AFFECT)
+        cap = int(raw_cap)
     except (TypeError, ValueError):
         return _err("cap 必须是整数", "_my_write")
     try:
@@ -272,7 +277,7 @@ def _lt_read_run(data: dict = None) -> Dict[str, Any]:
     except (TypeError, ValueError, OSError) as e:
         return _err(f"路径无法转为 URI：{e}", "_lt_read_run")
     try:
-        conn = sqlite3.connect(uri, uri=True, timeout=15)
+        conn = sqlite3.connect(uri, uri=True, timeout=eff_connect_timeout())
     except sqlite3.Error as e:
         return _err(f"SQLite 只读连接失败：{e}", "_lt_read_run")
     try:
@@ -331,7 +336,7 @@ def _lt_write_run(data: dict = None) -> Dict[str, Any]:
         return _err(f"params 必须是列表，收到 {type(params).__name__}", "_lt_write_run")
     raw_cap = data.get("cap")
     if raw_cap is None:
-        raw_cap = _MAX_AFFECT
+        raw_cap = eff_max_affect()
     if isinstance(raw_cap, (dict, list, tuple, set)):
         return _err(f"cap 必须是整数，收到 {type(raw_cap).__name__}", "_lt_write_run")
     try:
@@ -340,7 +345,7 @@ def _lt_write_run(data: dict = None) -> Dict[str, Any]:
         return _err("cap 必须是整数", "_lt_write_run")
     import sqlite3
     try:
-        conn = sqlite3.connect(str(path), timeout=15)
+        conn = sqlite3.connect(str(path), timeout=eff_connect_timeout())
     except sqlite3.Error as e:
         return _err(f"SQLite 写连接失败：{e}", "_lt_write_run")
     try:
@@ -378,11 +383,13 @@ async def _lt_write(data: dict = None) -> Dict[str, Any]:
         return _err("缺少 cfg 字段", "_lt_write")
     if not isinstance(cfg, dict):
         return _err(f"cfg 必须是字典，收到 {type(cfg).__name__}", "_lt_write")
-    raw_cap = data.get("cap", _MAX_AFFECT)
+    raw_cap = data.get("cap")
+    if raw_cap in (None, ""):
+        raw_cap = eff_max_affect()
     if isinstance(raw_cap, (dict, list, tuple, set)):
         return _err(f"cap 必须是整数，收到 {type(raw_cap).__name__}", "_lt_write")
     try:
-        cap = int(raw_cap if raw_cap not in (None, "") else _MAX_AFFECT)
+        cap = int(raw_cap)
     except (TypeError, ValueError):
         return _err("cap 必须是整数", "_lt_write")
     tp = _sqlite_target_path({"cfg": cfg, "database": data.get("database"), "for_write": True})
@@ -437,7 +444,7 @@ def _mongo_call(data: dict = None) -> Dict[str, Any]:
     else:
         uri = "mongodb://" + host + ":" + port + "/"
     try:
-        client = MongoClient(uri, serverSelectionTimeoutMS=10000)
+        client = MongoClient(uri, serverSelectionTimeoutMS=eff_mongo_selection_timeout())
     except Exception as e:
         return _err(f"MongoClient 构建失败：{type(e).__name__}: {e}", "_mongo_call")
     try:

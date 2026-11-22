@@ -1,6 +1,7 @@
-# scope/tools CODE_INDEX
+# scope CODE_INDEX
 
-`tools/` 下每个文件的作用、行数与依赖关系。找文件、改代码前先在此定位。
+`tools/` 与 `config/` 下每个文件的作用、行数与依赖关系。找文件、改代码前先在此定位。
+工具层五域详列于第二～六节；基础设施层 `config/` 见第七节（详解见《配置说明.md》）。
 
 五个域共 **39 个文件 / 117 个函数 / 6558 行**，由 `agent_study/scope/tools` 的 6 个单体文件（3335 行）改造而来。
 （原 `crawl` 独立成域，后经用户决策**合并回 net**，定位为「高级网络请求」：）
@@ -9,9 +10,10 @@
 |---|---|---|---|
 | ① AST 拆分 | 37 | 3906 | +571：各模块 docstring 与重新分布的 import |
 | ② 入参与错误返回统一 | 37 | 6550 | +2644：`if` 校验分支、信封机器、data 解包、docstring 补入参表 |
-| ③ crawl 合并回 net | **39** | **6558** | 目录重组：`crawl/_helper.py` 拆为 `_envelope`/`_fs`/`_render`，旧信封层 3 个符号丢弃（19→16 个信封机器），download 补闸门 |
+| ③ crawl 合并回 net | 39 | 6558 | 目录重组：`crawl/_helper.py` 拆为 `_envelope`/`_fs`/`_render`，旧信封层 3 个符号丢弃（19→16 个信封机器），download 补闸门 |
+| ④ config 层 | +4 | +616 | 新增基础设施层 `scope/config/`（schema/store/merge/__init__），五域硬编码默认值收敛到 config.db；工具层文件数不变，但 21 个文件新增 `from config import …` |
 
-统一约定见《工具拆分规范.md》（含第二轮的第五、六条规则），接口契约见《参数说明.md》〇′ 节。
+统一约定见《工具拆分规范.md》（含第五、六条规则），接口契约见《参数说明.md》〇′ 节，默认配置见《配置说明.md》。
 
 ### 每域的文件角色
 
@@ -22,6 +24,8 @@
 ---
 
 ## 一、目录总览
+
+全仓 **43 个 Python 文件 / 7174 行**：工具层 `tools/` 39 文件 6558 行 + 基础设施层 `config/` 4 文件 616 行。
 
 ```
 tools/
@@ -282,7 +286,35 @@ _helper  ←  executors  ←  dialect  ←  {postgresql, mysql, sqlite}
 
 ---
 
-## 七、跨域依赖
+## 七、`config/` — 默认配置中心（基础设施层）
+
+与 `tools/` 平级，不在 `tools/` 下。五域的硬编码默认值收敛到这里的 `config.db`（SQLite）。
+读取优先级 **data > sqlite > None**。完整契约、73 项配置表、三类语义见《配置说明.md》。
+
+| 文件 | 行数 | 职责 | 依赖 |
+|------|------|------|------|
+| `__init__.py` | 61 | 统一导出（生命周期 API + 三合并辅助 + schema 查询） | `schema`, `store`, `merge` |
+| `schema.py` | 195 | **73 项配置的单一真相源**：Item(key/value/type/category/note/secret/hard_max) + 导入即自检 `_selfcheck()` | — |
+| `store.py` | 298 | `config.db` 读写 + 进程级缓存（同步读一次、`get()` 走内存）+ 生命周期 `configure/init_db/load/aload/get/clamp_get/set_value/unset` | `schema` |
+| `merge.py` | 62 | `pick`/`pick_str`/`pick_int` 三合并辅助，处理 falsy 语义差异（0/False 有效 vs 空串未传） | `store` |
+
+关键设计：
+
+- **进程级缓存 + RLock**：`store._LOCK` 是 `RLock` 而非 `Lock`——`load()` 持锁时调 `init_db()`，
+  后者结尾又抢同一把锁清缓存，非重入会死锁（"configure 到新路径后首次 set_value"路径踩过，见踩坑记录 C7）。
+- **`clamp_get` 只收紧不放宽**：10 个钳制项（`hard_max` 非 None）消费点走 `min(sqlite值, hard_max)`，
+  库内调小生效、调大被源码上限压回（铁律 #11）。源码常量 `_MAX_ROWS`/`_SEMAPHORE_MAX` 等降为 `hard_max` 兜底。
+- **敏感项出厂 None**：6 项（db.host/user/password/database、mail.account.user/password）
+  `_selfcheck()` 强制出厂为 None，仅支持库注入；`config.db` 命中 `.gitignore` 的 `*.db`。
+- **db 域的 `eff_*` getter 收口**：`tools/db/_helper.py` 提供 `eff_max_rows`/`eff_max_affect`/
+  `eff_list_tables_limit`/`eff_connect_timeout`/`eff_mongo_selection_timeout`/`eff_table_data_limit`/
+  `eff_run_query_limit`，dialect/executors/方言入口只调这些，不各自 import config。
+
+依赖方向：`tools/*` 21 个文件 → `config`（单向，config 不反向依赖任何工具域）。
+
+---
+
+## 八、跨域依赖
 
 **五域互不依赖**，无任何跨文件夹 import。这意味着：
 
@@ -293,7 +325,7 @@ _helper  ←  executors  ←  dialect  ←  {postgresql, mysql, sqlite}
 
 ---
 
-## 八、第三方依赖清单
+## 九、第三方依赖清单
 
 | 域 | 必需 | 状态（当前 `.venv`） |
 |------|------|------|
@@ -315,10 +347,11 @@ SQLite 走 stdlib `sqlite3`，无需驱动；`sqlglot` 仅在**启用表级管�
 
 ---
 
-## 九、更新日志
+## 十、更新日志
 
 | 日期 | 内容 |
 |------|------|
 | 2026-11-22 | 首版。记录 37 个文件的行数、符号清单与依赖图；含 db 四层结构的成环约束说明与六域零跨域依赖结论 |
 | 2026-11-22 | **第二轮改造同步**。行数 3906 → 6550（+68%），函数增至 120（含 19 个信封机器）。六域章节全部重生成表格并补记：`net` 的 `_HTTP_CLIENT_INSECURE`（修连接泄漏）与 `verify` 严格化、`crawl` 的副作用豁免与文件闸门契约不变、`mail` 的分页元数据破坏性变更与 A17 未修、`mcp` 的三态语义保真与四处缺陷修复、`db` 的三处结构变化（`_err` 带 where / 校验器信封 / 去掉 raise 信号）与闸门未松动验证。目录总览补「信封机器」与「纯副作用」两种角色 |
 | 2026-11-22 | **③ crawl 合并回 net**（用户决策，定位「高级网络请求」）。决定性依据：`agent_study/tools/__init__.py` 本就把 `async_crawl_tools` 挂进 `ToolGroup("net")`。`crawl/_helper.py` 按符号拆为 `_envelope`（信封机器，独立成层）/`_fs`（文件闸门，**提到域共用层**）/`_render`（配置构建与钳制）；旧信封层 3 个符号丢弃，信封机器 19→16。**修掉不对称**：`download` 原先直接落盘不过闸门而同域 `screenshot` 过，现共用 `_fs`，同路径判定一致。**消除跨域陷阱**：`crawl._err(where,msg)` 与 `net._err(message,func_name,...)` 参数顺序倒置，现全库统一。net 章节重写为 17 文件，crawl 章节删除，后续节号前移；统计 37 文件/120 函数 → **39/117** |
+| 2026-11-22 | **④ config 层同步**。新增第七节 `config/`（基础设施层 4 文件 616 行）：schema 73 项 / store 进程级缓存+RLock+clamp_get / merge 三辅助；原七～九节号后移为八～十。顶部标题改 `scope CODE_INDEX`、阶段表加④、全仓规模 43 文件 7174 行 |

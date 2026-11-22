@@ -16,7 +16,8 @@ from typing import Any, Dict
 
 from ._envelope import _err, _ok
 from ._fs import _check_read
-from ._render import _OUTPUT_MAX_LENGTH_DEFAULT, logger
+from config import get as _c
+from ._render import logger
 
 
 async def async_extract_pdf(data: dict = None) -> Dict[str, Any]:
@@ -58,9 +59,9 @@ async def async_extract_pdf(data: dict = None) -> Dict[str, Any]:
         from crawl4ai import PDFContentScrapingStrategy
     except ImportError:
         return _err("crawl4ai 未安装，无法解析 PDF", "async_extract_pdf")
-    raw_max = data.get("max_length", _OUTPUT_MAX_LENGTH_DEFAULT)
+    raw_max = data.get("max_length")
     if raw_max in (None, ""):
-        raw_max = _OUTPUT_MAX_LENGTH_DEFAULT
+        raw_max = _c("crawl.output_max_length_default", 20000)
     if isinstance(raw_max, (dict, list, tuple, set)):
         return _err(f"max_length 必须是整数，收到 {type(raw_max).__name__}", "async_extract_pdf")
     try:

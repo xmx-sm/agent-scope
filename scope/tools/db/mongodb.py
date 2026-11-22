@@ -14,7 +14,7 @@ import asyncio
 import re
 from typing import Any, Dict
 
-from ._helper import _MAX_AFFECT, _MAX_ROWS, _err, _mongo_filters
+from ._helper import _err, _mongo_filters, eff_max_affect, eff_max_rows, eff_table_data_limit
 from .executors import _mongo_call
 
 
@@ -107,14 +107,14 @@ async def _mongo(data: dict = None) -> Dict[str, Any]:
         return await asyncio.to_thread(_mongo_call, {"cfg": cfg, "database": db, "fn": run})
     if function == "table_data":
         limit, e = _bad_limit({"args": args, "fn_name": "_mongo", "field": "limit",
-                            "default": 50})
+                            "default": eff_table_data_limit(None)})
         if e:
             return e
         offset, e = _bad_limit({"args": args, "fn_name": "_mongo", "field": "offset",
                              "default": 0})
         if e:
             return e
-        limit, offset = min(limit, _MAX_ROWS), max(offset, 0)
+        limit, offset = min(limit, eff_max_rows()), max(offset, 0)
         mf = _mongo_filters({"spec": args.get("filters")})
         if mf.get("code") != 200:
             return mf
@@ -156,7 +156,7 @@ async def _mongo_write(data: dict = None) -> Dict[str, Any]:
         args(dict, 可选)     业务参数（table/data/filters）
 
     返回: {"code":200, "data":{"collection":...,"affected":int,...}, "message":"success"}
-          或 400 错误信封（匹配数超 _MAX_AFFECT 时不做修改）
+          或 400 错误信封（匹配数超写上限 db.max_affect 时不做修改）
     """
     if not isinstance(data, dict):
         return _err("data 必须是字典对象", "_mongo_write")
@@ -202,6 +202,7 @@ async def _mongo_write(data: dict = None) -> Dict[str, Any]:
     if mf.get("code") != 200:
         return mf
     flt = mf["data"]
+    cap = eff_max_affect()          # 主协程预取写上限，两个线程闭包共用（闭包内不碰 config）
     if function == "update_rows":
         vals = args.get("data")
         if not isinstance(vals, dict) or not vals:
@@ -213,8 +214,8 @@ async def _mongo_write(data: dict = None) -> Dict[str, Any]:
             if n0 == 0:
                 return {"collection": table, "matched": 0, "affected": 0,
                         "note": "未匹配到文档，未做任何修改"}
-            if n0 > _MAX_AFFECT:
-                raise ValueError(f"匹配 {n0} 条文档超过上限 {_MAX_AFFECT}，未做修改，请缩小筛选范围")
+            if n0 > cap:
+                raise ValueError(f"匹配 {n0} 条文档超过上限 {cap}，未做修改，请缩小筛选范围")
             r = col.update_many(flt, {"$set": vals})
             return {"collection": table, "matched": r.matched_count, "affected": r.modified_count}
         return await asyncio.to_thread(_mongo_call, {"cfg": cfg, "database": db, "fn": run_upd})
@@ -224,8 +225,8 @@ async def _mongo_write(data: dict = None) -> Dict[str, Any]:
         n0 = col.count_documents(flt)
         if n0 == 0:
             return {"collection": table, "affected": 0, "note": "未匹配到文档，未删除任何数据"}
-        if n0 > _MAX_AFFECT:
-            raise ValueError(f"匹配 {n0} 条文档超过上限 {_MAX_AFFECT}，未删除，请缩小筛选范围")
+        if n0 > cap:
+            raise ValueError(f"匹配 {n0} 条文档超过上限 {cap}，未删除，请缩小筛选范围")
         r = col.delete_many(flt)
         return {"collection": table, "affected": r.deleted_count}
     return await asyncio.to_thread(_mongo_call, {"cfg": cfg, "database": db, "fn": run_del})

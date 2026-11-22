@@ -16,6 +16,8 @@ from typing import Any, Dict
 
 from agentscope.mcp import MCPClient, StdioMCPConfig, HttpMCPConfig
 
+from config import get as _cfg_get
+
 
 DEFAULT_MCP_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mcp_servers.json")
 
@@ -97,10 +99,13 @@ def resolve_mcp_servers(data: dict = None) -> Dict[str, Any]:
     if mcp_cfg in (None, False, ""):
         return _err("未配置 MCP", "resolve_mcp_servers")
     if mcp_cfg is True:
-        if not os.path.exists(DEFAULT_MCP_CONFIG):
+        # 缺省配置文件路径：sqlite 默认 > 本目录常量兜底（部署方可把路径指到
+        # /etc/agent/mcp.json 等，免改源码）。取不到回落 DEFAULT_MCP_CONFIG。
+        default_path = _cfg_get("mcp.config_path", DEFAULT_MCP_CONFIG) or DEFAULT_MCP_CONFIG
+        if not os.path.exists(default_path):
             # 默认配置文件不存在视为"未配置任何 MCP"，不阻断工具加载
             return _ok({"servers": {}, "source": "默认配置文件不存在（视为未配置 MCP）"})
-        r = load_from_file({"path": DEFAULT_MCP_CONFIG})
+        r = load_from_file({"path": default_path})
         if r.get("code") != 200:
             return _err(str(r.get("message")).removeprefix("错误："), "resolve_mcp_servers")
         return _ok({"servers": r["data"]["servers"], "source": "默认配置文件"})

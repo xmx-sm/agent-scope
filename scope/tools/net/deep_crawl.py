@@ -10,7 +10,8 @@ from typing import Any, Dict
 
 from ._crawler import _get_crawler, _reset_crawler
 from ._envelope import _err, _ok
-from ._render import _DEEP_PAGES_MAX, _OUTPUT_MAX_LENGTH_DEFAULT, _SEMAPHORE_MAX, _apply_wait_for, _build_config, _clamp_configs, _pick_output, logger
+from config import clamp_get as _clamp, pick_int as _pi, pick_str as _ps
+from ._render import _DEEP_PAGES_MAX, _SEMAPHORE_MAX, _apply_wait_for, _build_config, _clamp_configs, _pick_output, logger
 
 
 async def async_deep_crawl(data: dict = None) -> Dict[str, Any]:
@@ -49,9 +50,11 @@ async def async_deep_crawl(data: dict = None) -> Dict[str, Any]:
         if v is not None and isinstance(v, (dict, list, tuple, set)):
             return _err(f"{k} 必须是整数，收到 {type(v).__name__}", "async_deep_crawl")
     try:
-        max_depth = int(data.get("max_depth", 2))
-        total_limit = min(int(data.get("total_limit", 10)), _DEEP_PAGES_MAX)
-        concurrency = min(int(data.get("concurrent_limit", 4)), _SEMAPHORE_MAX)
+        max_depth = int(_pi(data.get("max_depth"), "crawl.deep_crawl.max_depth", 2))
+        total_limit = min(int(_pi(data.get("total_limit"), "crawl.deep_crawl.total_limit", 10)),
+                          _clamp("crawl.deep_pages_max", _DEEP_PAGES_MAX))
+        concurrency = min(int(_pi(data.get("concurrent_limit"), "crawl.deep_crawl.concurrent_limit", 4)),
+                          _clamp("crawl.semaphore_max", _SEMAPHORE_MAX))
     except (TypeError, ValueError):
         return _err("max_depth/total_limit/concurrent_limit 必须是整数", "async_deep_crawl")
     bc = _build_config({"cls": crawl4ai.CrawlerRunConfig, "d": data.get("run_config"),
@@ -97,9 +100,8 @@ async def async_deep_crawl(data: dict = None) -> Dict[str, Any]:
         for res in (ress if isinstance(ress, list) else [ress]):
             if res.success:
                 po = _pick_output({"res": res,
-                                   "output_format": str(data.get("output_format", "markdown")),
-                                   "max_length": data.get("max_length",
-                                                           _OUTPUT_MAX_LENGTH_DEFAULT)})
+                                   "output_format": _ps(data.get("output_format"), "crawl.output_format", "markdown"),
+                                   "max_length": data.get("max_length")})
                 if po.get("code") != 200:
                     return po
                 items.append(po["data"])

@@ -28,6 +28,8 @@ from datetime import datetime, timedelta, timezone
 from email.header import decode_header
 from typing import Any, Dict
 
+from config import get as _cfg_get, pick_str as _pick_str
+
 
 def _where(func_name: str) -> str:
     return f"{os.path.abspath(__file__)}_{func_name}"
@@ -96,7 +98,9 @@ def get_email_config(data: dict = None) -> Dict[str, Any]:
     """从 data 中读取邮箱连接配置。
 
     入参 (data): 业务字典，读 email_config 段；未填写字段回退 data 顶层同名字段，
-                 再回退环境变量 EMAIL_ADDR/EMAIL_PASSWORD/EMAIL_SMTP_HOST/…，最后默认值
+                 再回退 config.db（sqlite 默认），最后落到出厂兜底值。
+                 ⚠️ 环境变量兜底（EMAIL_ADDR/EMAIL_SMTP_HOST/…）已移除——默认值只有一个来源：config.db。
+                 账号/密码是敏感项，config.db 出厂为 None → 空串 → 触发 check_email_config 报错。
 
     返回:
         {"code":200, "data": {"host_user","password","smtp_host","smtp_port",
@@ -116,8 +120,9 @@ def get_email_config(data: dict = None) -> Dict[str, Any]:
     if not isinstance(cfg, dict):
         cfg = {}
 
-    def _port(val, env, default):
-        raw = val or data.get(env.lower().replace("email_", "")) or os.environ.get(env, default)
+    def _port(val, cfg_key, default):
+        # 端口 0 无意义，与空/None 一样回落（原实现 `val or ... or default` 即此语义）
+        raw = val or _cfg_get(cfg_key, None) or default
         if raw in (None, ""):
             raw = default
         if isinstance(raw, (dict, list, tuple, set)):
@@ -127,23 +132,29 @@ def get_email_config(data: dict = None) -> Dict[str, Any]:
         except (TypeError, ValueError):
             return None, _err(f"端口配置必须是整数，收到 {raw!r}", "get_email_config")
 
-    smtp_port, e = _port(cfg.get("smtp_port"), "EMAIL_SMTP_PORT", 465)
+    smtp_port, e = _port(cfg.get("smtp_port") or data.get("smtp_port"), "mail.smtp.port", 465)
     if e:
         return e
-    imap_port, e = _port(cfg.get("imap_port"), "EMAIL_IMAP_PORT", 993)
+    imap_port, e = _port(cfg.get("imap_port") or data.get("imap_port"), "mail.imap.port", 993)
     if e:
         return e
+    # 字符串字段：email_config 段 > data 顶层 > sqlite 默认 > 兜底。
+    # 账号/密码是敏感项，sqlite 出厂为 None → 空串 → 触发 check_email_config 原报错逻辑。
+    host_user = _pick_str(
+        cfg.get("email") or cfg.get("host_user") or data.get("email") or data.get("host_user"),
+        "mail.account.user", "")
     return _ok({
-        "host_user": str(cfg.get("email") or cfg.get("host_user") or data.get("email") or data.get("host_user")
-                        or os.environ.get("EMAIL_ADDR", "")),
-        "password": str(cfg.get("password") or data.get("password") or os.environ.get("EMAIL_PASSWORD", "")),
-        "smtp_host": str(cfg.get("smtp_host") or data.get("smtp_host")
-                         or os.environ.get("EMAIL_SMTP_HOST", "smtp.qq.com")),
+        "host_user": host_user,
+        "password": _pick_str(cfg.get("password") or data.get("password"),
+                              "mail.account.password", ""),
+        "smtp_host": _pick_str(cfg.get("smtp_host") or data.get("smtp_host"),
+                               "mail.smtp.host", "smtp.qq.com"),
         "smtp_port": smtp_port,
-        "imap_host": str(cfg.get("imap_host") or data.get("imap_host")
-                         or os.environ.get("EMAIL_IMAP_HOST", "imap.qq.com")),
+        "imap_host": _pick_str(cfg.get("imap_host") or data.get("imap_host"),
+                               "mail.imap.host", "imap.qq.com"),
         "imap_port": imap_port,
-        "profile_name": str(cfg.get("profile_name") or data.get("profile_name") or ""),
+        "profile_name": _pick_str(cfg.get("profile_name") or data.get("profile_name"),
+                                  "mail.profile_name", ""),
     })
 
 
@@ -507,8 +518,8 @@ def parse_message(data: dict = None) -> Dict[str, Any]:
         "from": from_addr,
         "to": msg.get("To", ""),
         "date": msg.get("Date", ""),
-        "body": body[:2000],
-        "html": html[:50000] if html else "",
+        "body": body[:_cfg_get("mail.body_limit", 2000)],
+        "html": html[:_cfg_get("mail.html_limit", 50000)] if html else "",
     }
     if with_attachments:
         result["attachments"] = attachments

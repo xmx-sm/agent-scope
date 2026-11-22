@@ -13,6 +13,7 @@ function="receive_email" — 按条件收取邮件（分页）。
 from typing import Any, Dict
 
 from ._helper import _err, build_date_criteria, parse_int
+from config import get as _cfg_get
 from .search import async_search_mailbox
 
 
@@ -39,17 +40,21 @@ async def async_receive_email(data: dict = None) -> Dict[str, Any]:
     """
     if not isinstance(data, dict):
         return _err("data 必须是字典对象", "receive_email")
-    offset_r = parse_int({"data": data, "key": "offset", "default": 0,
+    offset_r = parse_int({"data": data, "key": "offset",
+                          "default": _cfg_get("mail.receive.offset", 0),
                           "func_name": "receive_email"})
     if offset_r.get("code") != 200:
         return offset_r
-    count_r = parse_int({"data": data, "key": "count", "default": 10,
+    count_r = parse_int({"data": data, "key": "count",
+                         "default": _cfg_get("mail.receive.count", 10),
                          "func_name": "receive_email"})
     if count_r.get("code") != 200:
         return count_r
     sa = data.get("save_attachments")
-    save_attachments = True if sa is None or sa == "" else bool(sa)
-    attachment_dir = str(data.get("attachment_dir", "") or "").strip()
+    if sa is None or sa == "":
+        sa = _cfg_get("mail.save_attachments", True)
+    save_attachments = bool(sa)
+    attachment_dir = str(data.get("attachment_dir", "") or "").strip()  # 空串交 search 兜底读 config
     bc = build_date_criteria({"data": data, "criteria": []})
     if bc.get("code") != 200:
         return bc
