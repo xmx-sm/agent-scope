@@ -33,10 +33,10 @@ class Settings(BaseSettings):
     default_role: str = "user"
 
     # 首次启动的超级管理员与演示账号
-    seed_admin_username: str = "MX"
-    seed_admin_password: str = "990108"
-    seed_admin_nickname: str = "MX"
-    seed_admin_email: str = "mx@example.com"
+    seed_admin_username: str = "admin"
+    seed_admin_password: str = "000000"
+    seed_admin_nickname: str = "admin"
+    seed_admin_email: str = "admin@example.com"
     seed_demo_users: bool = True
 
     redis_host: str = "127.0.0.1"

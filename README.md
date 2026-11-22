@@ -236,10 +236,10 @@ npm run dev
 首次启动自动建表并写入一个超级管理员。账号可通过 `backend/.env` 配置：
 
 ```env
-SEED_ADMIN_USERNAME=MX
-SEED_ADMIN_PASSWORD=990108
-SEED_ADMIN_NICKNAME=MX
-SEED_ADMIN_EMAIL=mx@example.com
+SEED_ADMIN_USERNAME=admin
+SEED_ADMIN_PASSWORD=000000
+SEED_ADMIN_NICKNAME=admin
+SEED_ADMIN_EMAIL=admin@example.com
 SEED_DEMO_USERS=true
 ```
 
@@ -247,9 +247,9 @@ SEED_DEMO_USERS=true
 
 | 账号 | 密码 | 角色 |
 |---|---|---|
-| `MX` | `990108` | 超级管理员 |
-| `张三` | `990108` | 管理员（领导） |
-| `李四` | `990108` | 普通用户（上级：张三） |
+| `admin` | `000000` | 超级管理员 |
+| `张三` | `000000` | 管理员（领导） |
+| `李四` | `000000` | 普通用户（上级：张三） |
 
 生产环境建议：
 
