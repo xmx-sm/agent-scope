@@ -22,6 +22,7 @@
 | 工具层 | 5 个域：db / net / mail / mcp / system | 39 文件 / 127 顶层函数 / 6726 行 |
 | 配置层 | `scope/config/`：SQLite 配置中心，73 项默认配置 | 4 文件 / 619 行 |
 | 模型层 | `scope/llm/`：多厂商 Chat / Embedding / TTS / ASR 工厂，视频 formatter | 3 文件 |
+| 媒体层 | `scope/media/`：TTS 落盘 / base64 / URL、ASR 转写、文件闸门 | 4 文件 |
 
 工具域能力：
 
@@ -68,8 +69,8 @@ scope/
 └── main.py         # 0 字节：装配入口 / 服务入口
 ```
 
-> `llm/` 已实现（模型工厂 + 多模态 formatter），见
-> [docs/框架层规划.md](scope/docs/框架层规划.md) 第三节-B。
+> `llm/` 与 `media/` 已实现（模型工厂 + 多模态 formatter + TTS/ASR 落盘服务），见
+> [docs/框架层规划.md](scope/docs/框架层规划.md) 第三节-B/三-C。
 
 框架层缺口、目标结构、审批与 RAG 的详细设计见
 [docs/框架层规划.md](scope/docs/框架层规划.md)。
@@ -92,6 +93,11 @@ agent_scope/
     │   ├── agent_model.py       # 对外入口
     │   ├── _factory.py          # 内部注册表与构造器
     │   ├── formatters.py        # 视频输入 formatter
+    │   └── __init__.py
+    ├── media/                   # 生成类模型的 I/O 服务
+    │   ├── tts.py               # 文本 → 音频 → 文件/base64/URL
+    │   ├── asr.py               # 音频 → 文本（可选落盘）
+    │   ├── fs.py                # 读/写文件闸门
     │   └── __init__.py
     ├── tools/
     │   ├── db/                  # 数据库工具（四层结构：_helper → executors → dialect → 方言入口）
