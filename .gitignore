@@ -59,9 +59,12 @@ config.db*
 *.swp
 *.swo
 
-# ── Node（将来加 platform 时生效）───────────────────────────────
+# ── Node / 前端 ────────────────────────────────────────────────
+node_modules
 node_modules/
 dist/
+npm-debug.log*
+yarn-error.log*
 .npm
 .npmrc
 

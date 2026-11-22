@@ -375,3 +375,51 @@ git push -u github main
 
 > 当前仓库的 `origin` 指向本地 Gitea，不要直接覆盖；新增 `github` 远端即可同时保留两边。
 
+
+---
+
+## 九、平台前后端（v0.2.0）
+
+在框架层之上新增了一套精简的业务平台，当前只做基础账号与权限配置：
+
+- 登录 / 注册 / JWT 鉴权、头像 URL
+- 用户管理（角色、直属上级、启停、重置密码）
+- 默认设置（站点、账号、安全、界面共 15 项，可恢复默认）
+- 权限分级：角色权限 → 超管单独授权 → 上级/本人逐级收缩 → 超管临时越级授权
+- 运行状态：CPU / 内存 / 磁盘 / GPU / 网络与 IP / Redis / PostgreSQL
+- Redis 滑动窗口限流，不可用时自动降级进程内
+- 侧栏可收缩、移动端适配界面
+
+```text
+agent_scope/
+├── backend/          # FastAPI + SQLAlchemy async + PostgreSQL
+│   ├── app/          # api / services / models / security / seed
+│   ├── .env.example  # 数据库、JWT、端口等启动参数
+│   └── doc/          # 开发记录、接口说明、数据库说明
+└── frontend/         # Vue 3 + Vite + Element Plus
+    ├── src/          # views / router / stores / utils / styles
+    ├── .env.example  # 端口、代理目标、API 前缀
+    └── doc/          # 开发记录、页面说明
+```
+
+启动：
+
+```bash
+# 后端
+uv pip install --python .venv/bin/python -r backend/requirements.txt
+cd backend && cp .env.example .env && ../.venv/bin/python run.py
+
+# 前端（另开终端）
+cd frontend && cp .env.example .env && npm install && npm run dev
+```
+
+默认数据库 `agent_scope`，首次启动自动写入内置账号：
+
+| 账号 | 密码 | 角色 |
+|---|---|---|
+| `MX` | `990108` | 超级管理员 |
+| `张三` | `990108` | 管理员（领导） |
+| `李四` | `990108` | 普通用户（上级：张三） |
+
+细节见 [backend/doc/README.md](backend/doc/README.md) 与
+[frontend/doc/README.md](frontend/doc/README.md)。
