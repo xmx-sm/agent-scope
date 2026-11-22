@@ -134,15 +134,30 @@
 
         <el-tab-pane label="Scope 默认" name="scope">
           <div class="panel">
-            <h3 class="card-title">Scope 默认配置</h3>
-            <p class="muted">与 scope/config/schema.py 同名对齐，供 Agent 运行时读取</p>
-            <div class="form-grid">
-              <div v-for="item in genericItems('Scope')" :key="item.key" class="field">
-                <div class="field-label">{{ item.label }}</div>
-                <div class="field-desc muted">{{ item.description }}</div>
-                <ConfigControl :item="item" v-model="form[item.key]" />
+            <div class="config-toolbar">
+              <div>
+                <h3 class="card-title">Scope 默认配置</h3>
+                <p class="muted">与 scope/config/schema.py 同名对齐，按模块折叠展示</p>
               </div>
+              <div class="grow"></div>
+              <el-button size="small" @click="expandScope">全部展开</el-button>
+              <el-button size="small" @click="openScope = []">全部收起</el-button>
             </div>
+            <el-collapse v-model="openScope" class="scope-collapse">
+              <el-collapse-item v-for="group in scopeGroups" :key="group.name" :name="group.name">
+                <template #title>
+                  <span class="scope-title">{{ group.name }}</span>
+                  <span class="muted scope-count">{{ group.items.length }} 项</span>
+                </template>
+                <div class="form-grid">
+                  <div v-for="item in group.items" :key="item.key" class="field">
+                    <div class="field-label">{{ item.label }}</div>
+                    <div class="field-desc muted">{{ item.description }}</div>
+                    <ConfigControl :item="item" v-model="form[item.key]" />
+                  </div>
+                </div>
+              </el-collapse-item>
+            </el-collapse>
           </div>
         </el-tab-pane>
       </el-tabs>
@@ -155,7 +170,7 @@
 </template>
 
 <script setup>
-import { defineComponent, h, onMounted, reactive, ref } from 'vue'
+import { computed, defineComponent, h, onMounted, reactive, ref } from 'vue'
 import { ElInput, ElInputNumber, ElOption, ElSelect, ElSwitch, ElMessage } from 'element-plus'
 import api from '../../utils/api'
 
@@ -201,6 +216,7 @@ const ConfigControl = defineComponent({
 })
 
 const activeTab = ref('chat')
+const openScope = ref([])
 const loading = ref(false)
 const saving = ref(false)
 const fetchingChat = ref(false)
@@ -218,6 +234,34 @@ const EMBEDDING_SPECIAL = [
   'ai.embedding.api_key',
   'ai.embedding.model'
 ]
+
+function scopeGroupOf(key) {
+  if (key.startsWith('agent.context.')) return '上下文压缩'
+  if (key.startsWith('agent.injection.')) return '运行时注入'
+  if (key.startsWith('agent.offload.')) return '上下文卸载'
+  if (key.startsWith('rag.')) return 'RAG 检索'
+  if (key.startsWith(('agent.skills.'))) return '能力开关'
+  if (key.startsWith('agent.plan.')) return '能力开关'
+  if (key.startsWith('agent.mcp.')) return '能力开关'
+  return '其他'
+}
+
+const scopeGroups = computed(() => {
+  const order = ['上下文压缩', '运行时注入', '上下文卸载', '能力开关', 'RAG 检索', '其他']
+  const map = new Map()
+  for (const item of genericItems('Scope')) {
+    const name = scopeGroupOf(item.key)
+    if (!map.has(name)) map.set(name, { name, items: [] })
+    map.get(name).items.push(item)
+  }
+  return [...map.values()].sort(
+    (a, b) => order.indexOf(a.name) - order.indexOf(b.name)
+  )
+})
+
+function expandScope() {
+  openScope.value = scopeGroups.value.map((group) => group.name)
+}
 
 function genericItems(group) {
   const special = group === '对话模型' ? CHAT_SPECIAL : group === '向量模型' ? EMBEDDING_SPECIAL : []
@@ -331,5 +375,43 @@ onMounted(load)
 
 .agent-tabs :deep(.el-tabs__header) {
   margin-bottom: 14px;
+}
+
+.config-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.config-toolbar .card-title {
+  margin-bottom: 2px;
+}
+
+.scope-collapse {
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.scope-collapse :deep(.el-collapse-item__header) {
+  padding: 0 16px;
+  background: #fafbfc;
+}
+
+.scope-collapse :deep(.el-collapse-item__content) {
+  padding: 0 16px 14px;
+}
+
+.scope-title {
+  font-weight: 700;
+  font-size: 14px;
+  margin-right: 8px;
+}
+
+.scope-count {
+  font-size: 12px;
 }
 </style>
