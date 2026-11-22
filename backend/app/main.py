@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
     await close_db()
 
 
-app = FastAPI(title=settings.app_name, version="0.25.0", lifespan=lifespan)
+app = FastAPI(title=settings.app_name, version="0.26.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

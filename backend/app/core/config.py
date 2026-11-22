@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     allow_register: bool = True
     default_role: str = "user"
 
+    # 首次启动的超级管理员与演示账号
+    seed_admin_username: str = "MX"
+    seed_admin_password: str = "990108"
+    seed_admin_nickname: str = "MX"
+    seed_admin_email: str = "mx@example.com"
+    seed_demo_users: bool = True
+
     redis_host: str = "127.0.0.1"
     redis_port: int = 6379
     redis_password: str = ""

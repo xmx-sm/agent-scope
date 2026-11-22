@@ -18,16 +18,26 @@ from app.core.security import hash_password
 
 logger = logging.getLogger("seed")
 
-# 内置账号：登录名 / 昵称 / 角色 / 上级登录名
-SEED_USERS: list[dict[str, Any]] = [
-    {"username": "MX", "nickname": "MX", "role": "super_admin", "leader": None,
-     "email": "mx@example.com"},
-    {"username": "张三", "nickname": "张三", "role": "admin", "leader": None,
-     "email": "zhangsan@example.com"},
-    {"username": "李四", "nickname": "李四", "role": "user", "leader": "张三",
-     "email": "lisi@example.com"},
-]
-SEED_PASSWORD = "990108"
+def _seed_users() -> list[dict[str, Any]]:
+    """首次启动账号：超级管理员可配置，演示账号可关闭。"""
+    admin_username = (settings.seed_admin_username or "MX").strip()
+    users: list[dict[str, Any]] = [
+        {
+            "username": admin_username,
+            "nickname": (settings.seed_admin_nickname or admin_username).strip(),
+            "role": "super_admin",
+            "leader": None,
+            "email": (settings.seed_admin_email or "").strip() or None,
+        }
+    ]
+    if settings.seed_demo_users:
+        users += [
+            {"username": "张三", "nickname": "张三", "role": "admin", "leader": None,
+             "email": "zhangsan@example.com"},
+            {"username": "李四", "nickname": "李四", "role": "user", "leader": "张三",
+             "email": "lisi@example.com"},
+        ]
+    return users
 
 # 默认菜单：两级结构，parent_key 为空表示一级
 SEED_MENUS: list[dict[str, Any]] = [
@@ -122,7 +132,8 @@ async def async_seed(params: dict) -> None:
     """参数：session"""
     session: AsyncSession = params["session"]
     created_users = 0
-    for spec in SEED_USERS:
+    seed_users = _seed_users()
+    for spec in seed_users:
         exists = (
             await session.execute(select(User).where(User.username == spec["username"]))
         ).scalar_one_or_none()
@@ -133,7 +144,7 @@ async def async_seed(params: dict) -> None:
             nickname=spec["nickname"],
             email=spec["email"],
             role=spec["role"],
-            password_hash=hash_password(SEED_PASSWORD),
+            password_hash=hash_password(settings.seed_admin_password),
             is_active=True,
         )
         session.add(user)
@@ -141,7 +152,7 @@ async def async_seed(params: dict) -> None:
         created_users += 1
 
     # 汇报线：等张三落库后再设置李四的 leader_id
-    for spec in SEED_USERS:
+    for spec in seed_users:
         if not spec["leader"]:
             continue
         user = (

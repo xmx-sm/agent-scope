@@ -79,7 +79,7 @@ PGPASSWORD=990108 psql -h 127.0.0.1 -U mx -d postgres \
   -c "CREATE DATABASE agent_scope OWNER mx"
 ```
 
-首次启动自动建表并写入种子数据（幂等）：
+首次启动自动建表并写入种子数据（幂等）。管理员账号可通过环境变量配置，详细恢复方式见《配置说明.md》。
 
 | 账号 | 密码 | 角色 |
 |---|---|---|

@@ -3,7 +3,7 @@
 基于 [AgentScope](https://github.com/agentscope-ai/agentscope) 的完整 Agent 平台：
 底层是可复用的 `scope/` 框架，上层是 FastAPI 后端与 Vue 3 移动端适配前端。
 
-> **当前版本：`v0.25.0`**
+> **当前版本：`v0.26.0`**
 >
 > 已从“框架层 + 基础账号”升级为可运行的 Agent 平台：
 > 对话、知识库、工具权限、超级智能体、A2A、定时任务、语音合成、会话分支、断线续传。
@@ -231,15 +231,76 @@ npm run dev
 # http://127.0.0.1:5182
 ```
 
-### 6. 内置账号
+### 6. 首次启动账号
 
-首次启动自动建表并写入种子数据：
+首次启动自动建表并写入一个超级管理员。账号可通过 `backend/.env` 配置：
+
+```env
+SEED_ADMIN_USERNAME=MX
+SEED_ADMIN_PASSWORD=990108
+SEED_ADMIN_NICKNAME=MX
+SEED_ADMIN_EMAIL=mx@example.com
+SEED_DEMO_USERS=true
+```
+
+默认开发账号：
 
 | 账号 | 密码 | 角色 |
 |---|---|---|
 | `MX` | `990108` | 超级管理员 |
 | `张三` | `990108` | 管理员（领导） |
 | `李四` | `990108` | 普通用户（上级：张三） |
+
+生产环境建议：
+
+```env
+SEED_ADMIN_PASSWORD=替换为强密码
+SEED_DEMO_USERS=false
+```
+
+已有数据库不会被种子覆盖；如果已有库但没有可用超级管理员，使用下面的恢复命令。
+
+### 7. 没有超级管理员怎么办
+
+场景：
+
+- 导入了一个已有数据库，但里面没有超级管理员
+- 误删/停用了管理员，且没有可用超管
+- 需要新建一名管理员接收系统
+
+在 `backend/` 下执行：
+
+```bash
+cd backend
+../.venv/bin/python scripts/create_superadmin.py --username admin
+```
+
+会交互式输入密码。非交互环境：
+
+```bash
+../.venv/bin/python scripts/create_superadmin.py \
+  --username admin \
+  --password '替换为强密码' \
+  --nickname 管理员
+```
+
+如果同名用户已存在，会提升为超级管理员；默认同时重置密码：
+
+```bash
+../.venv/bin/python scripts/create_superadmin.py --username MX --promote
+```
+
+保留原密码：
+
+```bash
+../.venv/bin/python scripts/create_superadmin.py --username MX --promote --no-password-reset
+```
+
+说明：
+
+- 不会开放匿名“创建管理员”HTTP 接口
+- 必须在服务器上拥有后端数据库与命令行权限
+- 创建后请立即登录并检查其他账号状态
 
 ---
 
