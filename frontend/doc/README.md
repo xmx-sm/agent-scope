@@ -16,7 +16,7 @@
 cd frontend
 cp .env.example .env
 npm install
-npm run dev      # http://127.0.0.1:5173
+npm run dev      # http://127.0.0.1:5182
 npm run build    # dist/
 ```
 

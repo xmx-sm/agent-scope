@@ -217,8 +217,8 @@ watch(
 
 onMounted(() => {
   window.addEventListener('resize', onResize)
-  if (!auth.user) auth.fetchMe().catch(() => {})
-  else if (!auth.menus.length) auth.fetchMenus().catch(() => {})
+  // 每次进入/刷新都以服务端为准，避免 localStorage 里缓存的旧菜单不更新
+  if (auth.isLoggedIn) auth.fetchMe().catch(() => {})
   expandActiveGroup()
 })
 onBeforeUnmount(() => window.removeEventListener('resize', onResize))
