@@ -28,7 +28,7 @@
 ## 一、目录总览
 
 全仓 **63 个 Python 文件 / 10619 行**：工具层 `tools/` 40 文件 + 基础设施层 `config/` 4 文件 + 框架层 `llm/`、`media/`、`rag/`、`common/`。
-框架层中 `llm/`（模型工厂）、`media/`（TTS/ASR 落盘服务）、`rag/`（SQLite/Qdrant/Milvus/MongoDB/Elasticsearch/Zvec/OceanBase 向量库 + `tools/rag` + 官方 `KnowledgeBase`/`RAGMiddleware`）、`skills/`（用户目录加载）、`permission/`（PermissionContext / 字典开关 / SQLite 规则、审计、pending / 函数级工具）、`middleware/`（Tracing/Budget/TTS/Router/RAG/长期记忆字典工厂）、`workspace/`（Local/Docker/E2B/... 字典工厂）、`realtime/`（实时语音模型与 RealtimeAgent 字典工厂）与 `agent/`（子智能体、运行时、Plan、Pipeline、SOP）已实现；其余 `storage/` 尚未实现，缺口与规划见《框架层规划.md》。
+框架层中 `llm/`（模型工厂）、`media/`（TTS/ASR 落盘服务）、`rag/`（SQLite/Qdrant/Milvus/MongoDB/Elasticsearch/Zvec/OceanBase 向量库 + `tools/rag` + 官方 `KnowledgeBase`/`RAGMiddleware`）、`skills/`（用户目录加载）、`permission/`（PermissionContext / 字典开关 / SQLite 规则、审计、pending / 函数级工具）、`middleware/`（Tracing/Budget/TTS/Router/RAG/长期记忆字典工厂）、`workspace/`（Local/Docker/E2B/... 字典工厂）、`realtime/`（实时语音模型与 RealtimeAgent 字典工厂）与 `agent/`（子智能体、运行时、Plan、Pipeline、SOP）已实现；`main.py` 已提供统一 `async_dispatch` 后端入口；其余 `storage/` 尚未实现，缺口与规划见《框架层规划.md》。
 
 ```
 tools/

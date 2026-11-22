@@ -5,7 +5,7 @@
 目标是把「模型、Agent 运行循环、工具、权限审批、记忆、RAG、存储」收敛成一套可复用的框架层，
 业务侧只负责配置和编排，而不是每个项目重写一遍 Agent 底座。
 
-当前进度：**工具层、配置中心、模型/媒体/RAG/Agent/权限/中间件/工作区/实时语音框架层已实现；下一步服务化入口与存储。**
+当前进度：**工具层、配置中心、模型/媒体/RAG/Agent/权限/中间件/工作区/实时语音框架层已实现，统一后端 dispatch 入口已提供；下一步 HTTP/SSE 服务与存储。**
 
 - AgentScope：`2.0.12`
 - Python：`3.14.8`
@@ -29,6 +29,7 @@
 | 中间件层 | `scope/middleware/`：Tracing / Budget / TTS / ModelRouter / RAG / 长期记忆（Agentic/ReMe/Mem0）/ Steering / 自定义中间件字典工厂 | 2 文件 |
 | 工作区层 | `scope/workspace/`：Local / Bubblewrap / Docker / E2B / Daytona / K8s / OpenSandbox / AppleContainer 字典工厂 | 2 文件 |
 | 实时语音层 | `scope/realtime/`：DashScope / OpenAI / Gemini / xAI 实时模型、RealtimeAgent、本地音频传输 | 2 文件 |
+| 后端入口 | `scope/main.py`：统一 `async_dispatch` 路由，覆盖 tool/rag/llm/media/agent/permission/middleware/workspace/realtime/config/system | 1 文件 |
 | Skills | `scope/skills/`：用户自定义目录加载（`LocalSkillLoader`） | 2 文件 |
 
 工具域能力：
@@ -73,7 +74,7 @@ scope/
 ├── permission/     # 已实现：PermissionContext、SQLite 规则/审计/pending、函数级规则
 ├── skills/         # 已实现：用户自定义 Skills 目录加载
 ├── storage/        # 空：会话 / 消息 / 工作区
-└── main.py         # 0 字节：装配入口 / 服务入口
+└── main.py         # 已实现：统一 async_dispatch 后端入口；HTTP/SSE 服务待做
 ```
 
 > `llm/`、`media/`、`rag/`、`permission/` 已实现；`agent/` 的子智能体与主 Agent runtime 已实现。
@@ -91,6 +92,7 @@ agent_scope/
 ├── README.md                    # 本文件
 ├── .gitignore
 └── scope/
+    ├── main.py                  # 统一 async_dispatch 后端入口
     ├── config/                  # SQLite 配置中心
     │   ├── schema.py            # 110 项配置的单一真相源
     │   ├── store.py             # 读写 + 进程级缓存 + 生命周期 API
@@ -226,6 +228,49 @@ asyncio.run(main())
 ```python
 {"code": 200 | 400 | 500, "data": ..., "message": "..."}
 ```
+
+### 后端统一入口
+
+业务后端只需要调用 `scope/main.py`：
+
+```python
+from scope.main import async_dispatch
+
+r = await async_dispatch({
+    "domain": "rag",
+    "action": "tools",
+    "data": {
+        "function": "read",
+        "rag_config": {"type": "zvec", "zvec_config": {...}},
+        "search_config": {"query": "如何部署", "top_k": 5},
+    },
+})
+```
+
+```python
+r = await async_dispatch({
+    "domain": "agent",
+    "action": "create",
+    "data": {
+        "agent": {"name": "assistant", "system_prompt": "..."},
+        "llm": {...},
+    },
+})
+```
+
+支持 domain：
+
+```text
+tool / rag / llm / media / agent / permission / middleware
+workspace / realtime / config / system
+```
+
+注意：
+
+- dispatch 返回统一信封
+- `agent/model/workspace/middleware` 创建结果是进程内对象
+- 如果走 HTTP，需要上层加 session registry，把对象换成 ID
+- HTTP/SSE 服务入口尚未实现；当前 `create_app` 也还没加
 
 注意：
 

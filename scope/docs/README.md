@@ -93,7 +93,7 @@ mcp 68 / 跨域一致性与 download 闸门 19。方法见 工具拆分规范.md
 - ④ config 层：散落在各域的硬编码默认值收敛到 `config.db`，读取优先级 **data > sqlite > None**；
   10 个钳制项走 `clamp_get` 只收紧不放宽（铁律 #11），6 个敏感项出厂 None 仅库注入；
   **破坏性**：mail 的 `EMAIL_*` 环境变量兜底彻底移除（默认值只此一源）
-- **框架层已实现**：`agent/`（子智能体、运行时、上下文、Plan、Pipeline、SOP）、`llm/`、`media/`、`rag/`（7 种向量库）、`permission/`、`middleware/`、`workspace/`、`realtime/`、`skills/`；剩余 `storage/`、`main.py` 服务化入口；缺口与规划见《框架层规划.md》
+- **框架层已实现**：`agent/`（子智能体、运行时、上下文、Plan、Pipeline、SOP）、`llm/`、`media/`、`rag/`（7 种向量库）、`permission/`、`middleware/`、`workspace/`、`realtime/`、`skills/`，并提供 `main.py` 的 `async_dispatch` 统一后端入口；剩余 `storage/`、HTTP/SSE 服务入口；缺口与规划见《框架层规划.md》
 - **原件仍是行为基准，不要删** `agent_study/scope/tools/`——所有对撞验证仍以它为准
 - 未复制：`dingtalk_tools/`（`_config.py` 含明文生产密钥，按「密钥三不进」不入）、
   `async_rag_tools.py`（跨目录依赖 `rag/`；检索职责改由官方 `RAGMiddleware` 承担，落地规划见《框架层规划.md》）。
