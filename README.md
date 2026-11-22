@@ -2,10 +2,17 @@
 
 基于 [AgentScope](https://github.com/agentscope-ai/agentscope) 的 Agent 框架封装项目。
 
+> **版本：`v0.1.0`**
+> **状态：AgentScope 框架层搭建完成。**
+>
+> 本版本完成工具、配置、模型、媒体、RAG、Agent、权限、中间件、工作区、
+> 长期记忆、实时语音与统一 `async_dispatch` 入口。
+> HTTP / SSE / WebSocket、会话持久化和业务 session registry 按设计交由业务后端实现。
+
 目标是把「模型、Agent 运行循环、工具、权限审批、记忆、RAG、存储」收敛成一套可复用的框架层，
 业务侧只负责配置和编排，而不是每个项目重写一遍 Agent 底座。
 
-当前进度：**工具层、配置中心、模型/媒体/RAG/Agent/权限/中间件/工作区/实时语音框架层已实现，统一后端 dispatch 入口已提供；下一步 HTTP/SSE 服务与存储。**
+当前进度：**框架层搭建完成；服务化传输层由业务后端承接。**
 
 - AgentScope：`2.0.12`
 - Python：`3.14.8`
