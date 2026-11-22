@@ -33,25 +33,34 @@ SEED_PASSWORD = "990108"
 SEED_MENUS: list[dict[str, Any]] = [
     {"key": "dashboard", "parent_key": None, "title": "工作台", "path": "/dashboard",
      "icon": "Grid", "permission": "dashboard", "super_only": False, "sort_order": 10},
-    {"key": "menu.chat", "parent_key": None, "title": "AI 对话", "path": "/chat",
-     "icon": "ChatDotRound", "permission": "ai.use", "super_only": False, "sort_order": 15},
+    {"key": "group.agent", "parent_key": None, "title": "Agent", "path": "",
+     "icon": "Cpu", "permission": None, "super_only": False, "sort_order": 15},
+    {"key": "menu.chat", "parent_key": "group.agent", "title": "Agent 对话",
+     "path": "/chat", "icon": "ChatDotRound", "permission": "ai.use",
+     "super_only": False, "sort_order": 10},
+    {"key": "menu.my_tools", "parent_key": "group.agent", "title": "我的工具",
+     "path": "/my-tools", "icon": "Tools", "permission": "ai.use",
+     "super_only": False, "sort_order": 20},
+    {"key": "menu.agent_settings", "parent_key": "group.agent", "title": "Agent 设置",
+     "path": "/agent-settings", "icon": "Setting", "permission": "ai.use",
+     "super_only": False, "sort_order": 30},
+    {"key": "menu.team", "parent_key": "group.agent", "title": "管理下级",
+     "path": "/team/permissions", "icon": "UserFilled", "permission": "permissions.team",
+     "super_only": False, "leader_only": True, "sort_order": 40},
+    {"key": "menu.agent", "parent_key": "group.agent", "title": "Agent 配置",
+     "path": "/admin/agent", "icon": "Cpu", "permission": "ai.config",
+     "super_only": True, "sort_order": 50},
     {"key": "group.personal", "parent_key": None, "title": "我的", "path": "",
      "icon": "User", "permission": None, "super_only": False, "sort_order": 20},
-    {"key": "menu.my_permissions", "parent_key": "group.personal", "title": "我的权限",
+    {"key": "menu.my_permissions", "parent_key": "group.personal", "title": "页面权限",
      "path": "/permissions", "icon": "Key", "permission": "permissions.self",
      "super_only": False, "sort_order": 10},
     {"key": "menu.personalize", "parent_key": "group.personal", "title": "菜单个性化",
      "path": "/menu-settings", "icon": "Setting", "permission": "dashboard",
      "super_only": False, "sort_order": 20},
-    {"key": "menu.agent_settings", "parent_key": "group.personal", "title": "Agent 设置",
-     "path": "/agent-settings", "icon": "Cpu", "permission": "ai.use",
-     "super_only": False, "sort_order": 25},
     {"key": "profile", "parent_key": "group.personal", "title": "个人中心",
      "path": "/profile", "icon": "User", "permission": "profile",
      "super_only": False, "sort_order": 30},
-    {"key": "menu.team", "parent_key": None, "title": "管理下级",
-     "path": "/team/permissions", "icon": "UserFilled", "permission": "permissions.team",
-     "super_only": False, "leader_only": True, "sort_order": 30},
     {"key": "group.system", "parent_key": None, "title": "系统", "path": "",
      "icon": "Monitor", "permission": None, "super_only": False, "sort_order": 40},
     {"key": "menu.users", "parent_key": "group.system", "title": "用户管理",
@@ -71,9 +80,6 @@ SEED_MENUS: list[dict[str, Any]] = [
     {"key": "menu.config.menus", "parent_key": "group.config", "title": "菜单配置",
      "path": "/admin/config/menus", "icon": "Menu", "permission": "admin.menus",
      "super_only": True, "sort_order": 30},
-    {"key": "menu.agent", "parent_key": "group.config", "title": "Agent 配置",
-     "path": "/admin/agent", "icon": "Cpu", "permission": "ai.config",
-     "super_only": True, "sort_order": 40},
 ]
 
 async def async_seed(params: dict) -> None:
@@ -129,7 +135,7 @@ async def async_seed(params: dict) -> None:
         created_configs += 1
 
     created_menus = 0
-    layout_marker = await session.get(SystemConfig, "__meta.menu_layout_v4")
+    layout_marker = await session.get(SystemConfig, "__meta.menu_layout_v5")
     if layout_marker is None:
         legacy_keys = [
             "group.permissions", "menu.settings", "menu.team_permissions", "menu.admin",
@@ -152,8 +158,8 @@ async def async_seed(params: dict) -> None:
                         setattr(row, field, value)
         session.add(
             SystemConfig(
-                key="__meta.menu_layout_v4",
-                value='"4"',
+                key="__meta.menu_layout_v5",
+                value='"5"',
                 label="内部：菜单布局版本",
                 description="内部迁移标记，不在默认设置中展示",
                 value_type="string",

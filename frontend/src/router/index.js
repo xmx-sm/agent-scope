@@ -22,6 +22,12 @@ const routes = [
         meta: { title: '工作台', permission: 'dashboard' }
       },
       {
+        path: 'my-tools',
+        name: 'MyTools',
+        component: () => import('../views/MyTools.vue'),
+        meta: { title: '我的工具', permission: 'ai.use' }
+      },
+      {
         path: 'permissions',
         name: 'MyPermissions',
         component: () => import('../views/MyPermissions.vue'),
