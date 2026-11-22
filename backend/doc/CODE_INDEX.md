@@ -71,6 +71,7 @@ services/
 | `routers/agent/collaboration.py` | `services/agent/collaboration/` |
 | `routers/agent/automation.py` | `services/agent/automation/` |
 | `routers/agent/media.py` | `services/agent/media/` |
+| `routers/agent/memory.py` | `services/agent/memory/` |
 | `routers/agent/public_a2a.py` | `services/agent/collaboration/a2a.py` |
 | `routers/agent/admin.py` | `services/agent/analytics/` |
 

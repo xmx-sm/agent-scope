@@ -19,7 +19,7 @@ from app.schemas.agent.knowledge import (
     ParseConfigIn,
     RagSearchIn,
 )
-from app.schemas.agent.resources import McpSaveIn, SubagentSaveIn, ToggleIn
+from app.schemas.agent.resources import MemoryToggleIn, McpSaveIn, SubagentSaveIn, ToggleIn
 
 __all__ = [
     "ChatStreamIn",
@@ -35,6 +35,7 @@ __all__ = [
     "LibraryShareIn",
     "ParseConfigIn",
     "RagSearchIn",
+    "MemoryToggleIn",
     "McpSaveIn",
     "SubagentSaveIn",
     "ToggleIn",

@@ -106,6 +106,12 @@ const routes = [
         meta: { title: '定时任务', permission: 'ai.use' }
       },
       {
+        path: 'agent-memory',
+        name: 'AgentMemory',
+        component: () => import('../views/Memory.vue'),
+        meta: { title: '长期记忆', permission: 'ai.use' }
+      },
+      {
         path: 'agent-stats',
         name: 'AgentStats',
         component: () => import('../views/AgentStats.vue'),

@@ -89,6 +89,12 @@ async def init_db() -> None:
             )
             await conn.execute(
                 text(
+                    "ALTER TABLE user_agent_configs ADD COLUMN IF NOT EXISTS "
+                    "memory_configured BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            )
+            await conn.execute(
+                text(
                     "ALTER TABLE vector_documents ADD COLUMN IF NOT EXISTS "
                     "parse_requested BOOLEAN NOT NULL DEFAULT FALSE"
                 )

@@ -61,7 +61,10 @@ async def async_effective(params: dict) -> dict[str, Any]:
     system = await async_system_defaults({"session": session})
     row = await session.get(UserAgentConfig, user.id)
     if row is None or row.use_system_default:
-        return {**system, "source": "system"}
+        cfg = {**system, "source": "system"}
+        if row is not None and row.memory_configured:
+            cfg["memory_enabled"] = row.memory_enabled
+        return cfg
     return {
         "provider": row.provider or system["provider"],
         "base_url": row.base_url,
@@ -102,7 +105,11 @@ async def async_view(params: dict) -> dict[str, Any]:
         "think": row.think if row else system["think"],
         "thinking_budget": row.thinking_budget if row else system["thinking_budget"],
         "reasoning_effort": row.reasoning_effort if row else system["reasoning_effort"],
-        "memory_enabled": row.memory_enabled if row else system["memory_enabled"],
+        "memory_enabled": (
+            row.memory_enabled
+            if row is not None and row.memory_configured
+            else system["memory_enabled"]
+        ),
         "system_prompt": row.system_prompt if row else "",
     }
     return {
@@ -131,6 +138,9 @@ async def async_save(params: dict) -> dict[str, Any]:
 
     use_default = bool(data.get("use_system_default", False))
     row.use_system_default = use_default
+    if "memory_enabled" in data:
+        row.memory_enabled = bool(data.get("memory_enabled"))
+        row.memory_configured = True
     if not use_default:
         api_key = str(data.get("api_key") or "")
         if api_key == SENTINEL:
@@ -150,7 +160,6 @@ async def async_save(params: dict) -> dict[str, Any]:
         row.think = bool(data.get("think", False))
         row.thinking_budget = int(data.get("thinking_budget", 0) or 0)
         row.reasoning_effort = str(data.get("reasoning_effort") or "medium")
-        row.memory_enabled = bool(data.get("memory_enabled", False))
         row.system_prompt = str(data.get("system_prompt") or "")
     await session.commit()
     return await async_view({"session": session, "user": user})
@@ -166,5 +175,23 @@ async def async_reset(params: dict) -> dict[str, Any]:
     row = await session.get(UserAgentConfig, user.id)
     if row is not None:
         row.use_system_default = True
+        row.memory_configured = False
         await session.commit()
+    return await async_view({"session": session, "user": user})
+
+
+async def async_set_memory(params: dict) -> dict[str, Any]:
+    """单独设置用户长期记忆开关，不依赖模型是否跟随系统默认。
+
+    参数：session / user / enabled
+    """
+    session: AsyncSession = params["session"]
+    user: User = params["user"]
+    row = await session.get(UserAgentConfig, user.id)
+    if row is None:
+        row = UserAgentConfig(user_id=user.id)
+        session.add(row)
+    row.memory_enabled = bool(params.get("enabled"))
+    row.memory_configured = True
+    await session.commit()
     return await async_view({"session": session, "user": user})

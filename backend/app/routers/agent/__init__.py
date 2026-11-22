@@ -10,12 +10,13 @@ from app.routers.agent import (
     config,
     knowledge,
     media,
+    memory,
     public_a2a,
     resources,
 )
 
 router = APIRouter(prefix="/agent", tags=["Agent 对话"])
-for module in (config, chat, knowledge, resources, collaboration, automation, media):
+for module in (config, chat, knowledge, resources, collaboration, automation, media, memory):
     router.include_router(module.router)
 
 admin_router = APIRouter(prefix="/admin/agent", tags=["Agent 管理"])

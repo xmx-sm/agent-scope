@@ -28,3 +28,7 @@ class SubagentSaveIn(BaseModel):
     tools: list[str] = Field(default_factory=list)
     mode: str = "auto"
     is_active: bool = True
+
+
+class MemoryToggleIn(BaseModel):
+    enabled: bool
