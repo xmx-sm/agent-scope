@@ -6,130 +6,130 @@
     <div v-loading="loading">
       <el-tabs v-model="activeTab" class="agent-tabs">
         <el-tab-pane label="对话模型" name="chat">
-          <div class="panel">
-            <h3 class="card-title">模型服务</h3>
-            <el-form label-position="top">
-              <div class="form-grid">
-                <el-form-item label="模型厂商">
-                  <el-select
-                    v-model="form['ai.provider']"
-                    filterable
-                    allow-create
-                    default-first-option
-                    placeholder="选择或输入厂商"
-                    style="width: 100%"
-                    @change="onProviderChange('chat')"
-                  >
-                    <el-option
-                      v-for="item in providers"
-                      :key="item.value"
-                      :label="item.label"
-                      :value="item.value"
-                    />
-                  </el-select>
-                </el-form-item>
-                <el-form-item label="API 地址">
-                  <el-input v-model="form['ai.base_url']" placeholder="https://.../v1" />
-                </el-form-item>
-                <el-form-item label="API Key">
-                  <el-input v-model="form['ai.api_key']" type="password" show-password placeholder="sk-..." />
-                </el-form-item>
-                <el-form-item label="模型">
-                  <div class="model-row">
+          <el-collapse v-model="openChat" class="agent-collapse">
+            <el-collapse-item title="模型服务" name="model">
+              <el-form label-position="top">
+                <div class="form-grid">
+                  <el-form-item label="模型厂商">
                     <el-select
-                      v-model="form['ai.model']"
+                      v-model="form['ai.provider']"
                       filterable
                       allow-create
                       default-first-option
-                      placeholder="点击右侧获取模型或手动填写"
-                      style="flex: 1"
+                      placeholder="选择或输入厂商"
+                      style="width: 100%"
+                      @change="onProviderChange('chat')"
                     >
-                      <el-option v-for="name in chatModels" :key="name" :label="name" :value="name" />
+                      <el-option
+                        v-for="item in providers"
+                        :key="item.value"
+                        :label="item.label"
+                        :value="item.value"
+                      />
                     </el-select>
-                    <el-button :loading="fetchingChat" @click="fetchModels('chat')">获取模型</el-button>
-                  </div>
-                </el-form-item>
-              </div>
-            </el-form>
-          </div>
+                  </el-form-item>
+                  <el-form-item label="API 地址">
+                    <el-input v-model="form['ai.base_url']" placeholder="https://.../v1" />
+                  </el-form-item>
+                  <el-form-item label="API Key">
+                    <el-input v-model="form['ai.api_key']" type="password" show-password placeholder="sk-..." />
+                  </el-form-item>
+                  <el-form-item label="模型">
+                    <div class="model-row">
+                      <el-select
+                        v-model="form['ai.model']"
+                        filterable
+                        allow-create
+                        default-first-option
+                        placeholder="点击右侧获取模型或手动填写"
+                        style="flex: 1"
+                      >
+                        <el-option v-for="name in chatModels" :key="name" :label="name" :value="name" />
+                      </el-select>
+                      <el-button :loading="fetchingChat" @click="fetchModels('chat')">获取模型</el-button>
+                    </div>
+                  </el-form-item>
+                </div>
+              </el-form>
+            </el-collapse-item>
 
-          <div class="panel">
-            <h3 class="card-title">生成参数</h3>
-            <div class="form-grid">
-              <div v-for="item in genericItems('对话模型')" :key="item.key" class="field">
-                <div class="field-label">{{ item.label }}</div>
-                <div class="field-desc muted">{{ item.description }}</div>
-                <ConfigControl :item="item" v-model="form[item.key]" />
+            <el-collapse-item title="生成参数" name="generation">
+              <div class="form-grid">
+                <div v-for="item in genericItems('对话模型')" :key="item.key" class="field">
+                  <div class="field-label">{{ item.label }}</div>
+                  <div class="field-desc muted">{{ item.description }}</div>
+                  <ConfigControl :item="item" v-model="form[item.key]" />
+                </div>
               </div>
-            </div>
-          </div>
+            </el-collapse-item>
+          </el-collapse>
         </el-tab-pane>
 
         <el-tab-pane label="向量模型" name="embedding">
-          <div class="panel">
-            <h3 class="card-title">Embedding 服务</h3>
-            <el-form label-position="top">
-              <div class="form-grid">
-                <el-form-item label="模型厂商">
-                  <el-select
-                    v-model="form['ai.embedding.provider']"
-                    filterable
-                    allow-create
-                    default-first-option
-                    placeholder="选择或输入厂商"
-                    style="width: 100%"
-                    @change="onProviderChange('embedding')"
-                  >
-                    <el-option
-                      v-for="item in providers"
-                      :key="item.value"
-                      :label="item.label"
-                      :value="item.value"
-                    />
-                  </el-select>
-                </el-form-item>
-                <el-form-item label="API 地址">
-                  <el-input v-model="form['ai.embedding.base_url']" placeholder="https://.../v1" />
-                </el-form-item>
-                <el-form-item label="API Key">
-                  <el-input
-                    v-model="form['ai.embedding.api_key']"
-                    type="password"
-                    show-password
-                    placeholder="sk-..."
-                  />
-                </el-form-item>
-                <el-form-item label="Embedding 模型">
-                  <div class="model-row">
+          <el-collapse v-model="openEmbedding" class="agent-collapse">
+            <el-collapse-item title="Embedding 服务" name="model">
+              <el-form label-position="top">
+                <div class="form-grid">
+                  <el-form-item label="模型厂商">
                     <el-select
-                      v-model="form['ai.embedding.model']"
+                      v-model="form['ai.embedding.provider']"
                       filterable
                       allow-create
                       default-first-option
-                      placeholder="点击右侧获取模型或手动填写"
-                      style="flex: 1"
+                      placeholder="选择或输入厂商"
+                      style="width: 100%"
+                      @change="onProviderChange('embedding')"
                     >
-                      <el-option v-for="name in embeddingModels" :key="name" :label="name" :value="name" />
+                      <el-option
+                        v-for="item in providers"
+                        :key="item.value"
+                        :label="item.label"
+                        :value="item.value"
+                      />
                     </el-select>
-                    <el-button :loading="fetchingEmbedding" @click="fetchModels('embedding')">
-                      获取模型
-                    </el-button>
-                  </div>
-                </el-form-item>
-              </div>
-            </el-form>
-          </div>
+                  </el-form-item>
+                  <el-form-item label="API 地址">
+                    <el-input v-model="form['ai.embedding.base_url']" placeholder="https://.../v1" />
+                  </el-form-item>
+                  <el-form-item label="API Key">
+                    <el-input
+                      v-model="form['ai.embedding.api_key']"
+                      type="password"
+                      show-password
+                      placeholder="sk-..."
+                    />
+                  </el-form-item>
+                  <el-form-item label="Embedding 模型">
+                    <div class="model-row">
+                      <el-select
+                        v-model="form['ai.embedding.model']"
+                        filterable
+                        allow-create
+                        default-first-option
+                        placeholder="点击右侧获取模型或手动填写"
+                        style="flex: 1"
+                      >
+                        <el-option v-for="name in embeddingModels" :key="name" :label="name" :value="name" />
+                      </el-select>
+                      <el-button :loading="fetchingEmbedding" @click="fetchModels('embedding')">
+                        获取模型
+                      </el-button>
+                    </div>
+                  </el-form-item>
+                </div>
+              </el-form>
+            </el-collapse-item>
 
-          <div class="panel">
-            <h3 class="card-title">向量参数</h3>
-            <div class="form-grid">
-              <div v-for="item in genericItems('向量模型')" :key="item.key" class="field">
-                <div class="field-label">{{ item.label }}</div>
-                <div class="field-desc muted">{{ item.description }}</div>
-                <ConfigControl :item="item" v-model="form[item.key]" />
+            <el-collapse-item title="向量参数" name="params">
+              <div class="form-grid">
+                <div v-for="item in genericItems('向量模型')" :key="item.key" class="field">
+                  <div class="field-label">{{ item.label }}</div>
+                  <div class="field-desc muted">{{ item.description }}</div>
+                  <ConfigControl :item="item" v-model="form[item.key]" />
+                </div>
               </div>
-            </div>
-          </div>
+            </el-collapse-item>
+          </el-collapse>
         </el-tab-pane>
 
         <el-tab-pane label="Scope 默认" name="scope">
@@ -221,6 +221,8 @@ const ConfigControl = defineComponent({
 })
 
 const activeTab = ref('chat')
+const openChat = ref(['model', 'generation'])
+const openEmbedding = ref(['model', 'params'])
 const openScope = ref([])
 const loading = ref(false)
 const saving = ref(false)
@@ -394,6 +396,7 @@ onMounted(load)
   margin-bottom: 2px;
 }
 
+.agent-collapse,
 .scope-collapse {
   border: 1px solid var(--app-border);
   border-radius: 12px;
@@ -401,11 +404,13 @@ onMounted(load)
   background: #fff;
 }
 
+.agent-collapse :deep(.el-collapse-item__header),
 .scope-collapse :deep(.el-collapse-item__header) {
   padding: 0 16px;
   background: #fafbfc;
 }
 
+.agent-collapse :deep(.el-collapse-item__content),
 .scope-collapse :deep(.el-collapse-item__content) {
   padding: 0 16px 14px;
 }
