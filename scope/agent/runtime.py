@@ -38,6 +38,11 @@ from agentscope.event import (
 )
 from agentscope.message import Msg, TextBlock, ToolResultBlock, ToolResultState
 
+try:
+    from ..permission import build_permission_context, set_permission_mode
+except ImportError:
+    from permission import build_permission_context, set_permission_mode
+
 
 def _err(message: str, fn: str = "AgentRuntime") -> Dict[str, Any]:
     return {"code": 400, "data": f"{os.path.abspath(__file__)}_{fn}",
@@ -67,6 +72,24 @@ class AgentRuntime:
         self._pending: Dict[str, dict] = {}
         self._active_task: Optional[asyncio.Task] = None
         self._interrupted = False
+
+    # ── 权限 ────────────────────────────────────────────────────
+    def _permission_context(self):
+        state = getattr(self.agent, "state", None)
+        context = getattr(state, "permission_context", None)
+        if context is None:
+            context = build_permission_context()
+            if state is not None:
+                state.permission_context = context
+        return context
+
+    def permission_context(self):
+        """当前 Agent 的 PermissionContext。"""
+        return self._permission_context()
+
+    def set_permission_mode(self, mode: Any) -> str:
+        """运行时切换权限模式，返回规范化后的模式名。"""
+        return set_permission_mode(self._permission_context(), mode).value
 
     # ── 审批 ────────────────────────────────────────────────────
     def _tool_group_map(self) -> Dict[str, str]:
@@ -128,7 +151,15 @@ class AgentRuntime:
                 "reply_id": rid,
                 "event": entry["event"],
                 "tool_calls": [
-                    {"id": tc.id, "name": tc.name, "input": tc.input}
+                    {
+                        "id": tc.id,
+                        "name": tc.name,
+                        "input": tc.input,
+                        "suggested_rules": [
+                            rule.model_dump(mode="json")
+                            for rule in (getattr(tc, "suggested_rules", None) or [])
+                        ],
+                    }
                     for tc in entry["event"].tool_calls
                 ],
             }
@@ -136,11 +167,14 @@ class AgentRuntime:
         ]
 
     def resolve_confirm(self, reply_id: str, approved: Any = None,
-                        decisions: Optional[Dict[str, bool]] = None) -> bool:
+                        decisions: Optional[Dict[str, bool]] = None,
+                        accept_suggested_rules: bool = False) -> bool:
         """回填挂起确认。
 
         approved=True/False 对所有 ask 工具生效；
         decisions={tool_id 或 tool_name: bool} 可逐个决定。
+        accept_suggested_rules=True 时，会被接受的工具调用把官方生成的
+        建议规则一并回传，后续相同调用不再询问。
         """
         entry = self._pending.get(str(reply_id))
         if entry is None or entry["future"].done():
@@ -148,6 +182,7 @@ class AgentRuntime:
         entry["future"].set_result({
             "approved": approved,
             "decisions": decisions or {},
+            "accept_suggested_rules": bool(accept_suggested_rules),
         })
         return True
 
@@ -215,6 +250,8 @@ class AgentRuntime:
                                 break
                             approved = (ans or {}).get("approved")
                             decisions = (ans or {}).get("decisions") or {}
+                            accept_rules = bool(
+                                (ans or {}).get("accept_suggested_rules"))
                             results = []
                             for tc in evt.tool_calls:
                                 if tc.id in auto:
@@ -225,8 +262,11 @@ class AgentRuntime:
                                     ok = bool(decisions[tc.name])
                                 else:
                                     ok = bool(approved)
+                                rules = None
+                                if ok and accept_rules:
+                                    rules = getattr(tc, "suggested_rules", None) or None
                                 results.append(ConfirmResult(
-                                    confirmed=ok, tool_call=tc))
+                                    confirmed=ok, tool_call=tc, rules=rules))
                             next_inputs = UserConfirmResultEvent(
                                 reply_id=evt.reply_id,
                                 confirm_results=results)

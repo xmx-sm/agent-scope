@@ -30,7 +30,6 @@ from agentscope.agent import (
     ReActConfig,
 )
 from agentscope.mcp import MCPClient
-from agentscope.permission import PermissionContext
 from agentscope.state import AgentState
 from agentscope.tool import Toolkit
 
@@ -47,6 +46,11 @@ try:
     from ..skills.loader import build_skills
 except ImportError:
     from skills.loader import build_skills
+
+try:
+    from ..permission import build_permission_context
+except ImportError:
+    from permission import build_permission_context
 
 try:
     from config import get as _cfg_get
@@ -244,15 +248,22 @@ async def async_get_agent(data: dict = None) -> Dict[str, Any]:
         model_config = _coerce(
             agent_cfg.get("model_config") or data.get("model_config"),
             ModelConfig, "model_config")
-        permission_context = _coerce(
-            agent_cfg.get("permission_context") or data.get("permission_context"),
-            PermissionContext, "permission_context")
+        raw_permission = agent_cfg.get("permission_context")
+        if raw_permission is None:
+            raw_permission = data.get("permission_context")
+        permission_context = (
+            build_permission_context(raw_permission)
+            if raw_permission is not None else None
+        )
 
         state_cfg = agent_cfg.get("state") or data.get("state")
         if state_cfg is None:
-            state = AgentState(permission_context=permission_context or PermissionContext())
+            state = AgentState(
+                permission_context=permission_context or build_permission_context())
         else:
             state = _coerce(state_cfg, AgentState, "state")
+            if permission_context is not None:
+                state.permission_context = permission_context
 
         tasks = plan_cfg.get("tasks") or agent_cfg.get("tasks") or data.get("tasks")
         if tasks is not None:

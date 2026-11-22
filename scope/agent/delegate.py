@@ -36,7 +36,6 @@ from agentscope.event import (
     UserConfirmResultEvent,
 )
 from agentscope.message import Msg, TextBlock, ToolResultBlock, ToolResultState
-from agentscope.permission import PermissionContext
 from agentscope.state import AgentState
 from agentscope.tool import FunctionTool, Toolkit
 
@@ -44,6 +43,11 @@ try:
     from ..llm.agent_model import async_get_llm_model
 except ImportError:
     from llm.agent_model import async_get_llm_model
+
+try:
+    from ..permission import build_permission_context
+except ImportError:
+    from permission import build_permission_context
 
 from .subagents import async_get_subagents, build_subagent_toolkit
 
@@ -237,15 +241,22 @@ async def _build_subagent(spec: dict, data: dict) -> Dict[str, Any]:
         injection_config = _coerce(
             data.get("injection_config") or spec.get("injection_config"),
             InjectionConfig, "injection_config")
-        permission_context = _coerce(
-            spec.get("permission_context") or data.get("permission_context"),
-            PermissionContext, "permission_context")
+        raw_permission = spec.get("permission_context")
+        if raw_permission is None:
+            raw_permission = data.get("permission_context")
+        permission_context = (
+            build_permission_context(raw_permission)
+            if raw_permission is not None else None
+        )
 
         state_cfg = spec.get("state") or data.get("state")
         if state_cfg is None:
-            state = AgentState(permission_context=permission_context or PermissionContext())
+            state = AgentState(
+                permission_context=permission_context or build_permission_context())
         else:
             state = _coerce(state_cfg, AgentState, "state")
+            if permission_context is not None:
+                state.permission_context = permission_context
 
         agent = Agent(
             name=spec.get("name"),
