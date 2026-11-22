@@ -23,7 +23,7 @@
 | 配置层 | `scope/config/`：SQLite 配置中心，88 项默认配置 | 4 文件 / 619 行 |
 | 模型层 | `scope/llm/`：多厂商 Chat / Embedding / TTS / ASR 工厂，视频 formatter | 3 文件 |
 | 媒体层 | `scope/media/`：TTS 落盘 / base64 / URL、ASR 转写、文件闸门 | 4 文件 |
-| RAG 层 | `scope/rag/`：文档解析/切片/embedding、SQLite 向量库、注册表；`tools/rag/` 工具入口 | 6 文件 |
+| RAG 层 | `scope/rag/`：文档解析/切片/embedding、SQLite 向量库、注册表、KnowledgeBase/RAGMiddleware；`tools/rag/` 工具入口 | 8 文件 |
 
 工具域能力：
 
@@ -102,8 +102,11 @@ agent_scope/
     │   └── __init__.py
     ├── rag/                     # RAG 知识库
     │   ├── common.py            # 解析 / 切片 / embedding
-    │   ├── sqlite_db.py         # 本地 SQLite 向量库
+    │   ├── sqlite_db.py         # 本地 SQLite 向量库（工具后端）
+    │   ├── sqlite_vector_store.py # 官方 VectorStoreBase 适配
+    │   ├── knowledge.py         # KnowledgeBase / RAGMiddleware 工厂
     │   ├── registry.py          # 向量模型标注注册表
+    │   ├── config.py            # data > config.db > 默认/400
     │   ├── rag_main.py          # 后端分发
     │   └── __init__.py
     ├── tools/
