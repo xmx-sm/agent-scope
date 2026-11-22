@@ -57,7 +57,7 @@ cd backend
 
 ## 技术栈
 
-- Python 3.12+（当前运行于仓库根 `.venv`，Python 3.14.8）
+- Python 3.12+（仓库根 `.venv`）
 - FastAPI / Uvicorn
 - SQLAlchemy 2.x async + asyncpg
 - PostgreSQL 17
@@ -79,8 +79,8 @@ cp .env.example .env          # 按需修改数据库账号、JWT_SECRET、Redis
 数据库不存在时先创建：
 
 ```bash
-PGPASSWORD=990108 psql -h 127.0.0.1 -U mx -d postgres \
-  -c "CREATE DATABASE agent_scope OWNER mx"
+PGPASSWORD=your_db_password psql -h 127.0.0.1 -U your_db_user -d postgres \
+  -c "CREATE DATABASE agent_scope OWNER your_db_user"
 ```
 
 首次启动自动建表并写入种子数据（幂等）。管理员账号可通过环境变量配置，详细恢复方式见《配置说明.md》。

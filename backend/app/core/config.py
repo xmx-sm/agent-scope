@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     api_prefix: str = "/api"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
-    database_url: str = "postgresql+asyncpg://mx:990108@127.0.0.1:5432/agent_scope"
+    database_url: str = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/agent_scope"
 
     jwt_secret: str = "change-me-to-a-long-random-string"
     jwt_algorithm: str = "HS256"

@@ -168,7 +168,7 @@ agent_scope/
 
 ### 1. 环境
 
-- Python `3.14.8`（仓库根 `.venv`）
+- Python 3.12+（仓库根 `.venv`）
 - PostgreSQL 17
 - Redis（可选，不可用时限流降级）
 - Node.js / npm
@@ -187,8 +187,8 @@ npm install
 ### 3. 创建数据库
 
 ```bash
-PGPASSWORD=990108 psql -h 127.0.0.1 -U mx -d postgres \
-  -c "CREATE DATABASE agent_scope OWNER mx"
+PGPASSWORD=your_db_password psql -h 127.0.0.1 -U your_db_user -d postgres \
+  -c "CREATE DATABASE agent_scope OWNER your_db_user"
 ```
 
 ### 4. 配置环境变量
@@ -201,10 +201,11 @@ cp frontend/.env.example frontend/.env
 后端关键项：
 
 ```env
-DATABASE_URL=postgresql+asyncpg://mx:990108@127.0.0.1:5432/agent_scope
+DATABASE_URL=postgresql+asyncpg://your_db_user:your_db_password@127.0.0.1:5432/agent_scope
 JWT_SECRET=替换为随机长字符串
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
+REDIS_PASSWORD=
 ```
 
 前端默认：
@@ -290,13 +291,13 @@ cd backend
 如果同名用户已存在，会提升为超级管理员；默认同时重置密码：
 
 ```bash
-../.venv/bin/python scripts/create_superadmin.py --username MX --promote
+../.venv/bin/python scripts/create_superadmin.py --username admin --promote
 ```
 
 保留原密码：
 
 ```bash
-../.venv/bin/python scripts/create_superadmin.py --username MX --promote --no-password-reset
+../.venv/bin/python scripts/create_superadmin.py --username admin --promote --no-password-reset
 ```
 
 说明：
@@ -450,7 +451,7 @@ git diff --cached
 - `JWT_SECRET`
 - PostgreSQL 数据库密码
 - Redis 密码（如启用）
-- 种子账号密码 `990108`
+- 默认示例密码 `000000`
 - 模型 / Embedding API Key
 - 工具连接凭证
 
