@@ -5,7 +5,7 @@
 目标是把「模型、Agent 运行循环、工具、权限审批、记忆、RAG、存储」收敛成一套可复用的框架层，
 业务侧只负责配置和编排，而不是每个项目重写一遍 Agent 底座。
 
-当前进度：**工具层与配置中心已完成，框架层待实现；下一步做工具审批与 RAG。**
+当前进度：**工具层、配置中心、模型/媒体/RAG/Agent 框架层已实现；下一步服务化入口、存储与中间件。**
 
 - AgentScope：`2.0.12`
 - Python：`3.14.8`
@@ -24,7 +24,7 @@
 | 模型层 | `scope/llm/`：多厂商 Chat / Embedding / TTS / ASR 工厂，视频 formatter | 3 文件 |
 | 媒体层 | `scope/media/`：TTS 落盘 / base64 / URL、ASR 转写、文件闸门 | 4 文件 |
 | RAG 层 | `scope/rag/`：文档解析/切片/embedding、SQLite 向量库、注册表、KnowledgeBase/RAGMiddleware；`tools/rag/` 工具入口 | 8 文件 |
-| 子智能体 | `scope/agent/`：主 Agent builder/runtime、上下文管理、子智能体、委派、审批、取消、Plan、Pipeline | 8 文件 |
+| 子智能体 | `scope/agent/`：主 Agent builder/runtime、上下文管理、子智能体、委派、审批、取消、Plan、Pipeline、SOP | 9 文件 |
 | Skills | `scope/skills/`：用户自定义目录加载（`LocalSkillLoader`） | 2 文件 |
 
 工具域能力：
@@ -101,6 +101,7 @@ agent_scope/
     │   ├── runtime.py           # 主 Agent 事件流 / 审批 / 中断
     │   ├── plan.py              # 计划模式 TaskCreate/Get/List/Update
     │   ├── pipeline.py          # GoalPipeline / TeamPipeline 构建
+    │   ├── sop.py               # SOP / SOPEngine 构建与状态持久化
     │   ├── subagents.py         # spec 校验 / 工具解析 / 工具组权限
     │   ├── delegate.py          # 独立 AgentState 执行 / 委派工具
     │   └── __init__.py
