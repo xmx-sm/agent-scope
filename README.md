@@ -379,6 +379,26 @@ git diff --cached
 
 确认没有密钥、`.env`、`config.db`、`mcp_servers.json`、日志。
 
+### 公开仓库 / 部署前必改
+
+仓库内只包含开发示例默认值，不包含真实模型 Key、邮箱授权码或生产数据库密码。公开或部署前请修改：
+
+- `JWT_SECRET`
+- PostgreSQL 数据库密码
+- Redis 密码（如启用）
+- 种子账号密码 `990108`
+- 模型 / Embedding API Key
+- 工具连接凭证
+
+公开安全检查：
+
+```bash
+git ls-files | grep -E '(^|/)(\.env|config\.db|mcp_servers\.json|uploads/|logs?/|node_modules/|dist/)'
+git grep -nIE 'sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|BEGIN [A-Z ]*PRIVATE KEY'
+```
+
+第一条应无输出；第二条如命中真实凭证，先移除并轮换密钥。
+
 ---
 
 ## 九、文档导航

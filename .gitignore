@@ -12,6 +12,8 @@ venv/
 .ruff_cache/
 
 # ── 运行时数据（密钥三不进 + 不提交生成物）──────────────────────
+# 后端上传目录：附件、知识库源文件、记忆、RAG 数据，均不入库
+backend/uploads/
 # 数据库：db 工具的 SQLite、rag 的标注库
 *.db
 *.sqlite
