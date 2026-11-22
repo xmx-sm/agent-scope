@@ -364,6 +364,98 @@ def set_permission_mode(context: PermissionContext, mode: Any) -> PermissionMode
     return parsed
 
 
+def add_permission_rule(context: PermissionContext, rule: Any) -> PermissionRule:
+    """向现有上下文追加一条规则，返回规范化后的 PermissionRule。"""
+    if not isinstance(context, PermissionContext):
+        raise ValueError("context 必须是 PermissionContext")
+    if isinstance(rule, PermissionRule):
+        parsed = rule
+    elif isinstance(rule, dict):
+        behavior = _parse_behavior(rule.get("behavior"))
+        parsed = _rule_from_item(
+            rule,
+            tool_name=rule.get("tool_name"),
+            behavior=behavior,
+            default_source=str(rule.get("source") or "projectSettings"),
+        )
+    else:
+        raise ValueError("rule 必须是 PermissionRule 或字典")
+    _add_rule(context, parsed)
+    return parsed
+
+
+def merge_permission_context(
+    base: PermissionContext,
+    extra: Any,
+) -> PermissionContext:
+    """把另一份字典 / 上下文中的规则与工作目录合并到 base。"""
+    if not isinstance(base, PermissionContext):
+        raise ValueError("base 必须是 PermissionContext")
+    other = build_permission_context(extra)
+    for behavior, bucket in (
+        (PermissionBehavior.ALLOW, base.allow_rules),
+        (PermissionBehavior.DENY, base.deny_rules),
+        (PermissionBehavior.ASK, base.ask_rules),
+    ):
+        source = {
+            PermissionBehavior.ALLOW: other.allow_rules,
+            PermissionBehavior.DENY: other.deny_rules,
+            PermissionBehavior.ASK: other.ask_rules,
+        }[behavior]
+        for tool_name, rules in source.items():
+            bucket.setdefault(tool_name, []).extend(rules)
+    base.working_directories.update(other.working_directories)
+    return base
+
+
+async def async_build_permission_context(data: Any = None) -> PermissionContext:
+    """异步构建权限上下文；可选从 SQLite 合并持久化规则。
+
+    字典中带 ``sqlite`` 时::
+
+        {
+            "mode": "default",
+            "allow": {"Bash": ["git status:*"]},   # 内联规则
+            "sqlite": {
+                "path": "/data/permission.db",
+                "create_dir": True,
+                "tenant_id": "u1",
+                "agent_id": "a1",
+            },
+        }
+
+    数据库中的规则会合并到内联规则之后，工作目录只取内联配置。
+    """
+    if not isinstance(data, dict):
+        return build_permission_context(data)
+
+    store_cfg = data.get("sqlite") or data.get("store")
+    if store_cfg is None:
+        return build_permission_context(data)
+
+    if isinstance(store_cfg, str):
+        store_cfg = {"path": store_cfg}
+    if not isinstance(store_cfg, dict):
+        raise ValueError("permission_context.sqlite 必须是字典或路径")
+
+    from .store import PermissionStore
+
+    store = PermissionStore(
+        store_cfg.get("path"),
+        create_dir=bool(store_cfg.get("create_dir", False)),
+    )
+    await store.initialize()
+    base = build_permission_context({
+        key: value for key, value in data.items()
+        if key not in ("sqlite", "store")
+    })
+    return await store.load_context(
+        str(store_cfg.get("tenant_id") or data.get("tenant_id") or ""),
+        str(store_cfg.get("agent_id") or data.get("agent_id") or ""),
+        base,
+    )
+
+
 async def async_get_permission_context(data: dict = None) -> Dict[str, Any]:
     """构建权限上下文的字典入口，返回统一信封。"""
     fn = "async_get_permission_context"
@@ -373,7 +465,7 @@ async def async_get_permission_context(data: dict = None) -> Dict[str, Any]:
         if not isinstance(data, dict):
             return _err(f"data 必须是字典对象，收到 {type(data).__name__}", fn)
         raw = data.get("permission_context", data)
-        context = build_permission_context(raw)
+        context = await async_build_permission_context(raw)
         return _ok({
             "permission_context": context,
             "config": permission_context_to_dict(context),
@@ -390,5 +482,8 @@ __all__ = [
     "permission_context_to_dict",
     "parse_permission_mode",
     "set_permission_mode",
+    "add_permission_rule",
+    "merge_permission_context",
+    "async_build_permission_context",
     "async_get_permission_context",
 ]

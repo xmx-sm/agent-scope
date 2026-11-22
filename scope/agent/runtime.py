@@ -40,8 +40,10 @@ from agentscope.message import Msg, TextBlock, ToolResultBlock, ToolResultState
 
 try:
     from ..permission import build_permission_context, set_permission_mode
+    from ..permission.store import make_pending_key
 except ImportError:
     from permission import build_permission_context, set_permission_mode
+    from permission.store import make_pending_key
 
 
 def _err(message: str, fn: str = "AgentRuntime") -> Dict[str, Any]:
@@ -59,6 +61,11 @@ class AgentRuntime:
         tool_approval: Optional[Dict[str, str]] = None,
         approval_handler: Any = None,
         default_approval: str = "allow",
+        audit_store: Any = None,
+        pending_store: Any = None,
+        tenant_id: str = "",
+        agent_id: str = "",
+        pending_ttl: int = 300,
     ) -> None:
         if not hasattr(agent, "reply_stream"):
             raise ValueError("agent 必须提供 reply_stream")
@@ -69,6 +76,11 @@ class AgentRuntime:
         if self.default_approval not in ("allow", "deny", "ask"):
             raise ValueError("default_approval 必须是 allow/deny/ask")
 
+        self.audit_store = audit_store
+        self.pending_store = pending_store
+        self.tenant_id = str(tenant_id or "")
+        self.agent_id = str(agent_id or "")
+        self.pending_ttl = max(1, int(pending_ttl))
         self._pending: Dict[str, dict] = {}
         self._active_task: Optional[asyncio.Task] = None
         self._interrupted = False
@@ -90,6 +102,46 @@ class AgentRuntime:
     def set_permission_mode(self, mode: Any) -> str:
         """运行时切换权限模式，返回规范化后的模式名。"""
         return set_permission_mode(self._permission_context(), mode).value
+
+    async def _record_audit(
+        self,
+        tool_call: Any,
+        *,
+        confirmed: bool,
+        reply_id: Optional[str],
+        decision_source: str,
+        rules: Any = None,
+    ) -> None:
+        if self.audit_store is None:
+            return
+        if rules is None:
+            rule_list = []
+        elif isinstance(rules, (list, tuple)):
+            rule_list = list(rules)
+        else:
+            rule_list = [rules]
+        entry = {
+            "tenant_id": self.tenant_id,
+            "agent_id": self.agent_id,
+            "reply_id": reply_id,
+            "tool_call_id": getattr(tool_call, "id", None),
+            "tool_name": getattr(tool_call, "name", "") or "",
+            "tool_input": getattr(tool_call, "input", None),
+            "decision": "allow" if confirmed else "deny",
+            "decision_source": decision_source,
+            "rules": [
+                rule.model_dump(mode="json")
+                for rule in rule_list
+                if hasattr(rule, "model_dump")
+            ],
+        }
+        try:
+            result = self.audit_store.record_audit(entry)
+            if asyncio.iscoroutine(result):
+                await result
+        except Exception:
+            # 审计失败不能阻断主流程；生产环境应接入日志/重试。
+            return
 
     # ── 审批 ────────────────────────────────────────────────────
     def _tool_group_map(self) -> Dict[str, str]:
@@ -166,6 +218,65 @@ class AgentRuntime:
             for rid, entry in self._pending.items()
         ]
 
+    def _pending_payload(self, event: RequireUserConfirmEvent) -> dict:
+        return {
+            "reply_id": event.reply_id,
+            "tool_calls": [
+                {
+                    "id": tc.id,
+                    "name": tc.name,
+                    "input": tc.input,
+                    "suggested_rules": [
+                        rule.model_dump(mode="json")
+                        for rule in (getattr(tc, "suggested_rules", None) or [])
+                    ],
+                }
+                for tc in event.tool_calls
+            ],
+        }
+
+    async def list_pending_confirms(self) -> List[dict]:
+        """列出 pending；配置 pending_store 时读取跨进程共享记录。"""
+        if self.pending_store is not None:
+            items = await self.pending_store.list_pending(
+                tenant_id=self.tenant_id,
+                agent_id=self.agent_id,
+                status="pending",
+            )
+            return items
+        return self.pending_confirms()
+
+    async def _wait_answer(
+        self,
+        future: asyncio.Future,
+        pending_key: Optional[str],
+    ) -> Any:
+        if self.pending_store is None or pending_key is None:
+            return await future
+
+        poll = asyncio.create_task(
+            self.pending_store.wait_pending(
+                pending_key,
+                timeout=float(self.pending_ttl),
+                interval=0.5,
+            ),
+        )
+        try:
+            done, _ = await asyncio.wait(
+                {future, poll}, return_when=asyncio.FIRST_COMPLETED)
+            if future in done:
+                poll.cancel()
+                return future.result()
+            answer = poll.result()
+            if answer is None:
+                answer = {"approved": False}
+            if not future.done():
+                future.set_result(answer)
+            return answer
+        finally:
+            if not poll.done():
+                poll.cancel()
+
     def resolve_confirm(self, reply_id: str, approved: Any = None,
                         decisions: Optional[Dict[str, bool]] = None,
                         accept_suggested_rules: bool = False) -> bool:
@@ -179,11 +290,42 @@ class AgentRuntime:
         entry = self._pending.get(str(reply_id))
         if entry is None or entry["future"].done():
             return False
-        entry["future"].set_result({
+        payload = {
             "approved": approved,
             "decisions": decisions or {},
             "accept_suggested_rules": bool(accept_suggested_rules),
-        })
+        }
+        entry["future"].set_result(payload)
+        if self.pending_store is not None and entry.get("pending_key"):
+            try:
+                asyncio.get_running_loop().create_task(
+                    self.pending_store.resolve_pending(
+                        entry["pending_key"], payload,
+                        expected_version=entry.get("pending_version"),
+                    ),
+                )
+            except RuntimeError:
+                pass
+        return True
+
+    async def resolve_confirm_async(self, reply_id: str, approved: Any = None,
+                                    decisions: Optional[Dict[str, bool]] = None,
+                                    accept_suggested_rules: bool = False) -> bool:
+        """异步回填；使用 pending_store 时确保结果已落库。"""
+        entry = self._pending.get(str(reply_id))
+        if entry is None or entry["future"].done():
+            return False
+        payload = {
+            "approved": approved,
+            "decisions": decisions or {},
+            "accept_suggested_rules": bool(accept_suggested_rules),
+        }
+        if self.pending_store is not None and entry.get("pending_key"):
+            await self.pending_store.resolve_pending(
+                entry["pending_key"], payload,
+                expected_version=entry.get("pending_version"),
+            )
+        entry["future"].set_result(payload)
         return True
 
     # ── 中断 ────────────────────────────────────────────────────
@@ -194,6 +336,14 @@ class AgentRuntime:
             entry = self._pending.get(rid)
             if entry and not entry["future"].done():
                 entry["future"].set_result({"interrupt": True})
+                if self.pending_store is not None and entry.get("pending_key"):
+                    try:
+                        asyncio.get_running_loop().create_task(
+                            self.pending_store.resolve_pending(
+                                entry["pending_key"], {"interrupt": True}),
+                        )
+                    except RuntimeError:
+                        pass
                 return True
         if self._active_task is not None and not self._active_task.done():
             self._active_task.cancel()
@@ -234,15 +384,34 @@ class AgentRuntime:
                             tc for tc in asks if tc.id not in auto
                         ]
                         if asks_left:
+                            pending_key = None
+                            if self.pending_store is not None:
+                                pending_key = make_pending_key(
+                                    evt.reply_id,
+                                    tenant_id=self.tenant_id,
+                                    agent_id=self.agent_id,
+                                )
+                                try:
+                                    await self.pending_store.save_pending(
+                                        pending_key,
+                                        self._pending_payload(evt),
+                                        tenant_id=self.tenant_id,
+                                        agent_id=self.agent_id,
+                                        reply_id=evt.reply_id,
+                                        ttl_seconds=self.pending_ttl,
+                                    )
+                                except Exception:
+                                    pending_key = None
                             fut = asyncio.get_running_loop().create_future()
                             self._pending[evt.reply_id] = {
                                 "event": evt,
                                 "auto": auto,
                                 "ask_ids": [tc.id for tc in asks_left],
                                 "future": fut,
+                                "pending_key": pending_key,
                             }
                             yield evt
-                            ans = await fut
+                            ans = await self._wait_answer(fut, pending_key)
                             self._pending.pop(evt.reply_id, None)
                             if isinstance(ans, dict) and ans.get("interrupt"):
                                 next_inputs = UserInterruptEvent(
@@ -265,6 +434,13 @@ class AgentRuntime:
                                 rules = None
                                 if ok and accept_rules:
                                     rules = getattr(tc, "suggested_rules", None) or None
+                                await self._record_audit(
+                                    tc,
+                                    confirmed=ok,
+                                    reply_id=evt.reply_id,
+                                    decision_source=("policy" if tc.id in auto else "user"),
+                                    rules=rules,
+                                )
                                 results.append(ConfirmResult(
                                     confirmed=ok, tool_call=tc, rules=rules))
                             next_inputs = UserConfirmResultEvent(
@@ -272,13 +448,20 @@ class AgentRuntime:
                                 confirm_results=results)
                             break
 
+                        results = []
+                        for tc in evt.tool_calls:
+                            confirmed = bool(auto.get(tc.id, False))
+                            await self._record_audit(
+                                tc,
+                                confirmed=confirmed,
+                                reply_id=evt.reply_id,
+                                decision_source="policy",
+                            )
+                            results.append(ConfirmResult(
+                                confirmed=confirmed, tool_call=tc))
                         next_inputs = UserConfirmResultEvent(
                             reply_id=evt.reply_id,
-                            confirm_results=[
-                                ConfirmResult(confirmed=auto.get(tc.id, False),
-                                              tool_call=tc)
-                                for tc in evt.tool_calls
-                            ])
+                            confirm_results=results)
                         break
 
                     if isinstance(evt, RequireExternalExecutionEvent):

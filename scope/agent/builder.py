@@ -48,9 +48,9 @@ except ImportError:
     from skills.loader import build_skills
 
 try:
-    from ..permission import build_permission_context
+    from ..permission import async_build_permission_context
 except ImportError:
-    from permission import build_permission_context
+    from permission import async_build_permission_context
 
 try:
     from config import get as _cfg_get
@@ -252,14 +252,15 @@ async def async_get_agent(data: dict = None) -> Dict[str, Any]:
         if raw_permission is None:
             raw_permission = data.get("permission_context")
         permission_context = (
-            build_permission_context(raw_permission)
+            await async_build_permission_context(raw_permission)
             if raw_permission is not None else None
         )
 
         state_cfg = agent_cfg.get("state") or data.get("state")
         if state_cfg is None:
             state = AgentState(
-                permission_context=permission_context or build_permission_context())
+                permission_context=permission_context
+                or await async_build_permission_context())
         else:
             state = _coerce(state_cfg, AgentState, "state")
             if permission_context is not None:

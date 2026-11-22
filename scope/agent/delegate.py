@@ -45,9 +45,9 @@ except ImportError:
     from llm.agent_model import async_get_llm_model
 
 try:
-    from ..permission import build_permission_context
+    from ..permission import async_build_permission_context
 except ImportError:
-    from permission import build_permission_context
+    from permission import async_build_permission_context
 
 from .subagents import async_get_subagents, build_subagent_toolkit
 
@@ -245,14 +245,15 @@ async def _build_subagent(spec: dict, data: dict) -> Dict[str, Any]:
         if raw_permission is None:
             raw_permission = data.get("permission_context")
         permission_context = (
-            build_permission_context(raw_permission)
+            await async_build_permission_context(raw_permission)
             if raw_permission is not None else None
         )
 
         state_cfg = spec.get("state") or data.get("state")
         if state_cfg is None:
             state = AgentState(
-                permission_context=permission_context or build_permission_context())
+                permission_context=permission_context
+                or await async_build_permission_context())
         else:
             state = _coerce(state_cfg, AgentState, "state")
             if permission_context is not None:

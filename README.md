@@ -25,7 +25,7 @@
 | 媒体层 | `scope/media/`：TTS 落盘 / base64 / URL、ASR 转写、文件闸门 | 4 文件 |
 | RAG 层 | `scope/rag/`：文档解析/切片/embedding、SQLite 向量库、注册表、KnowledgeBase/RAGMiddleware；`tools/rag/` 工具入口 | 8 文件 |
 | 子智能体 | `scope/agent/`：主 Agent builder/runtime、上下文管理、子智能体、委派、审批、取消、Plan、Pipeline、SOP | 9 文件 |
-| 权限层 | `scope/permission/`：官方 `PermissionContext` 字典构建、模式切换、建议规则回传 | 2 文件 |
+| 权限层 | `scope/permission/`：官方 `PermissionContext` 字典构建、SQLite 规则/审计/pending、函数级工具适配 | 4 文件 |
 | Skills | `scope/skills/`：用户自定义目录加载（`LocalSkillLoader`） | 2 文件 |
 
 工具域能力：
@@ -108,6 +108,8 @@ agent_scope/
     │   └── __init__.py
     ├── permission/              # 权限系统（官方 PermissionContext）
     │   ├── context.py           # 字典 → PermissionContext / 模式切换
+    │   ├── tool.py              # 按 data["function"] 细分的 FunctionTool
+    │   ├── store.py             # SQLite 规则 / 审计 / pending
     │   └── __init__.py
     ├── llm/                     # 模型工厂（Chat / Embedding / TTS / ASR）
     │   ├── agent_model.py       # 对外入口
@@ -221,7 +223,7 @@ asyncio.run(main())
 | 优先级 | 内容 |
 |---|---|
 | P0 | 框架骨架：`agent/builder.py`、`agent/runtime.py`、`agent/context.py`、Toolkit 装配、skills、`main.py`、`pyproject.toml` |
-| P1 | `permission/`：已实现 `PermissionContext` 字典构建、模式切换、建议规则回传；剩余规则持久化、审计、分布式 pending |
+| P1 | `permission/`：已实现 PermissionContext、SQLite 规则/审计/pending、函数级工具适配；剩余前端审批 UI 与 Redis/Postgres pending |
 | P1 | `rag/`：官方 `KnowledgeBase` + `RAGMiddleware`，文件解析/切片/embedding/注册表，多租户隔离 |
 | P2 | 子智能体与委派、A2A、Mem0/文件记忆、storage、agentscope.app 服务化 |
 | P3 | 钉钉工具、多模态（视频/TTS/STT）、多向量库后端 |

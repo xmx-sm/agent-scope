@@ -42,6 +42,17 @@ _SCOPE_DIR = os.path.dirname(os.path.dirname(_WHERE_FILE))
 if _SCOPE_DIR not in sys.path:
     sys.path.insert(0, _SCOPE_DIR)
 
+try:
+    from ..permission.tool import (
+        PermissionedFunctionTool,
+        wrap_permissioned_tool,
+    )
+except ImportError:
+    from permission.tool import (
+        PermissionedFunctionTool,
+        wrap_permissioned_tool,
+    )
+
 # 字符串工具名 -> (模块, 属性名)
 _TOOL_IMPORTS = {
     "async_req_tools": ("tools.net.main_net", "async_req_tools"),
@@ -199,7 +210,7 @@ async def async_get_subagents(data: dict = None) -> Dict[str, Any]:
 
 
 def normalize_tools(tools: List[Any], defaults: Optional[Dict[str, dict]] = None) -> List[Any]:
-    """函数统一包成 FunctionTool，ToolBase 原样保留。
+    """函数统一包成 PermissionedFunctionTool，支持按 data["function"] 细分权限；ToolBase 原样保留。
 
     ``defaults`` 按工具名给默认参数：
     - 单参 ``data`` 的工具：默认值合并进 ``data`` 字典
@@ -213,14 +224,18 @@ def normalize_tools(tools: List[Any], defaults: Optional[Dict[str, dict]] = None
             name = getattr(t, "name", "")
             if name in defaults:
                 raise ValueError(f"工具 {name} 是 ToolBase，不支持 tool_defaults")
-            out.append(t)
+            if isinstance(t, FunctionTool) \
+                    and not isinstance(t, PermissionedFunctionTool):
+                out.append(wrap_permissioned_tool(t))
+            else:
+                out.append(t)
             continue
         if not callable(t):
             raise ValueError(f"无效工具: {type(t).__name__}")
         name = getattr(t, "__name__", "")
         tool_defaults = defaults.get(name)
         if tool_defaults is None:
-            out.append(FunctionTool(t))
+            out.append(PermissionedFunctionTool(t))
             continue
         if not isinstance(tool_defaults, dict):
             raise ValueError(f"tool_defaults.{name} 必须是字典")
@@ -253,7 +268,7 @@ def normalize_tools(tools: List[Any], defaults: Optional[Dict[str, dict]] = None
             return res
 
         _wrapped.__signature__ = sig
-        out.append(FunctionTool(_wrapped, name=name or None))
+        out.append(PermissionedFunctionTool(_wrapped, name=name or None))
     return out
 
 
