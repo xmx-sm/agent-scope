@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import ApiError
 from app.core.tools import all_items
 from app.models import User, UserSubagent
-from app.services.tools.evaluate import async_tool_view
+from app.services.access.tools.evaluate import async_tool_view
 
 _ALLOWED = {item["tool"] for item in all_items()}
 

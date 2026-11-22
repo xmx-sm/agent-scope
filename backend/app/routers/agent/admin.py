@@ -42,12 +42,12 @@ from app.services.agent.collaboration import super_agent as super_service
 from app.services.agent.collaboration import a2a as a2a_service
 from app.services.agent.automation import scheduled as scheduled_service
 from app.services.agent.media import speech as speech_service
-from app.services.agent import stats as stats_service
+from app.services.agent.analytics import stats as stats_service
 from app.services.agent.conversation import attachments as attachment_service
 from app.services.agent.config import user_config as user_config_service
-from app.services.tools import tool_config as tool_config_service
+from app.services.access.tools import tool_config as tool_config_service
 from app.services.agent.runtime.stream_manager import resume_events, stream_events
-from app.services.config import agent as agent_config_service
+from app.services.llm import providers as agent_config_service
 from app.utils.mask import SENTINEL
 
 

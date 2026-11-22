@@ -83,28 +83,23 @@ PGPASSWORD=990108 psql -h 127.0.0.1 -U mx -d postgres \
 backend/app/
 ├── main.py                    # 应用装配、生命周期、异常处理
 ├── core/                      # 基础设施（不写业务）
-├── models/                    # ORM 模型
-├── schemas/                   # 请求模型
-├── routers/                   # 只有路由文件：声明路径、解析参数、调服务
-├── services/                  # 业务执行，按域拆包
-│   ├── auth/                  # 对应 routers/auth.py
-│   ├── user/                  # 对应 routers/user.py
-│   ├── config/                # 对应 routers/config.py
-│   ├── permissions/           # 对应 routers/permissions.py
-│   └── system/                # 对应 routers/system.py
-└── utils/                     # Redis / 限流
+├── models/                    # ORM：account / access / system / agent
+├── schemas/                   # 请求模型：account / access / system / agent / integrations
+├── routers/                   # 路由：account / access / system / agent
+├── services/                  # 业务：account / access / system / agent / llm / integrations
+└── utils/                     # Redis / 限流 / 脱敏
 ```
 
-Agent 领域已按子域拆分：
+Agent 领域再按子域拆分：
 
 ```text
 models/agent/          conversation / config / knowledge / collaboration / automation / resources
 schemas/agent/         同上
 routers/agent/         chat / config / knowledge / resources / collaboration / automation / media
-services/agent/        runtime / conversation / knowledge / resources / collaboration / automation / media / config
+services/agent/        runtime / conversation / knowledge / resources / collaboration / automation / media / config / analytics
 ```
 
-完整目录与“新功能放哪里”见 [项目结构.md](./项目结构.md)；文件级索引见 [CODE_INDEX.md](./CODE_INDEX.md)。
+完整目录、领域对应表和“新功能放哪里”见 [项目结构.md](./项目结构.md)；文件级索引见 [CODE_INDEX.md](./CODE_INDEX.md)。
 
 ## 分层约定
 

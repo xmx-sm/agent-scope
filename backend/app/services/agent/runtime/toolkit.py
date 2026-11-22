@@ -26,14 +26,14 @@ from app.models import User
 from app.services.agent.knowledge import rag as rag_service
 from app.services.agent.runtime.scope_bridge import user_workspace
 from app.services.config.service import async_get_config
-from app.services.security.db_policy import (
+from app.services.access.security.db_policy import (
     apply_db_policy,
     async_get_db_policy,
     sanitize_model_db_config,
 )
-from app.services.security.identity import merge_identity
-from app.services.tools.evaluate import async_tool_view
-from app.services.tools.tool_config import async_effective as async_tool_config
+from app.services.access.security.identity import merge_identity
+from app.services.access.tools.evaluate import async_tool_view
+from app.services.access.tools.tool_config import async_effective as async_tool_config
 
 
 def _scope_tool(fn: Callable[..., Awaitable[Any]], name: str, description: str,

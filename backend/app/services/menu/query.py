@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Menu, User
 from app.services.menu.prefs import async_get_prefs
-from app.services.permissions.evaluate import async_effective_permissions
+from app.services.access.permissions.evaluate import async_effective_permissions
 
 
 def menu_public(row: Menu) -> dict[str, Any]:

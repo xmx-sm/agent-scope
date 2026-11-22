@@ -18,7 +18,7 @@ from app.services.agent.resources.subagents import async_specs as async_subagent
 from app.services.agent.runtime.toolkit import async_build_toolkit
 from app.services.config.service import async_get_config
 from app.services.agent.config.user_config import async_effective
-from app.services.security.prompt import async_build_security_prompt
+from app.services.access.security.prompt import async_build_security_prompt
 
 
 def _sse(event: str, data: dict) -> str:

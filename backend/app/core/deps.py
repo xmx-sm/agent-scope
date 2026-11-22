@@ -89,7 +89,7 @@ def require_permission(permission: str):
     ) -> User:
         if user.role == "super_admin":
             return user
-        from app.services.permissions.evaluate import async_effective_permissions
+        from app.services.access.permissions.evaluate import async_effective_permissions
 
         if permission not in await async_effective_permissions({"session": db, "user": user}):
             raise ApiError("没有访问该功能的权限", code=403)

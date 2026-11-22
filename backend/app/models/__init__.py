@@ -22,18 +22,16 @@ from app.models.agent import (
     VectorLog,
 )
 from app.models.common import new_id, utc_now
-from app.models.menu import Menu, UserMenuPref
-from app.models.system import RolePermission, SystemConfig
-from app.models.user import (
+from app.models.account import User, UserPermissionState
+from app.models.access import (
     ToolApprovalRequest,
     ToolPermissionAudit,
     ToolPolicy,
-    User,
-    UserPermissionState,
     UserToolConfig,
     UserToolMode,
     UserToolPermission,
 )
+from app.models.system import Menu, RolePermission, SystemConfig, UserMenuPref
 
 __all__ = [
     "AgentConversation",
