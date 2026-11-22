@@ -169,13 +169,10 @@ async def async_db_tools(data: dict = None) -> Dict[str, Any]:
                 return al
             allow = al["data"]
             if allow:
-                # ⚠ 既有缺陷（未修，见 docs/踩坑记录.md C2）：此处走**精确匹配** x in allow，
-                #   而下方黑名单走 _db_same（SQLite 文件模式去后缀互认）。两侧不一致导致
-                #   文件夹模式下 database 写 "orders" 而文件名是 "orders.db" 时，
-                #   list_databases 恒返回 []（模型无法发现数据库，直接指名查询仍正常）。
-                #   修时把本行换成 [x for x in data_out if any(_db_same({"a": a, "b": x})["data"]
-                #   for a in allow)]，与黑名单对齐。
-                data_out = [x for x in data_out if x in allow]
+                # 与下方黑名单共用 _db_same（SQLite 文件模式去后缀互认）：
+                # folder 模式下调用写 "orders"、文件名是 "orders.db" 时也能正确列出。
+                data_out = [x for x in data_out
+                            if any(_db_same({"a": a, "b": x})["data"] for a in allow)]
             dl = _tbl_list({"cfg": cfg, "key": "denied_databases"})
             if dl.get("code") != 200:
                 return dl

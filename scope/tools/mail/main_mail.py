@@ -44,10 +44,10 @@ async def async_email_tools(data: dict) -> Dict[str, Any]:
     公共配置段 email_config（所有功能共用，也可把字段直接放 data 顶层）:
         email(str)        邮箱完整地址，如 "184586774@qq.com"
         password(str)     授权码（QQ邮箱在设置-账户中生成）
-        smtp_host(str)    发送服务器，默认 "smtp.qq.com"
-        smtp_port(int)    发送端口，默认 465
-        imap_host(str)    接收服务器，默认 "imap.qq.com"
-        imap_port(int)    接收端口，默认 993
+        smtp_host(str)    发送服务器（必填；调用或 config.db 都没有则报错）
+        smtp_port(int)    发送端口（必填；同上）
+        imap_host(str)    接收服务器（必填；同上）
+        imap_port(int)    接收端口（必填；同上）
 
     支持的功能与业务参数:
         ① function="send_email" — 通过 SMTP 发送电子邮件（支持附件与 HTML）

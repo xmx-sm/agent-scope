@@ -1,7 +1,7 @@
 
 
 """
-文件读写闸门：_HOST_CTX / configure_fs_policy / _to_bool_tuple / _check_write / _check_read。
+文件读写闸门：_HOST_CTX / configure_fs_policy / _to_bool_tuple / _check_fs / _check_write / _check_read。
 
 **net 域共用层**——合并前只有 crawl 的 screenshot/extract_pdf 过闸门，
 `net/download.py` 的 save_path 是直接 open 落盘、不过闸门的（同一域内两种命运）。
@@ -70,6 +70,31 @@ def _to_bool_tuple(result: Any) -> tuple:
     return bool(result), ""
 
 
+def _check_fs(data: dict, kind: str) -> Dict[str, Any]:
+    """写/读共用的闸门判定实现（内部）。kind = "write" | "read"。"""
+    where = f"_check_{kind}"
+    label = "写入" if kind == "write" else "读取"
+    if not isinstance(data, dict):
+        return _err("data 必须是字典对象", where)
+    path = data.get("path")
+    if path is None or not str(path).strip():
+        return _err("缺少 path 字段", where)
+    if isinstance(path, (dict, list, tuple, set)):
+        return _err(f"path 必须是字符串，收到 {type(path).__name__}", where)
+    cb = _HOST_CTX.get(f"check_{kind}")
+    if cb is not None:
+        try:
+            allowed, reason = _to_bool_tuple(cb(str(path)))
+        except Exception as e:
+            return _err(f"check_{kind} 回调抛异常：{type(e).__name__}: {e}", where)
+        return _ok({"allowed": allowed, "reason": reason})
+    ap = os.path.abspath(str(path))
+    if ap == os.getcwd() or ap.startswith(os.getcwd() + os.sep):
+        return _ok({"allowed": True, "reason": ""})
+    return _ok({"allowed": False,
+                "reason": f"超出可{label}范围（scope 独立模式仅允许当前工作目录子树）"})
+
+
 def _check_write(data: dict = None) -> Dict[str, Any]:
     """写入闸门判定。
 
@@ -80,25 +105,7 @@ def _check_write(data: dict = None) -> Dict[str, Any]:
     平台注入了 check_write 时以其判定为准（回调契约仍是 (bool, str)，本层转信封）；
     未注入时走独立模式兜底闸门：仅允许当前工作目录子树。
     """
-    if not isinstance(data, dict):
-        return _err("data 必须是字典对象", "_check_write")
-    path = data.get("path")
-    if path is None or not str(path).strip():
-        return _err("缺少 path 字段", "_check_write")
-    if isinstance(path, (dict, list, tuple, set)):
-        return _err(f"path 必须是字符串，收到 {type(path).__name__}", "_check_write")
-    cw = _HOST_CTX.get("check_write")
-    if cw is not None:
-        try:
-            allowed, reason = _to_bool_tuple(cw(str(path)))
-        except Exception as e:
-            return _err(f"check_write 回调抛异常：{type(e).__name__}: {e}", "_check_write")
-        return _ok({"allowed": allowed, "reason": reason})
-    ap = os.path.abspath(str(path))
-    if ap == os.getcwd() or ap.startswith(os.getcwd() + os.sep):
-        return _ok({"allowed": True, "reason": ""})
-    return _ok({"allowed": False,
-                "reason": "超出可写入范围（scope 独立模式仅允许当前工作目录子树）"})
+    return _check_fs(data, "write")
 
 
 def _check_read(data: dict = None) -> Dict[str, Any]:
@@ -106,22 +113,4 @@ def _check_read(data: dict = None) -> Dict[str, Any]:
 
     平台注入了 check_read 时以其判定为准；未注入时走独立模式兜底闸门。
     """
-    if not isinstance(data, dict):
-        return _err("data 必须是字典对象", "_check_read")
-    path = data.get("path")
-    if path is None or not str(path).strip():
-        return _err("缺少 path 字段", "_check_read")
-    if isinstance(path, (dict, list, tuple, set)):
-        return _err(f"path 必须是字符串，收到 {type(path).__name__}", "_check_read")
-    cr = _HOST_CTX.get("check_read")
-    if cr is not None:
-        try:
-            allowed, reason = _to_bool_tuple(cr(str(path)))
-        except Exception as e:
-            return _err(f"check_read 回调抛异常：{type(e).__name__}: {e}", "_check_read")
-        return _ok({"allowed": allowed, "reason": reason})
-    ap = os.path.abspath(str(path))
-    if ap == os.getcwd() or ap.startswith(os.getcwd() + os.sep):
-        return _ok({"allowed": True, "reason": ""})
-    return _ok({"allowed": False,
-                "reason": "超出可读取范围（scope 独立模式仅允许当前工作目录子树）"})
+    return _check_fs(data, "read")

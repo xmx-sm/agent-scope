@@ -3,7 +3,8 @@
 `tools/` 与 `config/` 下每个文件的作用、行数与依赖关系。找文件、改代码前先在此定位。
 工具层五域详列于第二～六节；基础设施层 `config/` 见第七节（详解见《配置说明.md》）。
 
-五个域共 **39 个文件 / 117 个函数 / 6558 行**，由 `agent_study/scope/tools` 的 6 个单体文件（3335 行）改造而来。
+五个域共 **39 个文件 / 127 个顶层函数 / 6726 行**，由 `agent_study/scope/tools` 的 6 个单体文件（3335 行）改造而来。
+（⑤ 收尾后如需逐文件行数，以 `wc -l tools/*/*.py` 为准；下表为各轮改造时的快照。）
 （原 `crawl` 独立成域，后经用户决策**合并回 net**，定位为「高级网络请求」：）
 
 | 阶段 | 文件 | 行数 | 说明 |
@@ -12,6 +13,7 @@
 | ② 入参与错误返回统一 | 37 | 6550 | +2644：`if` 校验分支、信封机器、data 解包、docstring 补入参表 |
 | ③ crawl 合并回 net | 39 | 6558 | 目录重组：`crawl/_helper.py` 拆为 `_envelope`/`_fs`/`_render`，旧信封层 3 个符号丢弃（19→16 个信封机器），download 补闸门 |
 | ④ config 层 | +4 | +616 | 新增基础设施层 `scope/config/`（schema/store/merge/__init__），五域硬编码默认值收敛到 config.db；工具层文件数不变，但 21 个文件新增 `from config import …` |
+| ⑤ 收尾优化 | 39 | 6726 | 修 A17（IMAP 引号转义）/C2（`list_databases` 白名单）；net 读写闸门合并为 `_check_fs`；连接/身份类参数去源码兜底 |
 
 统一约定见《工具拆分规范.md》（含第五、六条规则），接口契约见《参数说明.md》〇′ 节，默认配置见《配置说明.md》。
 
@@ -25,7 +27,8 @@
 
 ## 一、目录总览
 
-全仓 **43 个 Python 文件 / 7174 行**：工具层 `tools/` 39 文件 6558 行 + 基础设施层 `config/` 4 文件 616 行。
+全仓 **43 个 Python 文件 / 7345 行**：工具层 `tools/` 39 文件 6726 行 + 基础设施层 `config/` 4 文件 619 行。
+框架层（`agent/`、`llm/`、`middleware/`、`permission/`、`rag/`、`skills/`、`storage/`）尚未实现，缺口与规划见《框架层规划.md》。
 
 ```
 tools/
@@ -34,7 +37,7 @@ tools/
 ├── mail/        7 文件   27 函数   1579 行   邮件工具（收发 / 查找）
 ├── mcp/         3 文件    8 函数    360 行   MCP 客户端
 └── db/          9 文件   46 函数   2533 行   数据库读写（PG / MySQL / MongoDB / SQLite）
-       合计        39 文件  117 函数   6558 行
+       合计        39 文件  127 函数   6726 行
 ```
 
 每个域的形状一致：
@@ -191,8 +194,8 @@ _envelope  ←  _client   ←  {weather, cityid, weather_wttr, http_request, dow
 **第二轮修掉 A20**：`get_email_config` 的 `int(smtp_port)` 遇 `"abc"` 裸抛 `ValueError`，现返回 400。
 `imap_date` 遇畸形日期原先返回 `None` 使条件**静默跳过**，现 400 报错。
 
-⚠️ **A17 未修**：`find_email.py` 三处 `f'TEXT "{keyword}"'` 引号未转义，存在 IMAP 搜索注入。
-已在源码模块 docstring 与调用点标 ⚠️，修法见《踩坑记录.md》A17。
+✅ **A17 已修（⑤）**：`find_email.py` 的 keyword/subject/sender 统一经 `_imap_quote`
+转义 `\\` 与 `"` 后再拼 quoted string，注入串 `x" OR (UNSEEN OR DELETED)"` 现在是单个字面量。
 
 ---
 
@@ -280,16 +283,15 @@ _helper  ←  executors  ←  dialect  ←  {postgresql, mysql, sqlite}
 **第二轮修掉 A16**：`dialect.py` 的 `if _check_ident(col, "列名"): continue` 会**静默丢掉非法列名的条件**
 照常查询，模型拿到 `code=200` 但少了条件的残缺结果集。`order_by` 同病。现均 400 报错。
 
-⚠️ **C2 未修**：`main_db.py:152` 的 `list_databases` 输出过滤走精确匹配 `x in allow`，
-而紧邻的黑名单走 `_db_same`。启用 `allowed_databases` 后 SQLite 文件夹模式下 `list_databases` 恒空。
-源码已留详细注释说明修法（一行换 `_db_same`），本轮刻意保持以不混淆差异分类。
+✅ **C2 已修（⑤）**：`main_db.py` 的 `list_databases` 输出白名单过滤改为与黑名单一致的
+`_db_same`，SQLite 文件夹模式下 `allowed_databases: ["orders"]` 能正确列出 `orders.db`。
 
 ---
 
 ## 七、`config/` — 默认配置中心（基础设施层）
 
 与 `tools/` 平级，不在 `tools/` 下。五域的硬编码默认值收敛到这里的 `config.db`（SQLite）。
-读取优先级 **data > sqlite > None**。完整契约、73 项配置表、三类语义见《配置说明.md》。
+读取优先级 **data > sqlite > None**；连接/身份类参数（`db.type`、`db.port.*`、`db.database`、mail 的 smtp/imap host+port）**无源码兜底**，data 与 sqlite 都无值时返回 400。完整契约、73 项配置表、三类语义见《配置说明.md》。
 
 | 文件 | 行数 | 职责 | 依赖 |
 |------|------|------|------|
@@ -355,3 +357,4 @@ SQLite 走 stdlib `sqlite3`，无需驱动；`sqlglot` 仅在**启用表级管�
 | 2026-11-22 | **第二轮改造同步**。行数 3906 → 6550（+68%），函数增至 120（含 19 个信封机器）。六域章节全部重生成表格并补记：`net` 的 `_HTTP_CLIENT_INSECURE`（修连接泄漏）与 `verify` 严格化、`crawl` 的副作用豁免与文件闸门契约不变、`mail` 的分页元数据破坏性变更与 A17 未修、`mcp` 的三态语义保真与四处缺陷修复、`db` 的三处结构变化（`_err` 带 where / 校验器信封 / 去掉 raise 信号）与闸门未松动验证。目录总览补「信封机器」与「纯副作用」两种角色 |
 | 2026-11-22 | **③ crawl 合并回 net**（用户决策，定位「高级网络请求」）。决定性依据：`agent_study/tools/__init__.py` 本就把 `async_crawl_tools` 挂进 `ToolGroup("net")`。`crawl/_helper.py` 按符号拆为 `_envelope`（信封机器，独立成层）/`_fs`（文件闸门，**提到域共用层**）/`_render`（配置构建与钳制）；旧信封层 3 个符号丢弃，信封机器 19→16。**修掉不对称**：`download` 原先直接落盘不过闸门而同域 `screenshot` 过，现共用 `_fs`，同路径判定一致。**消除跨域陷阱**：`crawl._err(where,msg)` 与 `net._err(message,func_name,...)` 参数顺序倒置，现全库统一。net 章节重写为 17 文件，crawl 章节删除，后续节号前移；统计 37 文件/120 函数 → **39/117** |
 | 2026-11-22 | **④ config 层同步**。新增第七节 `config/`（基础设施层 4 文件 616 行）：schema 73 项 / store 进程级缓存+RLock+clamp_get / merge 三辅助；原七～九节号后移为八～十。顶部标题改 `scope CODE_INDEX`、阶段表加④、全仓规模 43 文件 7174 行 |
+| 2026-11-22 | **⑤ 工具层收尾**。A17/C2 已修；`net/_fs.py` 的写/读闸门合并为内部 `_check_fs`，对外 `_check_write`/`_check_read` 契约不变；连接/身份类参数去源码兜底。规模重算为 39 文件 / 127 顶层函数 / 6726 行，全仓 43 文件 7345 行 |

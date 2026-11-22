@@ -8,13 +8,9 @@ function="find_email" — 按条件查找邮件（分页）。
 分页元数据（total/offset/count/has_more）随本次改造收进 data，
 详见 search.py 的契约变更说明。
 
-⚠️ 既有安全缺陷（未修，见 docs/踩坑记录.md A17）:
-    keyword/subject/sender 被直接拼进 IMAP 搜索表达式并用双引号包裹，**未转义**。
-    输入 `x" OR (UNSEEN OR DELETED)"` 会构造出
-        TEXT "x" OR (UNSEEN OR DELETED)""
-    —— 引号被提前闭合，追加的条件生效，搜索范围被绕过（只能扩大、不能缩小，
-    且服务端可能直接报语法错误）。修法是转义 `"` 与 `\\`，但会改变现有行为，
-    属独立安全决策，本次改造保持原样。
+⚠️ IMAP 搜索表达式安全（A17 已修）:
+    keyword/subject/sender 用 _imap_quote 转义 `\\` 与 `"` 后再拼进 quoted string。
+    输入 `x" OR (UNSEEN OR DELETED)"` 现在是单个字面量，不再能闭合引号追加条件。
 """
 
 
@@ -23,6 +19,16 @@ from typing import Any, Dict
 from ._helper import _err, build_date_criteria, parse_int
 from config import get as _cfg_get
 from .search import async_search_mailbox
+
+
+def _imap_quote(value: str) -> str:
+    """把用户输入转成 IMAP quoted string 的安全内容。
+
+    RFC 3501 quoted string 只认 `\\` 与 `\"` 两种转义。先转义反斜杠再转义双引号，
+    避免 `\\"` 被解释成“转义反斜杠 + 结束引号”。修 A17：关键字不再能闭合引号
+    追加 `OR (...)` 扩大搜索范围。
+    """
+    return str(value).replace("\\", "\\\\").replace('"', '\\"')
 
 
 async def async_find_email(data: dict = None) -> Dict[str, Any]:
@@ -70,11 +76,11 @@ async def async_find_email(data: dict = None) -> Dict[str, Any]:
         return _err("keyword / subject / sender / date_from / date_to 至少填一个", "find_email")
     criteria = []
     if keyword:
-        criteria.append(f'TEXT "{keyword}"')          # ⚠ 未转义，见模块 docstring
+        criteria.append(f'TEXT "{_imap_quote(keyword)}"')
     if subject:
-        criteria.append(f'SUBJECT "{subject}"')        # ⚠ 未转义
+        criteria.append(f'SUBJECT "{_imap_quote(subject)}"')
     if sender:
-        criteria.append(f'FROM "{sender}"')            # ⚠ 未转义
+        criteria.append(f'FROM "{_imap_quote(sender)}"')
     bc = build_date_criteria({"data": data, "criteria": criteria})
     if bc.get("code") != 200:
         return bc

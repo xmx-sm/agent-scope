@@ -6,7 +6,7 @@
 入参统一为 data 字典，返回统一为 {"code", "data", "message"} 信封。
 
 四组内容:
-  1. 连接配置：data 覆盖 > 环境变量 > 默认值，并做必填项校验
+  1. 连接配置：data 覆盖 > config.db > 报错（连接身份类参数无源码兜底），并做必填项校验
      （get_email_config / check_email_config）
   2. 纯函数：日期换算与范围判定、MIME 头解码、HTML 剥离、整数解析、错误文本
   3. 报文解析（headers/body/attachments）与附件落盘
@@ -120,11 +120,13 @@ def get_email_config(data: dict = None) -> Dict[str, Any]:
     if not isinstance(cfg, dict):
         cfg = {}
 
-    def _port(val, cfg_key, default):
-        # 端口 0 无意义，与空/None 一样回落（原实现 `val or ... or default` 即此语义）
-        raw = val or _cfg_get(cfg_key, None) or default
+    def _port(val, cfg_key):
+        # 连接端口不预置出厂值：调用未传 → 读 sqlite；仍无则返回 None，由真正用到
+        # SMTP/IMAP 的连接函数报「缺少参数」——发信只需 smtp、收信只需 imap，
+        # 不因另一个协议未配置而阻断本操作。
+        raw = val or _cfg_get(cfg_key, None)
         if raw in (None, ""):
-            raw = default
+            return None, None
         if isinstance(raw, (dict, list, tuple, set)):
             return None, _err(f"端口配置必须是整数，收到 {type(raw).__name__}", "get_email_config")
         try:
@@ -132,14 +134,18 @@ def get_email_config(data: dict = None) -> Dict[str, Any]:
         except (TypeError, ValueError):
             return None, _err(f"端口配置必须是整数，收到 {raw!r}", "get_email_config")
 
-    smtp_port, e = _port(cfg.get("smtp_port") or data.get("smtp_port"), "mail.smtp.port", 465)
+    smtp_port, e = _port(cfg.get("smtp_port") or data.get("smtp_port"), "mail.smtp.port")
     if e:
         return e
-    imap_port, e = _port(cfg.get("imap_port") or data.get("imap_port"), "mail.imap.port", 993)
+    imap_port, e = _port(cfg.get("imap_port") or data.get("imap_port"), "mail.imap.port")
     if e:
         return e
-    # 字符串字段：email_config 段 > data 顶层 > sqlite 默认 > 兜底。
+    # 字符串字段：email_config 段 > data 顶层 > sqlite 默认。
+    # 服务器主机属连接身份类参数，不预置出厂值；仍为空时保持空串，
+    # 由 async_open_smtp / async_open_imap 按实际使用的协议报「缺少参数」。
     # 账号/密码是敏感项，sqlite 出厂为 None → 空串 → 触发 check_email_config 原报错逻辑。
+    smtp_host = _pick_str(cfg.get("smtp_host") or data.get("smtp_host"), "mail.smtp.host", "")
+    imap_host = _pick_str(cfg.get("imap_host") or data.get("imap_host"), "mail.imap.host", "")
     host_user = _pick_str(
         cfg.get("email") or cfg.get("host_user") or data.get("email") or data.get("host_user"),
         "mail.account.user", "")
@@ -147,11 +153,9 @@ def get_email_config(data: dict = None) -> Dict[str, Any]:
         "host_user": host_user,
         "password": _pick_str(cfg.get("password") or data.get("password"),
                               "mail.account.password", ""),
-        "smtp_host": _pick_str(cfg.get("smtp_host") or data.get("smtp_host"),
-                               "mail.smtp.host", "smtp.qq.com"),
+        "smtp_host": smtp_host,
         "smtp_port": smtp_port,
-        "imap_host": _pick_str(cfg.get("imap_host") or data.get("imap_host"),
-                               "mail.imap.host", "imap.qq.com"),
+        "imap_host": imap_host,
         "imap_port": imap_port,
         "profile_name": _pick_str(cfg.get("profile_name") or data.get("profile_name"),
                                   "mail.profile_name", ""),

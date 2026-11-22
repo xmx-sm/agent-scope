@@ -48,10 +48,12 @@ class Item(NamedTuple):
 
 # ── db 域 ────────────────────────────────────────────────────────
 DB: List[Item] = [
-    Item("db.type", "postgresql", "str", "db", "缺省数据库类型（别名归一后：postgresql/mysql/mongodb/sqlite）"),
-    Item("db.port.postgresql", 5432, "int", "db", "PostgreSQL 缺省端口"),
-    Item("db.port.mysql", 3306, "int", "db", "MySQL 缺省端口"),
-    Item("db.port.mongodb", 27017, "int", "db", "MongoDB 缺省端口"),
+    # 连接/身份类参数不预置出厂值：调用未传且 config.db 未配置时报「缺少参数」，
+    # 不再静默回落到 postgresql/5432 等，避免用错误的后端与端口连库。
+    Item("db.type", None, "str", "db", "缺省数据库类型（不预置；调用未传且库中未配置时报错）"),
+    Item("db.port.postgresql", None, "int", "db", "PostgreSQL 缺省端口（不预置）"),
+    Item("db.port.mysql", None, "int", "db", "MySQL 缺省端口（不预置）"),
+    Item("db.port.mongodb", None, "int", "db", "MongoDB 缺省端口（不预置）"),
     Item("db.max_rows", 500, "int", "db", "单次查询返回行数硬上限（table_data/run_query），用户传更大值被压到此", hard_max=500),
     Item("db.max_affect", 100, "int", "db", "单次写影响行数上限，超限自动回滚（写保护，只可收紧）", hard_max=100),
     Item("db.connect_timeout", 15, "int", "db", "建连超时秒数（asyncpg / sqlite3）"),
@@ -70,10 +72,11 @@ DB: List[Item] = [
 
 # ── mail 域 ──────────────────────────────────────────────────────
 MAIL: List[Item] = [
-    Item("mail.smtp.host", "smtp.qq.com", "str", "mail", "SMTP 服务器缺省主机"),
-    Item("mail.smtp.port", 465, "int", "mail", "SMTP 缺省端口（465 隐式 TLS；非 465 必须 STARTTLS 升级成功）"),
-    Item("mail.imap.host", "imap.qq.com", "str", "mail", "IMAP 服务器缺省主机"),
-    Item("mail.imap.port", 993, "int", "mail", "IMAP 缺省端口（143 为明文，本平台拒绝）"),
+    # 服务器/端口属连接身份类参数：不预置，必须由调用传入或部署方写入 config.db。
+    Item("mail.smtp.host", None, "str", "mail", "SMTP 服务器（不预置；调用未传且库中未配置时报错）"),
+    Item("mail.smtp.port", None, "int", "mail", "SMTP 端口（不预置；465 隐式 TLS，非 465 必须 STARTTLS 升级成功）"),
+    Item("mail.imap.host", None, "str", "mail", "IMAP 服务器（不预置；调用未传且库中未配置时报错）"),
+    Item("mail.imap.port", None, "int", "mail", "IMAP 端口（不预置；143 为明文，本平台拒绝）"),
     Item("mail.connect_timeout", 30, "int", "mail", "IMAP/SMTP 建连超时秒数"),
     Item("mail.mailbox", "INBOX", "str", "mail", "缺省邮箱文件夹"),
     Item("mail.receive.offset", 0, "int", "mail", "receive_email 缺省跳过最近 N 封"),

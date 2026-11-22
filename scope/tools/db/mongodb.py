@@ -78,6 +78,8 @@ async def _mongo(data: dict = None) -> Dict[str, Any]:
     if not isinstance(args, dict):
         return _err(f"args 必须是字典，收到 {type(args).__name__}", "_mongo")
     db = args.get("database") or cfg.get("database")
+    if function != "list_databases" and not db:
+        return _err("缺少参数 database（调用未传且 config.db 未配置 db.database）", "_mongo")
 
     if function == "list_databases":
         def run(client):
@@ -88,7 +90,7 @@ async def _mongo(data: dict = None) -> Dict[str, Any]:
         return await asyncio.to_thread(_mongo_call, {"cfg": cfg, "database": db, "fn": run})
     if function == "list_tables":
         def run(client):
-            d = client[args.get("database") or cfg.get("database") or "admin"]
+            d = client[db]
             pat = args.get("pattern")
             names = d.list_collection_names()
             if pat and pat != "%":
@@ -101,7 +103,7 @@ async def _mongo(data: dict = None) -> Dict[str, Any]:
         if not table:
             return _err("缺少 table 字段（集合名）", "_mongo")
         def run(client):
-            col = client[db or "admin"][table]
+            col = client[db][table]
             doc = col.find_one() or {}
             return [{"column": k, "type": type(v).__name__} for k, v in doc.items()]
         return await asyncio.to_thread(_mongo_call, {"cfg": cfg, "database": db, "fn": run})
@@ -122,7 +124,7 @@ async def _mongo(data: dict = None) -> Dict[str, Any]:
         if not args.get("table"):
             return _err("缺少 table 字段（集合名）", "_mongo")
         def run(client):
-            col = client[db or "admin"][args["table"]]
+            col = client[db][args["table"]]
             cursor = col.find(flt).skip(offset).limit(limit)
             rows = []
             for doc in cursor:
@@ -139,7 +141,7 @@ async def _mongo(data: dict = None) -> Dict[str, Any]:
             return mf
         flt = mf["data"]
         def run(client):
-            col = client[db or "admin"][args["table"]]
+            col = client[db][args["table"]]
             return {"count": col.count_documents(flt)}
         return await asyncio.to_thread(_mongo_call, {"cfg": cfg, "database": db, "fn": run})
     if function == "run_query":
@@ -174,6 +176,8 @@ async def _mongo_write(data: dict = None) -> Dict[str, Any]:
     if not isinstance(args, dict):
         return _err(f"args 必须是字典，收到 {type(args).__name__}", "_mongo_write")
     db = args.get("database") or cfg.get("database")
+    if not db:
+        return _err("缺少参数 database（调用未传且 config.db 未配置 db.database）", "_mongo_write")
     table = str(args.get("table") or "").strip()
 
     if function == "run_write":
@@ -187,7 +191,7 @@ async def _mongo_write(data: dict = None) -> Dict[str, Any]:
             return _err("data 必须是非空文档对象（或文档数组批量插入）", "_mongo_write")
 
         def run_ins(client):
-            col = client[db or "admin"][table]
+            col = client[db][table]
             if isinstance(docs, list):
                 r = col.insert_many(docs)
                 return {"collection": table, "affected": len(r.inserted_ids)}
@@ -209,7 +213,7 @@ async def _mongo_write(data: dict = None) -> Dict[str, Any]:
             return _err("data（新字段值 {字段: 值}）不能为空", "_mongo_write")
 
         def run_upd(client):
-            col = client[db or "admin"][table]
+            col = client[db][table]
             n0 = col.count_documents(flt)
             if n0 == 0:
                 return {"collection": table, "matched": 0, "affected": 0,
@@ -221,7 +225,7 @@ async def _mongo_write(data: dict = None) -> Dict[str, Any]:
         return await asyncio.to_thread(_mongo_call, {"cfg": cfg, "database": db, "fn": run_upd})
 
     def run_del(client):
-        col = client[db or "admin"][table]
+        col = client[db][table]
         n0 = col.count_documents(flt)
         if n0 == 0:
             return {"collection": table, "affected": 0, "note": "未匹配到文档，未删除任何数据"}

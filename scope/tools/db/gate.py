@@ -481,7 +481,7 @@ def _db_gate(data: dict = None) -> Dict[str, Any]:
         return at
     if args.get("sql") and (dt["data"] or at["data"]):
         c = _sql_tbl_check({"cfg": cfg, "target_db": target,
-                            "dialect": str(cfg.get("db_type") or "postgresql").lower(),
+                            "dialect": str(cfg.get("db_type") or "").lower(),
                             "sql": args["sql"], "write": write})
         if c.get("code") != 200:
             return c

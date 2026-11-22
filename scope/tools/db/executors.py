@@ -59,6 +59,9 @@ async def _pg_exec(data: dict = None) -> Dict[str, Any]:
     if args is not None and not isinstance(args, (list, tuple)):
         return _err(f"args 必须是列表，收到 {type(args).__name__}", "_pg_exec")
     fetch = bool(data.get("fetch", False))
+    dbname = data.get("database") or cfg.get("database")
+    if not dbname:
+        return _err("缺少参数 database（调用未传且 config.db 未配置 db.database）", "_pg_exec")
     try:
         import asyncpg
     except ImportError:
@@ -66,7 +69,7 @@ async def _pg_exec(data: dict = None) -> Dict[str, Any]:
     try:
         conn = await asyncpg.connect(host=cfg["host"], port=int(cfg["port"]),
                                      user=cfg.get("user"), password=cfg.get("password"),
-                                     database=data.get("database") or cfg.get("database") or "postgres",
+                                     database=dbname,
                                      timeout=eff_connect_timeout())
     except (TypeError, ValueError, OverflowError) as e:
         return _err(f"连接参数无效：{e}", "_pg_exec")
@@ -115,6 +118,9 @@ async def _pg_write(data: dict = None) -> Dict[str, Any]:
         cap = int(raw_cap)
     except (TypeError, ValueError):
         return _err("cap 必须是整数", "_pg_write")
+    dbname = data.get("database") or cfg.get("database")
+    if not dbname:
+        return _err("缺少参数 database（调用未传且 config.db 未配置 db.database）", "_pg_write")
     try:
         import asyncpg
     except ImportError:
@@ -122,7 +128,7 @@ async def _pg_write(data: dict = None) -> Dict[str, Any]:
     try:
         conn = await asyncpg.connect(host=cfg["host"], port=int(cfg["port"]),
                                      user=cfg.get("user"), password=cfg.get("password"),
-                                     database=data.get("database") or cfg.get("database") or "postgres",
+                                     database=dbname,
                                      timeout=eff_connect_timeout())
     except (TypeError, ValueError, OverflowError) as e:
         return _err(f"连接参数无效：{e}", "_pg_write")

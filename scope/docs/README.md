@@ -1,14 +1,15 @@
 # scope/docs
 
-`scope/` 的配套文档。五份，按用途查，不必通读。
+`scope/` 的配套文档。六份，按用途查，不必通读。
 
 | 文档 | 什么时候读 | 内容 |
 |------|-----------|------|
 | **[参数说明.md](参数说明.md)** | **调任何工具前** | 五个域的入口签名、`function` 清单、入参表、返回契约、`db_config` 管控字段；开头「〇′ 统一契约」与「〇 全局调用契约」**必读** |
 | **[CODE_INDEX.md](CODE_INDEX.md)** | 找文件 / 改代码前 | 39 个文件的行数、符号清单、依赖图；db 四层结构的成环约束；net 的双入口与四段辅助层；第三方依赖清单与已装状态 |
 | **[工具拆分规范.md](工具拆分规范.md)** | 加新功能 / 重跑验证 | 六条组织规则（含入参统一与两类豁免）+ 刻意偏离及理由 + 新增功能流程 + **两轮各自的验证方法**（脚本已丢弃，方法留此）+ 切分器实现约束 |
-| **[踩坑记录.md](踩坑记录.md)** | 报错时 / 装配前 | A 类 22 条使用侧坑（含 **A17 未修的 IMAP 搜索注入**）、B 类 6 条 agentscope 集成坑、C 类 8 条**误诊与自查纠正** |
-| **[配置说明.md](配置说明.md)** | 装配 Agent 前 / 改默认值前 | config 层（SQLite 默认配置中心）：读取优先级 data > sqlite > None、73 项配置表、三类语义（57 自由 / 10 钳制只收紧 / 6 敏感出厂 None）、生命周期 API、**mail 环境变量移除的破坏性变更**、什么进 config 什么不进 |
+| **[踩坑记录.md](踩坑记录.md)** | 报错时 / 装配前 | A 类 22 条使用侧坑（A17 IMAP 注入已修）、B 类 6 条 agentscope 集成坑、C 类 8 条**误诊与自查纠正** |
+| **[配置说明.md](配置说明.md)** | 装配 Agent 前 / 改默认值前 | config 层（SQLite 默认配置中心）：读取优先级 data > sqlite > None（连接/身份类参数为 data > sqlite > 400）、73 项配置表、三类语义（57 自由 / 10 钳制只收紧 / 6 敏感出厂 None）、生命周期 API、**mail 环境变量移除与连接参数去兜底的破坏性变更**、什么进 config 什么不进 |
+| **[框架层规划.md](框架层规划.md)** | **封装 Agent 框架 / 做审批与 RAG 前** | 对照 `agent_study/scope` 的框架层缺口（P0～P3）、目标目录结构、工具审批设计（PermissionEngine + Confirm 事件）、RAG 设计（官方 KnowledgeBase/RAGMiddleware）、禁止照搬清单与实施顺序 |
 
 ---
 
@@ -88,13 +89,14 @@ mcp 68 / 跨域一致性与 download 闸门 19。方法见 工具拆分规范.md
 
 | ③ crawl 合并回 net | 原独立成域的 `crawl/` 并回 `net/`，定位「高级网络请求」；`_helper.py` 拆为 `_envelope`/`_fs`/`_render`，download 补闸门（A21）、`_err` 签名倒置消除（A22） | 目录重组，行为对撞仍逐函数验证（175 项） |
 
-- 改造后规模：工具层 **39 文件 / 117 函数 / 6558 行** + 基础设施层 `config/` 4 文件（73 项默认配置，SQLite）
+- 改造后规模：工具层 **39 文件 / 127 顶层函数 / 6726 行** + 基础设施层 `config/` 4 文件（73 项默认配置，SQLite）
 - ④ config 层：散落在各域的硬编码默认值收敛到 `config.db`，读取优先级 **data > sqlite > None**；
   10 个钳制项走 `clamp_get` 只收紧不放宽（铁律 #11），6 个敏感项出厂 None 仅库注入；
   **破坏性**：mail 的 `EMAIL_*` 环境变量兜底彻底移除（默认值只此一源）
+- **框架层尚未实现**：`agent/`、`llm/`、`middleware/`、`permission/`、`rag/`、`skills/`、`storage/` 仍为空，`main.py` 0 字节；缺口、目标结构与审批/RAG 设计见《框架层规划.md》
 - **原件仍是行为基准，不要删** `agent_study/scope/tools/`——所有对撞验证仍以它为准
 - 未复制：`dingtalk_tools/`（`_config.py` 含明文生产密钥，按「密钥三不进」不入）、
-  `async_rag_tools.py`（跨目录依赖 `rag/`，且检索职责已由官方 `RAGMiddleware` 覆盖）。
+  `async_rag_tools.py`（跨目录依赖 `rag/`；检索职责改由官方 `RAGMiddleware` 承担，落地规划见《框架层规划.md》）。
 
 ### 缺陷处置状态
 
@@ -112,20 +114,20 @@ mcp 68 / 跨域一致性与 download 闸门 19。方法见 工具拆分规范.md
 | 驱动/依赖缺失裸抛 | `crawl4ai`/`asyncpg`/`aiomysql`/`pymongo` 未装时 `ModuleNotFoundError` | 400 信封 + pip 安装指引 |
 | 表不存在/主键冲突记 500 | 属参数问题却报内部异常 | 改 400 |
 | **download 与 screenshot 闸门不对称** | download 直接 `open` 落盘、完全不过闸门，而同域 screenshot 过 —— 租户策略被一个工具绕过（A21） | 共用 `net/_fs.py`，同路径判定一致 |
+| **IMAP 搜索表达式注入** | `mail/find_email.py` 三处引号未转义，`x" OR (UNSEEN OR DELETED)"` 可扩大搜索范围（A17） | `_imap_quote` 转义 `\\` 与 `"`，注入串成为普通字面量 |
+| db 白名单输出过滤不一致 | 启用 `allowed_databases` 后 SQLite 文件夹模式 `list_databases` 恒空（C2） | 与黑名单统一走 `_db_same`，`orders` 能匹配 `orders.db` |
 
 **仍未修**（需你决策，改动会变更对外行为）：
 
 | 项 | 位置 | 说明 |
 |---|---|---|
-| **IMAP 搜索表达式注入** | `mail/find_email.py` 三处 | 引号未转义，`x" OR (UNSEEN OR DELETED)"` 可扩大搜索范围；只能放大不能缩小。**A17**，已在源码三处标 ⚠️ |
-| db 白名单输出过滤不一致 | `db/main_db.py:152` | 启用 `allowed_databases` 后 `list_databases` 恒空；一行改 `_db_same`。**C2**，源码已留提示 |
 | 流式进度污染最终结果 | `net/download.py` + agentscope 累积 | 进度文本与 JSON 无分隔拼接，模型拿到的不是合法 JSON。**A5** |
 | 业务错误记为 `success` | agentscope `_convert_func_result_to_chunk` | `{"code":400}` 在框架侧是 `state=success`，`tool_retries_limit` 形同虚设。**B3**，需工具改返 `ToolChunk(state=ERROR)` |
 | 模型看到的是黑盒 schema | 六域全部 | `{"data": {"additionalProperties": true}}`，参数靠 docstring 约束。**B1**，需 pydantic `input_schema` 结构化 |
 | 路由文案跨域不一致 | `db` vs 其余四域 | 「未知 function」带前缀 vs 「暂不支持」不带。**A19**，原件既有，本轮保持 |
-| db 错误位置只到函数级 | `db/_helper.py:50` `_err` 用自身 `__file__` | 位置形如 `_helper.py__tbl_gate`：函数名精确、**文件仍是信封层**。追求文件级精确要付 `inspect.stack()` 的代价，未采纳。见 A15 |
+| db 错误位置只到函数级 | `db/_helper.py` `_err` 用自身 `__file__` | 位置形如 `_helper.py__tbl_gate`：函数名精确、**文件仍是信封层**。追求文件级精确要付 `inspect.stack()` 的代价，未采纳。见 A15 |
 
-后六项的修法都会改变对外行为或需要动 agentscope 侧，故**刻意不混进本轮改造**——
+后五项的修法都会改变对外行为或需要动 agentscope 侧，故**刻意不混进本轮改造**——
 每项都应独立成一次改动并重跑验证（教训见 C3：为了"顺手改进"偏离原件，会摧毁可证明性等价这一保证）。
 
 `import agentscope.app` 缺 `apscheduler` 一项已装好，`create_app` 可用。
@@ -138,4 +140,6 @@ mcp 68 / 跨域一致性与 download 闸门 19。方法见 工具拆分规范.md
 |------|------|
 | 2026-11-22 | 首版。四份文档的导航、三十秒上手示例、三个致命点索引、已知未修清单 |
 | 2026-11-22 | **第二轮改造同步**。致命点 3→4 条（首位是 mail 分页元数据位置变更，平台侧必须改）；「已知未修」重写为「已修 / 仍未修」两栏（9 项已修、6 项仍未修含 **A17 未修的 IMAP 注入**）；现状段区分两轮基线并给出 632 项验证分解；导航计数 A 类 15→20、C 类 3→5 |
+| 2026-11-22 | **⑤ 工具层收尾优化**。修 A17（IMAP 搜索引号转义）与 C2（`list_databases` 白名单用 `_db_same`）；连接/身份类参数去源码兜底（`db.type`、`db.port.*`、`db.database`、mail smtp/imap host+port，优先级改为 data > sqlite > 400）；仍未修从 6 项降至 5 项 |
+| 2026-11-22 | 新增《框架层规划.md》：对照 `agent_study/scope` 盘点框架层缺口（7 个空目录 / `main.py` 0 字节 / 无 pyproject 与 tools 装配）；给出 P0～P3 路线、工具审批与 RAG 设计、禁止照搬的明文密钥与旧 API |
 | 2026-11-22 | **④ config 层同步**。导航加配置说明.md（四→五份）；现状段三轮→四轮并加 config 层规模；致命点 5→6 条（新增 mail `EMAIL_*` 环境变量移除的破坏性变更）；三十秒上手加 config 装配；C 类 6→8 条 |

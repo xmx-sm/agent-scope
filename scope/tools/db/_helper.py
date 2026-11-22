@@ -34,7 +34,6 @@ from typing import Any, Dict
 from config import clamp_get as _clamp_get, get as _cfg_get, pick_int as _pick_int
 
 
-_DEFAULT_PORTS = {"postgresql": 5432, "mysql": 3306, "mongodb": 27017}
 _SQLITE_EXTS = (".db", ".sqlite", ".sqlite3")
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*(\.[A-Za-z_][A-Za-z0-9_$]*)?$")
 _READONLY_RE = re.compile(r"^\s*(select|with|show|desc|describe|explain)\b", re.I)
@@ -125,6 +124,10 @@ def _resolve(data: dict = None) -> Dict[str, Any]:
 
     字符串字段清洗首尾空白；db_type 别名归一（postgres/pg→postgresql，mongo→mongodb，
     sqlite3→sqlite）。
+
+    连接/身份类参数无源码兜底：db_type、port、host、database 必须由调用传入或
+    在 config.db 中配置，两处都没有时返回 400「缺少参数 xxx」。优先级：
+    调用传入 > config.db > 报错。
     """
     if data is None:
         data = {}
@@ -152,7 +155,10 @@ def _resolve(data: dict = None) -> Dict[str, Any]:
     for k in ("db_type", "host", "user", "password", "database", "port", "path", "dir"):
         if isinstance(cfg.get(k), str):
             cfg[k] = cfg[k].strip()
-    db_type = str(cfg.get("db_type") or "postgresql").lower().strip()
+    db_type_raw = cfg.get("db_type")
+    if db_type_raw in (None, ""):
+        return _err("缺少参数 db_type（调用未传且 config.db 未配置 db.type）", "_resolve")
+    db_type = str(db_type_raw).lower().strip()
     if db_type in ("postgres", "postgresql", "pg"):
         db_type = "postgresql"
     elif db_type in ("mysql", "mongodb", "mongo"):
@@ -167,9 +173,13 @@ def _resolve(data: dict = None) -> Dict[str, Any]:
         return _ok({"db_type": db_type, "cfg": cfg})
     if not cfg.get("host"):
         return _err("缺少数据库连接配置（db_config.host）", "_resolve")
-    # port：调用没给 → sqlite 按 db_type 取 → 常量 _DEFAULT_PORTS 兜底
+    # port：调用没给 → 读 sqlite（db.port.<db_type>）；都没有则报「缺少参数」，
+    # 不再回落到 5432/3306/27017 —— 连错端口与不连都是失败，提前明确报错更安全。
     if cfg.get("port") in (None, ""):
-        cfg["port"] = _cfg_get(f"db.port.{db_type}", _DEFAULT_PORTS[db_type])
+        v = _cfg_get(f"db.port.{db_type}", None)
+        if v in (None, ""):
+            return _err(f"缺少参数 port（调用未传且 config.db 未配置 db.port.{db_type}）", "_resolve")
+        cfg["port"] = v
     return _ok({"db_type": db_type, "cfg": cfg})
 
 

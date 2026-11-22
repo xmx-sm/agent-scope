@@ -1,0 +1,247 @@
+# agent_scope
+
+基于 [AgentScope](https://github.com/agentscope-ai/agentscope) 的 Agent 框架封装项目。
+
+目标是把「模型、Agent 运行循环、工具、权限审批、记忆、RAG、存储」收敛成一套可复用的框架层，
+业务侧只负责配置和编排，而不是每个项目重写一遍 Agent 底座。
+
+当前进度：**工具层与配置中心已完成，框架层待实现；下一步做工具审批与 RAG。**
+
+- AgentScope：`2.0.12`
+- Python：`3.14.8`
+- 当前仓库只包含 `scope/`（框架与工具源码）与配套文档
+
+---
+
+## 一、当前进展
+
+### 已完成
+
+| 层 | 内容 | 规模 |
+|---|---|---|
+| 工具层 | 5 个域：db / net / mail / mcp / system | 39 文件 / 127 顶层函数 / 6726 行 |
+| 配置层 | `scope/config/`：SQLite 配置中心，73 项默认配置 | 4 文件 / 619 行 |
+
+工具域能力：
+
+| 域 | 能力 |
+|---|---|
+| `db` | PostgreSQL / MySQL / MongoDB / SQLite；列库、列表、表结构、分页取数、count、只读 SQL、写操作；库级/表级白名单、写影响行数上限 |
+| `net` | HTTP 请求、天气、城市、下载、crawl / crawl_many / deep_crawl、截图、PDF 提取 |
+| `mail` | 发信、收信、按条件查找、附件、分页 |
+| `mcp` | MCP 客户端与配置解析（stdio / http） |
+| `system` | Shell 命令执行 |
+
+配置层的约定：
+
+```
+调用传入 data  >  config.db（SQLite）  >  报错 / None
+```
+
+- 连接/身份类参数（`db.type`、`db.port.*`、`db.database`、mail 的 smtp/imap host+port）
+  没有源码兜底：调用与 SQLite 都没有值时返回 400「缺少参数 xxx」。
+- 10 个钳制项只收紧不放宽（`clamp_get`，如查询行数上限、写影响行数上限）。
+- 6 个敏感项出厂为 `None`，仅支持部署方写入 `config.db`。
+- `config.db`、`.venv`、MCP 配置、向量库数据等已加入 `.gitignore`，不入库。
+
+### 近期修复
+
+| 项 | 内容 |
+|---|---|
+| A17 | IMAP 搜索表达式注入：`keyword/subject/sender` 统一转义 `\` 与 `"` |
+| C2 | SQLite 文件夹模式下 `list_databases` 白名单与黑名单统一走 `_db_same` |
+| A21 | `download` 与 `screenshot` 统一走 `net/_fs.py` 文件闸门 |
+| 连接参数 | 去掉 `postgresql` / `5432` / `smtp.qq.com` 等硬编码兜底 |
+| 文件闸门 | `net/_fs.py` 的读写闸门合并为内部 `_check_fs`，对外契约不变 |
+
+### 待实现
+
+```
+scope/
+├── agent/          # 空：Agent 工厂、运行循环、Toolkit 装配、子智能体
+├── llm/            # 空：多厂商 LLM / embedding / TTS / STT 工厂
+├── middleware/     # 空：记忆、预算、Tracing、ModelRouter
+├── permission/     # 空：工具审批（下一步）
+├── rag/            # 空：知识库 / RAG（下一步）
+├── skills/         # 空：Skill 加载
+├── storage/        # 空：会话 / 消息 / 工作区
+└── main.py         # 0 字节：装配入口 / 服务入口
+```
+
+框架层缺口、目标结构、审批与 RAG 的详细设计见
+[docs/框架层规划.md](scope/docs/框架层规划.md)。
+
+---
+
+## 二、目录结构
+
+```text
+agent_scope/
+├── README.md                    # 本文件
+├── .gitignore
+└── scope/
+    ├── config/                  # SQLite 配置中心
+    │   ├── schema.py            # 73 项配置的单一真相源
+    │   ├── store.py             # 读写 + 进程级缓存 + 生命周期 API
+    │   ├── merge.py             # pick / pick_str / pick_int
+    │   └── __init__.py
+    ├── tools/
+    │   ├── db/                  # 数据库工具（四层结构：_helper → executors → dialect → 方言入口）
+    │   ├── net/                 # 网络工具（基础请求 + 浏览器渲染/截图/PDF）
+    │   ├── mail/                # 邮件工具（IMAP / SMTP）
+    │   ├── mcp/                 # MCP 客户端
+    │   └── system/              # Shell 命令
+    └── docs/
+        ├── README.md            # 文档导航
+        ├── 参数说明.md          # 各工具入口签名、入参、返回契约
+        ├── CODE_INDEX.md        # 文件 / 符号 / 依赖图
+        ├── 工具拆分规范.md      # 组织规则与验证方法
+        ├── 踩坑记录.md          # 使用侧坑、集成坑、误诊纠正
+        ├── 配置说明.md          # 73 项配置与生命周期
+        └── 框架层规划.md        # 框架层缺口、审批/RAG 设计、路线图
+```
+
+---
+
+## 三、快速开始
+
+```bash
+cd scope
+python -m venv .venv
+source .venv/bin/activate
+pip install agentscope httpx aiosmtplib aioimaplib beautifulsoup4 \
+            asyncpg aiomysql pymongo sqlglot
+```
+
+工具层要求 `scope/` 在 `sys.path`（当前工具文件使用顶层 `from config import ...`）：
+
+```python
+import asyncio
+import sys
+
+sys.path.insert(0, "<path-to>/agent_scope/scope")
+
+import config
+from tools.db.main_db import async_db_tools
+
+
+async def main():
+    await config.aload()   # 可选：装配期预载 config.db；不调用会在首次 get 时惰性建库
+
+    r = await async_db_tools({
+        "function": "run_query",
+        "db_config": {
+            "db_type": "sqlite",
+            "path": "/path/to/demo.db",
+            "database": "demo",
+        },
+        "sql": "SELECT 1",
+    })
+    print(r["code"], r["message"], r["data"])
+
+
+asyncio.run(main())
+```
+
+返回统一信封：
+
+```python
+{"code": 200 | 400 | 500, "data": ..., "message": "..."}
+```
+
+注意：
+
+- 业务参数平铺在 `data` 顶层，不嵌进 `arguments`。
+- 经 AgentScope `FunctionTool` 调用时需要包一层 `{"data": {...}}`。
+- 写操作使用独立入口 `async_db_write_tools`。
+
+---
+
+## 四、下一步路线
+
+| 优先级 | 内容 |
+|---|---|
+| P0 | 框架骨架：`llm/factory.py`、`agent/builder.py`、`agent/runtime.py`、Toolkit 装配、skills、`main.py`、`pyproject.toml` |
+| P1 | `permission/`：基于 `agentscope.permission` 的规则、确认事件、SQLite 规则与审计、非交互自动拒绝 |
+| P1 | `rag/`：官方 `KnowledgeBase` + `RAGMiddleware`，文件解析/切片/embedding/注册表，多租户隔离 |
+| P2 | 子智能体与委派、A2A、Mem0/文件记忆、storage、agentscope.app 服务化 |
+| P3 | 钉钉工具、多模态（视频/TTS/STT）、多向量库后端 |
+
+实施顺序与验收标准见 [docs/框架层规划.md](scope/docs/框架层规划.md)。
+
+---
+
+## 五、验证状态
+
+已执行：
+
+- `compileall` 全量编译通过；
+- 5 个工具域入口与 12 个核心模块 import 通过；
+- 7 个工具入口 × 8 种坏入参（`None` / `str` / `list` / `int` / 空 function / 非字符串 / 未知 function）
+  无崩溃，均返回统一信封；
+- 每个 function 空参数调用均返回 400，无异常；
+- SQLite 实际查询、A17 转义、C2 白名单、`_fs` 读写闸门均已冒烟验证。
+
+目前还没有正式测试目录；P0 阶段会补工具契约、审批状态机、RAG 租户隔离三组测试。
+
+---
+
+## 六、安全约定
+
+- 任何真实 API Key、邮箱授权码、数据库密码都不进代码、不进 Git。
+- 敏感配置写入 `scope/config/config.db`（已在 `.gitignore`）。
+- `scope/tools/mcp/mcp_servers.json` 可能含 token，不入库；模板见 `mcp_servers.example.json`。
+- 提交前建议执行：
+
+```bash
+git status
+git diff --cached
+```
+
+确认没有 `.env`、`config.db`、`mcp_servers.json`、日志或密钥。
+
+---
+
+## 七、文档
+
+先从 [scope/docs/README.md](scope/docs/README.md) 开始，按用途查，不必通读。
+
+---
+
+## 八、发布到 GitHub（维护者）
+
+GitHub 已不支持用账户密码做 Git 认证，请使用 **PAT（Personal Access Token）** 或 **SSH Key**。
+不要把 GitHub 密码、PAT 写进代码、README 或命令历史。
+
+### 方式 A：SSH Key（推荐）
+
+```bash
+# 1. 生成密钥（已有可跳过）
+ssh-keygen -t ed25519 -C "your-email@example.com"
+
+# 2. 把 ~/.ssh/id_ed25519.pub 的内容添加到 GitHub → Settings → SSH and GPG keys
+
+# 3. 在 GitHub 网页创建空仓库（不要勾选 README / .gitignore / License）
+
+# 4. 添加远端并推送（远端名用 github，避免覆盖已有 origin）
+git remote add github git@github.com:<your-name>/agent-scope.git
+git branch -M main
+git push -u github main
+```
+
+### 方式 B：HTTPS + PAT
+
+```bash
+# GitHub → Settings → Developer settings → Personal access tokens
+# 创建 fine-grained token，至少授予目标仓库 Contents: Read and write
+
+git remote add github https://github.com/<your-name>/agent-scope.git
+git push -u github main
+# 用户名填 GitHub 用户名，密码填 PAT（不是账户密码）
+```
+
+推荐用 `gh auth login` 或系统凭据管理器保存 PAT，不要用
+`git config credential.helper store` 明文落盘。
+
+> 当前仓库的 `origin` 指向本地 Gitea，不要直接覆盖；新增 `github` 远端即可同时保留两边。
+

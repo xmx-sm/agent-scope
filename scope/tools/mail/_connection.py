@@ -109,12 +109,14 @@ async def async_open_imap(data: dict = None) -> Dict[str, Any]:
         return _err(f"cfg 必须是字典，收到 {type(cfg).__name__}", "async_open_imap")
     host = cfg.get("imap_host")
     if not host:
-        return _err("cfg 缺少 imap_host 字段", "async_open_imap")
+        return _err("缺少参数 imap_host（调用未传且 config.db 未配置 mail.imap.host）",
+                    "async_open_imap")
     if isinstance(host, (dict, list, tuple, set)):
         return _err(f"cfg.imap_host 必须是字符串，收到 {type(host).__name__}", "async_open_imap")
     port_raw = cfg.get("imap_port")
     if port_raw in (None, ""):
-        return _err("cfg 缺少 imap_port 字段", "async_open_imap")
+        return _err("缺少参数 imap_port（调用未传且 config.db 未配置 mail.imap.port）",
+                    "async_open_imap")
     if isinstance(port_raw, (dict, list, tuple, set)):
         return _err(f"cfg.imap_port 必须是整数，收到 {type(port_raw).__name__}", "async_open_imap")
     try:
@@ -182,12 +184,14 @@ async def async_open_smtp(data: dict = None) -> Dict[str, Any]:
         return _err(f"cfg 必须是字典，收到 {type(cfg).__name__}", "async_open_smtp")
     host = cfg.get("smtp_host")
     if not host:
-        return _err("cfg 缺少 smtp_host 字段", "async_open_smtp")
+        return _err("缺少参数 smtp_host（调用未传且 config.db 未配置 mail.smtp.host）",
+                    "async_open_smtp")
     if isinstance(host, (dict, list, tuple, set)):
         return _err(f"cfg.smtp_host 必须是字符串，收到 {type(host).__name__}", "async_open_smtp")
     port_raw = cfg.get("smtp_port")
     if port_raw in (None, ""):
-        return _err("cfg 缺少 smtp_port 字段", "async_open_smtp")
+        return _err("缺少参数 smtp_port（调用未传且 config.db 未配置 mail.smtp.port）",
+                    "async_open_smtp")
     if isinstance(port_raw, (dict, list, tuple, set)):
         return _err(f"cfg.smtp_port 必须是整数，收到 {type(port_raw).__name__}", "async_open_smtp")
     try:

@@ -44,6 +44,8 @@ async def _pg(data: dict = None) -> Dict[str, Any]:
     if not isinstance(args, dict):
         return _err(f"args 必须是字典，收到 {type(args).__name__}", "_pg")
     db = args.get("database") or cfg.get("database")
+    if function != "list_databases" and not db:
+        return _err("缺少参数 database（调用未传且 config.db 未配置 db.database）", "_pg")
     if function == "list_databases":
         rc = await _pg_exec({"cfg": cfg, "database": "postgres",
                              "sql": "select datname from pg_database where not datistemplate order by datname",
@@ -62,7 +64,7 @@ async def _pg(data: dict = None) -> Dict[str, Any]:
             sql += " and table_catalog = $" + str(len(a) + 1)
             a.append(db)
         sql += f" limit {eff_list_tables_limit()}"
-        rc = await _pg_exec({"cfg": cfg, "database": db or cfg.get("database") or "postgres",
+        rc = await _pg_exec({"cfg": cfg, "database": db,
                              "sql": sql, "args": a, "fetch": True})
         if rc.get("code") != 200:
             return rc
