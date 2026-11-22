@@ -421,5 +421,9 @@ cd frontend && cp .env.example .env && npm install && npm run dev
 | `张三` | `990108` | 管理员（领导） |
 | `李四` | `990108` | 普通用户（上级：张三） |
 
-细节见 [backend/doc/README.md](backend/doc/README.md) 与
-[frontend/doc/README.md](frontend/doc/README.md)。
+文档导航：
+
+| 端 | 文档 |
+|---|---|
+| 后端 | [README](backend/doc/README.md) / [接口说明](backend/doc/接口说明.md) / [参数说明](backend/doc/参数说明.md) / [CODE_INDEX](backend/doc/CODE_INDEX.md) / [配置说明](backend/doc/配置说明.md) / [数据库说明](backend/doc/数据库说明.md) / [踩坑记录](backend/doc/踩坑记录.md) / [开发记录](backend/doc/开发记录.md) |
+| 前端 | [README](frontend/doc/README.md) / [页面说明](frontend/doc/页面说明.md) / [CODE_INDEX](frontend/doc/CODE_INDEX.md) / [配置说明](frontend/doc/配置说明.md) / [踩坑记录](frontend/doc/踩坑记录.md) / [开发记录](frontend/doc/开发记录.md) |
