@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, AsyncGenerator
+from typing import AsyncGenerator
 
 from sqlalchemy import select
 
@@ -12,7 +12,7 @@ from app.models import AgentConversation, AgentMessage, User
 from app.services.agent.conversations import async_get_owned, async_save_message
 from app.services.agent.scope_bridge import ROOT  # noqa: F401 确保 scope 路径已注入
 from app.services.agent.toolkit import async_build_toolkit
-from app.services.config.service import async_get_config
+from app.services.agent.user_config import async_effective
 from app.services.security.prompt import async_build_security_prompt
 
 
@@ -20,28 +20,24 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-async def _load_llm(session) -> dict:
-    async def get(key: str, default: Any = ""):
-        return await async_get_config({"session": session, "key": key, "default": default})
-
-    provider = str(await get("ai.provider", "openai-compatible") or "openai-compatible")
-    model = str(await get("ai.model", "") or "")
-    base_url = str(await get("ai.base_url", "") or "")
-    api_key = str(await get("ai.api_key", "") or "")
+async def _load_llm(session, user: User) -> tuple[dict, str]:
+    cfg = await async_effective({"session": session, "user": user})
+    model = str(cfg.get("model") or "")
+    base_url = str(cfg.get("base_url") or "")
     if not model:
         raise ValueError("请先在 Agent 配置中填写对话模型")
     if not base_url:
         raise ValueError("请先在 Agent 配置中填写模型 API 地址")
     return {
-        "provider": provider,
+        "provider": str(cfg.get("provider") or "openai-compatible"),
         "model": model,
         "base_url": base_url,
-        "api_key": api_key,
-        "stream": bool(await get("ai.stream", True)),
-        "temperature": float(await get("ai.temperature", 0.7) or 0.7),
-        "max_tokens": int(await get("ai.max_tokens", 4096) or 4096),
-        "context_size": int(await get("ai.context_window", 131072) or 131072),
-    }
+        "api_key": str(cfg.get("api_key") or ""),
+        "stream": bool(cfg.get("stream", True)),
+        "temperature": float(cfg.get("temperature", 0.7) or 0.7),
+        "max_tokens": int(cfg.get("max_tokens", 4096) or 4096),
+        "context_size": int(cfg.get("context_window", 131072) or 131072),
+    }, str(cfg.get("system_prompt") or "")
 
 
 async def _history_text(session, conversation_id: str, limit: int = 20) -> str:
@@ -91,14 +87,9 @@ async def async_stream_chat(user_id: str, conversation_id: str, content: str) ->
             session, conversation_id=conversation_id, role="user", content=content
         )
         try:
-            llm = await _load_llm(session)
+            llm, user_prompt = await _load_llm(session, user)
             security_prompt = await async_build_security_prompt({"session": session})
-            system_prompt = str(
-                await async_get_config(
-                    {"session": session, "key": "ai.system_prompt", "default": ""}
-                )
-                or "你是一个企业智能助手。"
-            )
+            system_prompt = user_prompt or "你是一个企业智能助手。"
             toolkit = await async_build_toolkit({"session": session, "user": user})
         except Exception as exc:  # noqa: BLE001
             yield _sse("error", {"error": str(exc)})

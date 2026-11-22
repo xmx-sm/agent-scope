@@ -46,6 +46,12 @@ const routes = [
         meta: { title: '个人中心', permission: 'profile' }
       },
       {
+        path: 'agent-settings',
+        name: 'AgentSelfConfig',
+        component: () => import('../views/AgentSelfConfig.vue'),
+        meta: { title: 'Agent 设置', permission: 'ai.use' }
+      },
+      {
         path: 'menu-settings',
         name: 'MenuPersonalize',
         component: () => import('../views/MenuPersonalize.vue'),
