@@ -6,6 +6,7 @@ from app.schemas.chat import ChatStreamIn, ConversationCreateIn
 from app.schemas.conversation import ConversationRenameIn
 from app.schemas.config import ConfigUpdateIn
 from app.schemas.email import EmailSendIn
+from app.schemas.knowledge import KnowledgeSearchIn, LibraryCreateIn, LibraryUpdateIn
 from app.schemas.menu import MenuCreateIn, MenuPrefIn, MenuReorderIn, MenuUpdateIn
 from app.schemas.permission import PermissionUpdateIn, TempGrantIn, UserPermissionUpdateIn
 from app.schemas.rag import RagSearchIn
@@ -41,6 +42,9 @@ __all__ = [
     "MenuUpdateIn",
     "MenuReorderIn",
     "MenuPrefIn",
+    "LibraryCreateIn",
+    "LibraryUpdateIn",
+    "KnowledgeSearchIn",
     "PermissionUpdateIn",
     "TempGrantIn",
     "UserPermissionUpdateIn",

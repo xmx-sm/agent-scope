@@ -8,6 +8,9 @@ from app.core.database import get_db
 from app.core.deps import ApiError, CurrentUser, SuperAdmin, ok, require_permission
 from app.models import User
 from app.schemas import (
+    KnowledgeSearchIn,
+    LibraryCreateIn,
+    LibraryUpdateIn,
     SubagentSaveIn,
     RagSearchIn,
     McpSaveIn,
@@ -21,6 +24,7 @@ from app.schemas import (
 )
 from app.services.agent import conversations as conv_service
 from app.services.agent import mcps as mcp_service
+from app.services.agent import knowledge as knowledge_service
 from app.services.agent import rag as rag_service
 from app.services.agent import skills as skill_service
 from app.services.agent import subagents as subagent_service
@@ -202,6 +206,151 @@ async def save_mcp(
 async def delete_mcp(mcp_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)):
     await mcp_service.async_delete({"session": db, "user": user, "mcp_id": mcp_id})
     return ok(None, "MCP 已删除")
+
+
+@router.get("/knowledge/libraries")
+async def knowledge_libraries(user: CurrentUser, db: AsyncSession = Depends(get_db)):
+    return ok(await knowledge_service.async_libraries({"session": db, "user_id": user.id}))
+
+
+@router.post("/knowledge/libraries")
+async def knowledge_library_create(
+    body: LibraryCreateIn, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await knowledge_service.async_library_create(
+            {"session": db, "user_id": user.id, "data": body.model_dump()}
+        ),
+        "向量库已创建",
+    )
+
+
+@router.put("/knowledge/libraries/{library_id}")
+async def knowledge_library_update(
+    library_id: str, body: LibraryUpdateIn, user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    return ok(
+        await knowledge_service.async_library_update(
+            {"session": db, "user_id": user.id, "library_id": library_id,
+             "data": body.model_dump(exclude_unset=True)}
+        ),
+        "向量库已更新",
+    )
+
+
+@router.delete("/knowledge/libraries/{library_id}")
+async def knowledge_library_delete(
+    library_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    await knowledge_service.async_library_delete(
+        {"session": db, "user_id": user.id, "library_id": library_id}
+    )
+    return ok(None, "向量库已删除")
+
+
+@router.post("/knowledge/libraries/{library_id}/rebuild")
+async def knowledge_library_rebuild(
+    library_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await knowledge_service.async_library_rebuild(
+            {"session": db, "user_id": user.id, "library_id": library_id}
+        ),
+        "索引已重建",
+    )
+
+
+@router.post("/knowledge/libraries/{library_id}/test")
+async def knowledge_library_test(
+    library_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await knowledge_service.async_library_test(
+            {"session": db, "user_id": user.id, "library_id": library_id}
+        ),
+        "连接成功",
+    )
+
+
+@router.get("/knowledge/documents")
+async def knowledge_documents(
+    user: CurrentUser, library_id: str = "", status: str = "",
+    db: AsyncSession = Depends(get_db),
+):
+    return ok(
+        await knowledge_service.async_documents(
+            {"session": db, "user_id": user.id, "library_id": library_id, "status": status}
+        )
+    )
+
+
+@router.post("/knowledge/documents/upload")
+async def knowledge_document_upload(
+    user: CurrentUser,
+    file: UploadFile = File(...),
+    library_id: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    content = await file.read()
+    return ok(
+        await knowledge_service.async_upload_document(
+            {"session": db, "user_id": user.id, "library_id": library_id,
+             "filename": file.filename or "file", "content": content}
+        ),
+        "文档已上传",
+    )
+
+
+@router.post("/knowledge/documents/{document_id}/parse")
+async def knowledge_document_parse(
+    document_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await knowledge_service.async_parse_document(
+            {"session": db, "user_id": user.id, "document_id": document_id}
+        ),
+        "文档已解析",
+    )
+
+
+@router.delete("/knowledge/documents/{document_id}")
+async def knowledge_document_delete(
+    document_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    await knowledge_service.async_delete_document(
+        {"session": db, "user_id": user.id, "document_id": document_id}
+    )
+    return ok(None, "文档已删除")
+
+
+@router.post("/knowledge/search")
+async def knowledge_search(
+    body: KnowledgeSearchIn, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await knowledge_service.async_search(
+            {
+                "session": db,
+                "user_id": user.id,
+                "query": body.query,
+                "library_ids": body.library_ids,
+                "top_k": body.top_k,
+                "score_threshold": body.score_threshold,
+            }
+        )
+    )
+
+
+@router.get("/knowledge/logs")
+async def knowledge_logs(
+    user: CurrentUser, library_id: str = "", db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await knowledge_service.async_logs(
+            {"session": db, "user_id": user.id, "library_id": library_id}
+        )
+    )
 
 
 @router.get("/rag/libraries")

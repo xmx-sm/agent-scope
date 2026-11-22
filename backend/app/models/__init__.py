@@ -8,6 +8,7 @@ from app.models.agent import (
     UserAgentConfig,
 )
 from app.models.common import new_id, utc_now
+from app.models.knowledge import VectorDocument, VectorLibrary, VectorLog
 from app.models.menu import Menu, UserMenuPref
 from app.models.skill import UserMcp, UserSkill
 from app.models.subagent import UserSubagent
@@ -32,6 +33,9 @@ __all__ = [
     "UserSkill",
     "UserMcp",
     "UserSubagent",
+    "VectorLibrary",
+    "VectorDocument",
+    "VectorLog",
     "User",
     "UserPermissionState",
     "UserToolMode",
