@@ -19,16 +19,35 @@ try:  # 顶层 rag 导入（scope/ 在 sys.path）
 except ImportError:  # scope.rag 包导入
     from scope.config import get as _cfg_get
 
+from ._utils import as_bool, as_dict
 
-def _merged_sqlite(data_cfg: dict, rag_type: str) -> Dict[str, Any]:
-    cfg = dict(data_cfg.get("sqlite_config") or {})
+
+def _merged_sqlite(data_cfg: dict, rag_type: str, data: dict) -> Dict[str, Any]:
+    cfg = dict(as_dict(data_cfg.get("sqlite_config"), "sqlite_config"))
     if cfg.get("path") is None:
         cfg["path"] = _cfg_get("rag.sqlite.path", None)
     if not cfg.get("path"):
         raise ValueError("缺少参数 sqlite_config.path（调用未传且 config.db 未配置 rag.sqlite.path）")
     if not cfg.get("base_dir"):
-        cfg["base_dir"] = (_cfg_get("rag.sqlite.base_dir", None)
-                           or os.path.join(os.getcwd(), "rag_db"))
+        cfg["base_dir"] = _cfg_get("rag.sqlite.base_dir", None)
+    if not cfg.get("base_dir"):
+        raise ValueError(
+            "缺少参数 sqlite_config.base_dir（调用未传且 config.db 未配置 rag.sqlite.base_dir）")
+    base_dir = str(cfg["base_dir"])
+    if not os.path.isabs(base_dir):
+        raise ValueError(f"sqlite_config.base_dir 必须是绝对路径: {base_dir}")
+    cfg["base_dir"] = os.path.abspath(base_dir)
+
+    create_dir = data.get("create_dir")
+    if create_dir is None:
+        create_dir = cfg.get("create_dir")
+    if create_dir is None:
+        create_dir = _cfg_get("rag.sqlite.create_dir", False)
+    cfg["create_dir"] = as_bool(create_dir, "create_dir", default=False)
+
+    if not os.path.isdir(cfg["base_dir"]) and not cfg["create_dir"]:
+        raise ValueError(
+            f"RAG 数据目录不存在: {cfg['base_dir']}（如允许自动创建请传 create_dir=True）")
     return cfg
 
 
@@ -51,7 +70,7 @@ def resolve(data: dict = None) -> Dict[str, Any]:
     if not isinstance(data, dict):
         raise TypeError("data 必须是字典对象")
 
-    rag_cfg = dict(data.get("rag_config") or {})
+    rag_cfg = dict(as_dict(data.get("rag_config"), "rag_config"))
     rag_type = str(rag_cfg.get("type") or _cfg_get("rag.type", None) or "").strip().lower()
     if not rag_type:
         raise ValueError("缺少参数 rag_config.type（调用未传且 config.db 未配置 rag.type）")
@@ -63,9 +82,9 @@ def resolve(data: dict = None) -> Dict[str, Any]:
     rag_cfg["vector_type"] = vector_type
 
     if rag_type == "sqlite":
-        rag_cfg["sqlite_config"] = _merged_sqlite(rag_cfg, rag_type)
+        rag_cfg["sqlite_config"] = _merged_sqlite(rag_cfg, rag_type, data)
 
-    search = dict(data.get("search_config") or {})
+    search = dict(as_dict(data.get("search_config"), "search_config"))
     if search.get("top_k") is None:
         try:
             search["top_k"] = int(_cfg_get("rag.top_k", 10))
@@ -74,7 +93,7 @@ def resolve(data: dict = None) -> Dict[str, Any]:
     if search.get("score_threshold") is None:
         search["score_threshold"] = _cfg_get("rag.score_threshold", None)
 
-    file_chunker = dict(data.get("file_chunker") or {})
+    file_chunker = dict(as_dict(data.get("file_chunker"), "file_chunker"))
     if file_chunker.get("chunk_size") is None:
         try:
             file_chunker["chunk_size"] = int(_cfg_get("rag.chunk_size", 256))
@@ -86,7 +105,7 @@ def resolve(data: dict = None) -> Dict[str, Any]:
         except (TypeError, ValueError):
             file_chunker["overlap"] = 0
 
-    file_config = dict(data.get("file_config") or {})
+    file_config = dict(as_dict(data.get("file_config"), "file_config"))
     if "require_file" not in file_config:
         file_config["require_file"] = bool(_cfg_get("rag.require_file", True))
 

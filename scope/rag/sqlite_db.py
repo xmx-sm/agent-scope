@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 
 from .common import async_get_embeddings, async_get_query_vector, get_chunk_metadata, get_chunk_text
+from ._utils import as_bool
 
 _TABLE = "rag_chunks"
 
@@ -64,8 +65,17 @@ def _target(data: dict) -> Tuple[str, str]:
     return os.path.abspath(db_file), name
 
 
-def _connect(db_file: str) -> sqlite3.Connection:
-    os.makedirs(os.path.dirname(db_file), exist_ok=True)
+def _create_flag(data: dict) -> bool:
+    cfg = ((data.get("rag_config") or {}).get("sqlite_config") or {})
+    return as_bool(cfg.get("create_dir", False), "create_dir", default=False)
+
+
+def _connect(db_file: str, create: bool = False) -> sqlite3.Connection:
+    parent = os.path.dirname(db_file)
+    if not os.path.isdir(parent):
+        if not create:
+            raise FileNotFoundError(f"RAG 数据目录不存在: {parent}")
+        os.makedirs(parent, exist_ok=True)
     conn = sqlite3.connect(db_file)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
@@ -113,7 +123,7 @@ async def _write(data: dict) -> Dict[str, Any]:
     embeddings = emb["data"]["embeddings"]
 
     db_file, name = _target(data)
-    conn = _connect(db_file)
+    conn = _connect(db_file, create=_create_flag(data))
     try:
         file_cfg = data.get("file_config") or {}
         doc_id = str(file_cfg.get("file_name") or file_cfg.get("file_path") or "").strip()

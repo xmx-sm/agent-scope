@@ -148,7 +148,8 @@ RAG: List[Item] = [
     # 类型/集合名属选择类参数，不预置；运行时 data > sqlite > 400。
     Item("rag.type", None, "str", "rag", "缺省向量库类型（不预置；调用未传且库中未配置时报错）"),
     Item("rag.sqlite.path", None, "str", "rag", "SQLite 集合名（不预置；调用未传且库中未配置时报错）"),
-    Item("rag.sqlite.base_dir", None, "str", "rag", "SQLite 数据根目录（不预置；未配置时代码回落 cwd/rag_db）"),
+    Item("rag.sqlite.base_dir", None, "str", "rag", "SQLite 数据根目录（不预置；SQLite 模式必填）"),
+    Item("rag.sqlite.create_dir", False, "bool", "rag", "base_dir 不存在时是否自动创建"),
     Item("rag.vector_type", "dense", "str", "rag", "向量类型；当前 SQLite 仅支持 dense"),
     Item("rag.top_k", 10, "int", "rag", "检索默认返回条数（代码上限 200）"),
     Item("rag.score_threshold", None, "float", "rag", "检索最低相似度（None=不过滤）"),

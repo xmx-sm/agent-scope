@@ -48,6 +48,7 @@ except ImportError:
     from llm.agent_model import async_get_embedding_model
 
 from .sqlite_vector_store import SQLiteVectorStore
+from ._utils import as_bool, as_dict
 
 
 def _where(fn: str) -> str:
@@ -78,10 +79,27 @@ def _embedding_cfg(data: dict, item: dict) -> Dict[str, Any]:
 
 def _base_dir(data: dict, item: dict) -> str:
     for source in (item.get("sqlite_config"), data.get("sqlite_config")):
+        if source is not None and not isinstance(source, dict):
+            raise ValueError("sqlite_config 必须是字典")
         if isinstance(source, dict) and source.get("base_dir"):
-            return os.path.abspath(str(source["base_dir"]))
+            path = str(source["base_dir"])
+            if not os.path.isabs(path):
+                raise ValueError(f"sqlite_config.base_dir 必须是绝对路径: {path}")
+            return os.path.abspath(path)
     configured = _cfg_get("rag.sqlite.base_dir", None)
-    return os.path.abspath(str(configured)) if configured else os.path.join(os.getcwd(), "rag_db")
+    if configured:
+        return os.path.abspath(str(configured))
+    raise ValueError("缺少参数 sqlite_config.base_dir（或 config.db 的 rag.sqlite.base_dir）")
+
+
+def _create_dir(data: dict, item: dict) -> bool:
+    for source in (item, data):
+        if source.get("create_dir") is not None:
+            return as_bool(source["create_dir"], "create_dir", default=False)
+    for source in (item.get("sqlite_config"), data.get("sqlite_config")):
+        if isinstance(source, dict) and source.get("create_dir") is not None:
+            return as_bool(source["create_dir"], "create_dir", default=False)
+    return as_bool(_cfg_get("rag.sqlite.create_dir", False), "create_dir", default=False)
 
 
 async def _embedding_model(data: dict, item: dict) -> Dict[str, Any]:
@@ -113,7 +131,12 @@ async def async_create_knowledge_base(data: dict = None) -> Dict[str, Any]:
             return emb
         embedding_model = emb["data"]
 
-        store = SQLiteVectorStore(_base_dir(data, item))
+        base_dir = _base_dir(data, item)
+        create_dir = _create_dir(data, item)
+        if not os.path.isdir(base_dir) and not create_dir:
+            return _err(f"RAG 数据目录不存在: {base_dir}（如允许自动创建请传 create_dir=True）", fn)
+
+        store = SQLiteVectorStore(base_dir, create=create_dir)
         await store.__aenter__()
         kb = KnowledgeBase(
             name=name,

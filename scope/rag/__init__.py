@@ -17,6 +17,7 @@ from .rag_main import (
 from .knowledge import async_create_knowledge_base, async_create_rag_middleware
 from .registry import query_registry, query_registry_page
 from .sqlite_vector_store import SQLiteVectorStore
+from .storage import async_ensure_rag_storage, async_rag_storage_status
 
 __all__ = [
     "async_write_rag",
@@ -28,6 +29,8 @@ __all__ = [
     "async_rag_config",
     "async_create_knowledge_base",
     "async_create_rag_middleware",
+    "async_rag_storage_status",
+    "async_ensure_rag_storage",
     "SQLiteVectorStore",
     "query_registry",
     "query_registry_page",

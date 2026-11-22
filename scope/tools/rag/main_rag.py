@@ -16,12 +16,14 @@ from typing import Any, Dict
 
 try:  # scope.tools.rag 包导入
     from ...rag.rag_main import async_rag_config
+    from ...rag.storage import async_ensure_rag_storage, async_rag_storage_status
 except ImportError:  # 顶层 tools 导入（scope/ 在 sys.path）
     from rag.rag_main import async_rag_config
+    from rag.storage import async_ensure_rag_storage, async_rag_storage_status
 
 
 FUNCTIONS = ("write", "read", "search", "delete", "delete_collection",
-             "list", "documents", "list_documents")
+             "list", "documents", "list_documents", "storage", "ensure_storage")
 
 
 def _err(message: str, fn: str = "async_rag_tools") -> Dict[str, Any]:
@@ -54,6 +56,8 @@ async def async_rag_tools(data: dict = None) -> Dict[str, Any]:
         delete_collection  删除整个集合
         list    列出集合
         documents / list_documents  列出集合内文档（按 doc_id 聚合）
+        storage 检查 SQLite 存储目录是否存在
+        ensure_storage  确保目录存在；create_dir=True 时自动创建
 
     示例::
 
@@ -71,7 +75,16 @@ async def async_rag_tools(data: dict = None) -> Dict[str, Any]:
     if function not in FUNCTIONS:
         return _err(f"未知 function: {function or '(空)'}，支持: {', '.join(FUNCTIONS)}")
 
-    rag_config = dict(data.get("rag_config") or {})
+    if function in ("storage", "ensure_storage"):
+        payload = dict(data)
+        payload.pop("function", None)
+        handler = async_ensure_rag_storage if function == "ensure_storage" else async_rag_storage_status
+        return await handler(payload)
+
+    raw_rag_config = data.get("rag_config")
+    if raw_rag_config is not None and not isinstance(raw_rag_config, dict):
+        return _err(f"rag_config 必须是字典，收到 {type(raw_rag_config).__name__}")
+    rag_config = dict(raw_rag_config or {})
     rag_config["rag_function"] = "read" if function == "search" else function
     payload = dict(data)
     payload["rag_config"] = rag_config

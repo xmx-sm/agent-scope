@@ -75,9 +75,14 @@ def _cosine(query: np.ndarray, matrix: np.ndarray) -> np.ndarray:
 class SQLiteVectorStore(VectorStoreBase):
     """本地 SQLite 向量库：一个 collection 对应一个 .db 文件。"""
 
-    def __init__(self, base_dir: str | None = None) -> None:
-        self.base_dir = os.path.abspath(base_dir or os.path.join(os.getcwd(), "rag_db"))
-        os.makedirs(self.base_dir, exist_ok=True)
+    def __init__(self, base_dir: str | None = None, create: bool = False) -> None:
+        if not base_dir:
+            raise ValueError("SQLiteVectorStore 需要 base_dir")
+        self.base_dir = os.path.abspath(str(base_dir))
+        if not os.path.isdir(self.base_dir):
+            if not create:
+                raise FileNotFoundError(f"RAG 数据目录不存在: {self.base_dir}")
+            os.makedirs(self.base_dir, exist_ok=True)
 
     # ── 路径 / 连接 ──────────────────────────────────────────────
     def _db_path(self, collection: str) -> str:
