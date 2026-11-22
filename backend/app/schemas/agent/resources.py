@@ -32,3 +32,7 @@ class SubagentSaveIn(BaseModel):
 
 class MemoryToggleIn(BaseModel):
     enabled: bool
+
+
+class MemoryWriteIn(BaseModel):
+    content: str = ""

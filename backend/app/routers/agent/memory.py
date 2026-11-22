@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import CurrentUser, ok
-from app.schemas.agent.resources import MemoryToggleIn
+from app.schemas.agent.resources import MemoryToggleIn, MemoryWriteIn
 from app.services.agent.memory import service as memory_service
 
 router = APIRouter()
@@ -36,6 +36,18 @@ async def memory_files(user: CurrentUser):
 @router.get("/memory/files/{name:path}")
 async def memory_read(name: str, user: CurrentUser):
     return ok(await memory_service.async_read({"user": user, "name": name}))
+
+
+@router.put("/memory/files/{name:path}")
+async def memory_write(
+    name: str, body: MemoryWriteIn, user: CurrentUser
+):
+    return ok(
+        await memory_service.async_write(
+            {"user": user, "name": name, "content": body.content}
+        ),
+        "记忆文件已保存",
+    )
 
 
 @router.delete("/memory/files/{name:path}")

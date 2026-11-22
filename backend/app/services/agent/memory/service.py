@@ -23,6 +23,22 @@ def _root(user_id: str) -> Path:
     return path
 
 
+def _safe_target(user_id: str, name: str) -> Path:
+    """校验记忆文件目标路径（允许新建）。参数：user_id / name。"""
+    root = _root(user_id).resolve()
+    raw = str(name or "").replace("\\", "/").strip()
+    if not raw or raw.startswith("/") or ".." in raw.split("/"):
+        raise ApiError("非法记忆文件名", code=400)
+    if Path(raw).suffix.lower() not in (".md", ".txt"):
+        raise ApiError("记忆文件只支持 .md / .txt", code=400)
+    candidate = (root / raw).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise ApiError("非法记忆文件路径", code=400) from exc
+    return candidate
+
+
 def _safe_path(user_id: str, name: str) -> Path:
     """校验记忆文件名并返回安全路径。参数：user_id / name。"""
     root = _root(user_id)
@@ -99,6 +115,26 @@ async def async_read(params: dict) -> dict:
     except OSError as exc:
         raise ApiError(f"读取记忆失败：{exc}") from exc
     return {"name": params["name"], "content": content, "size": path.stat().st_size}
+
+
+async def async_write(params: dict) -> dict:
+    """新建或编辑记忆文件。参数：user / name / content。"""
+    user: User = params["user"]
+    content = str(params.get("content") or "")
+    if len(content.encode("utf-8")) > 512 * 1024:
+        raise ApiError("记忆文件不能超过 512KB")
+    path = _safe_target(user.id, params["name"])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(content, encoding="utf-8")
+    tmp.replace(path)
+    return {
+        "name": params["name"],
+        "size": path.stat().st_size,
+        "modified_at": datetime.fromtimestamp(
+            path.stat().st_mtime, tz=timezone.utc
+        ).isoformat(),
+    }
 
 
 async def async_delete_file(params: dict) -> None:

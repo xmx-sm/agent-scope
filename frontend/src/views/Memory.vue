@@ -43,6 +43,7 @@
           {{ enabled ? '记忆已启用' : '记忆已关闭' }}
         </el-tag>
         <div class="grow"></div>
+        <el-button type="primary" plain :icon="Plus" @click="openCreate">新建记忆</el-button>
         <el-button :icon="Refresh" @click="load">刷新</el-button>
         <el-button type="danger" plain :disabled="!files.length" @click="clearAll">清空记忆</el-button>
       </div>
@@ -56,6 +57,7 @@
         <el-table-column label="操作" width="160" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="preview(row)">查看</el-button>
+            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
             <el-button link type="danger" @click="remove(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -67,6 +69,27 @@
       <pre class="memory-content">{{ content || '（空）' }}</pre>
       <template #footer>
         <el-button @click="dialog = false">关闭</el-button>
+        <el-button type="primary" @click="editCurrent">编辑</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="editorDialog"
+      :title="editorNew ? '新建记忆' : '编辑记忆'"
+      :width="isMobile ? '94%' : '760px'"
+      @closed="editorName = ''"
+    >
+      <el-form label-position="top">
+        <el-form-item label="文件路径">
+          <el-input v-model="editorName" :disabled="!editorNew" placeholder="Memory/notes.md" />
+        </el-form-item>
+        <el-form-item label="内容">
+          <el-input v-model="editorContent" type="textarea" :rows="18" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editorDialog = false">取消</el-button>
+        <el-button type="primary" :loading="editorSaving" @click="saveEditor">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -75,7 +98,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh } from '@element-plus/icons-vue'
+import { Plus, Refresh } from '@element-plus/icons-vue'
 import api from '../utils/api'
 
 const isMobile = ref(window.innerWidth < 768)
@@ -94,6 +117,11 @@ const status = reactive({
 const dialog = ref(false)
 const previewFile = ref(null)
 const content = ref('')
+const editorDialog = ref(false)
+const editorNew = ref(false)
+const editorName = ref('')
+const editorContent = ref('')
+const editorSaving = ref(false)
 
 function bytesText(value) {
   const num = Number(value || 0)
@@ -139,6 +167,55 @@ async function preview(row) {
     content.value = data.content
   } catch {
     /* ignore */
+  }
+}
+
+function openCreate() {
+  editorNew.value = true
+  editorName.value = 'Memory/notes.md'
+  editorContent.value = '# 长期记忆\n\n'
+  editorDialog.value = true
+}
+
+async function openEdit(row) {
+  editorNew.value = false
+  editorName.value = row.name
+  editorContent.value = ''
+  editorDialog.value = true
+  try {
+    const data = await api.get(`/agent/memory/files/${encodeURIComponent(row.name)}`)
+    editorContent.value = data.content
+  } catch {
+    /* ignore */
+  }
+}
+
+function editCurrent() {
+  if (!previewFile.value) return
+  const row = previewFile.value
+  dialog.value = false
+  openEdit(row)
+}
+
+async function saveEditor() {
+  const name = editorName.value.trim()
+  if (!name) return ElMessage.error('请填写文件路径')
+  if (!/\.(md|txt)$/i.test(name)) return ElMessage.error('记忆文件只支持 .md / .txt')
+  if (new TextEncoder().encode(editorContent.value).length > 512 * 1024) {
+    return ElMessage.error('记忆文件不能超过 512KB')
+  }
+  editorSaving.value = true
+  try {
+    await api.put(`/agent/memory/files/${encodeURIComponent(name)}`, {
+      content: editorContent.value
+    })
+    ElMessage.success('记忆文件已保存')
+    editorDialog.value = false
+    await load()
+  } catch {
+    /* ignore */
+  } finally {
+    editorSaving.value = false
   }
 }
 

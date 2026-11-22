@@ -3,7 +3,7 @@
 基于 [AgentScope](https://github.com/agentscope-ai/agentscope) 的完整 Agent 平台：
 底层是可复用的 `scope/` 框架，上层是 FastAPI 后端与 Vue 3 移动端适配前端。
 
-> **当前版本：`v0.24.0`**
+> **当前版本：`v0.25.0`**
 >
 > 已从“框架层 + 基础账号”升级为可运行的 Agent 平台：
 > 对话、知识库、工具权限、超级智能体、A2A、定时任务、语音合成、会话分支、断线续传。
@@ -321,7 +321,7 @@ Agent → A2A 协作
 | A2A 协作 | `/agent-a2a` | 伙伴、记忆、留痕 |
 | 管理下级 | `/team/permissions` | 上级权限收窄 |
 | 工具审批 | `/tool-approvals` | 审批申请 |
-| 长期记忆 | `/agent-memory` | 记忆开关、文件预览、清理 |
+| 长期记忆 | `/agent-memory` | 记忆开关、查看、新建、编辑、删除、清空 |
 | 定时任务 | `/agent-scheduled` | 周期/日历任务 |
 | Agent 统计 | `/agent-stats` | 模型用量 |
 | 工具权限审计 | `/admin/tool-audits` | 超管审计 |
