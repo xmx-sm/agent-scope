@@ -183,6 +183,13 @@ async def async_get_subagents(data: dict = None) -> Dict[str, Any]:
                     if str(v).lower() not in ("allow", "deny", "ask"):
                         return _err(
                             f"子智能体 {name} 的 tool_approval.{k} 必须是 allow/deny/ask", fn)
+            if spec.get("approval") is not None and not isinstance(spec["approval"], dict):
+                return _err(f"子智能体 {name} 的 approval 必须是字典", fn)
+            for fld in ("approval_mode",):
+                if spec.get(fld) is not None and str(spec[fld]).lower() not in (
+                        "user", "handler", "none", "main_agent", "deny"):
+                    return _err(
+                        f"子智能体 {name} 的 {fld} 必须是 user/main_agent/deny", fn)
             result.append(spec)
         return _ok(result, f"共创建 {len(result)} 个子智能体")
     except ValueError as e:
