@@ -10,7 +10,10 @@ from app.models import AgentConversation, AgentMessage, AgentModelCall, User
 
 
 async def async_stats(params: dict) -> dict[str, Any]:
-    """参数：session / user_id（None=全平台）/ days"""
+    """统计模型用量
+
+    参数：session / user_id（None=全平台）/ days
+    """
     session: AsyncSession = params["session"]
     user_id = params.get("user_id")
     days = max(1, min(int(params.get("days") or 7), 365))

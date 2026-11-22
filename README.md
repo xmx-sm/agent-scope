@@ -3,7 +3,7 @@
 基于 [AgentScope](https://github.com/agentscope-ai/agentscope) 的完整 Agent 平台：
 底层是可复用的 `scope/` 框架，上层是 FastAPI 后端与 Vue 3 移动端适配前端。
 
-> **当前版本：`v0.21.0`**
+> **当前版本：`v0.22.0`**
 >
 > 已从“框架层 + 基础账号”升级为可运行的 Agent 平台：
 > 对话、知识库、工具权限、超级智能体、A2A、定时任务、语音合成、会话分支、断线续传。
@@ -385,6 +385,7 @@ git diff --cached
 | 后端目录 | [项目结构.md](backend/doc/项目结构.md) |
 | 后端接口 | [接口说明.md](backend/doc/接口说明.md) |
 | 服务参数 | [参数说明.md](backend/doc/参数说明.md) |
+| 全部服务函数 | [服务函数索引.md](backend/doc/服务函数索引.md) |
 | 数据库 | [数据库说明.md](backend/doc/数据库说明.md) |
 | Agent 实现 | [智能体对话.md](backend/doc/智能体对话.md) |
 | 配置 | [配置说明.md](backend/doc/配置说明.md) |

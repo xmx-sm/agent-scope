@@ -6,7 +6,10 @@ from app.services.config.service import async_get_config
 
 
 async def async_build_security_prompt(params: dict) -> str:
-    """参数：session"""
+    """构建 Agent 安全提示词
+
+    参数：session
+    """
     session: AsyncSession = params["session"]
     enabled = bool(
         await async_get_config(

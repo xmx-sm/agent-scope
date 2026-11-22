@@ -9,7 +9,10 @@ from app.services.config.service import async_get_config
 
 
 async def async_change_password(params: dict) -> None:
-    """参数：session / user / old_password / new_password"""
+    """修改密码
+
+    参数：session / user / old_password / new_password
+    """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     old_password: str = params["old_password"]

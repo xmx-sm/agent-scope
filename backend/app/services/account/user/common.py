@@ -7,15 +7,20 @@ from app.core.deps import ApiError
 from app.models import User
 
 
-def clean_optional(value: str | None) -> str | None:
+def clean_optional(params: dict) -> str | None:
+    """清理可选字符串：去空格，空串转 None。参数：value。"""
+    value = params.get("value")
     if value is None:
         return None
-    value = value.strip()
+    value = str(value).strip()
     return value or None
 
 
 async def async_assert_unique(params: dict) -> None:
-    """参数：session / username / email / phone / exclude_id"""
+    """校验用户名/邮箱/手机号唯一
+
+    参数：session / username / email / phone / exclude_id
+    """
     session: AsyncSession = params["session"]
     username = params.get("username")
     email = params.get("email")
@@ -37,7 +42,10 @@ async def async_assert_unique(params: dict) -> None:
 
 
 async def async_find_by_identifier(params: dict) -> User | None:
-    """参数：session / account"""
+    """按账号/邮箱/手机号/昵称查找用户
+
+    参数：session / account
+    """
     session: AsyncSession = params["session"]
     account = str(params["account"]).strip()
     return (

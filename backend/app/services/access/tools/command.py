@@ -12,6 +12,9 @@ from app.services.account.user.tree import async_is_descendant
 
 
 async def _async_set_mode(session: AsyncSession, user_id: str, mode: str) -> None:
+    """内部辅助函数：_async_set_mode。
+    参数：session / user_id / mode。
+    """
     if mode not in ("all", "custom"):
         raise ApiError("tool_mode 只允许 all/custom")
     row = await session.get(UserToolMode, user_id)
@@ -35,11 +38,13 @@ async def async_set_tools(params: dict) -> dict:
     )
     await _async_set_mode(session, target.id, mode)
     await add_audit(
-        session,
-        user_id=target.id,
-        actor_id=params.get("operator_id") or target.id,
-        action="set_mode",
-        after=mode,
+        {
+            "session": session,
+            "user_id": target.id,
+            "actor_id": params.get("operator_id") or target.id,
+            "action": "set_mode",
+            "after": mode,
+        }
     )
     if mode == "custom":
         items = data.get("items") or []
@@ -77,11 +82,13 @@ async def async_reset_tools(params: dict) -> dict:
     )
     await _async_set_mode(session, target.id, "all")
     await add_audit(
-        session,
-        user_id=target.id,
-        actor_id=params.get("operator_id") or target.id,
-        action="reset",
-        after="all",
+        {
+            "session": session,
+            "user_id": target.id,
+            "actor_id": params.get("operator_id") or target.id,
+            "action": "reset",
+            "after": "all",
+        }
     )
     await session.commit()
     return await async_tool_view({"session": session, "user": target})
@@ -119,8 +126,12 @@ async def async_narrow_tool(params: dict) -> dict:
         )
     ).scalar_one_or_none()
 
-    before = snapshot(existing.enabled if existing else None,
-                      existing.granted_by if existing else None)
+    before = snapshot(
+        {
+            "enabled": existing.enabled if existing else None,
+            "granted_by": existing.granted_by if existing else None,
+        }
+    )
     if enabled:
         # 恢复=删除本人收窄行；其他上级的收窄行仍然生效
         if existing is not None and existing.granted_by == actor.id:
@@ -142,21 +153,26 @@ async def async_narrow_tool(params: dict) -> dict:
             existing.enabled = False
             existing.granted_by = actor.id
     await add_audit(
-        session,
-        user_id=target_id,
-        actor_id=actor.id,
-        action="grant_tool" if enabled else "narrow_tool",
-        tool_group=group,
-        tool_name=tool,
-        before=before,
-        after=snapshot(enabled, actor.id),
+        {
+            "session": session,
+            "user_id": target_id,
+            "actor_id": actor.id,
+            "action": "grant_tool" if enabled else "narrow_tool",
+            "tool_group": group,
+            "tool_name": tool,
+            "before": before,
+            "after": snapshot({"enabled": enabled, "granted_by": actor.id}),
+        }
     )
     await session.commit()
     return await async_tool_view({"session": session, "user": target})
 
 
 async def async_team_tools(params: dict) -> list[dict]:
-    """参数：session / viewer，返回下属及工具权限概览。"""
+    """查看团队工具权限概览
+
+    参数：session / viewer，返回下属及工具权限概览。
+    """
     session: AsyncSession = params["session"]
     viewer: User = params["viewer"]
     from app.services.account.user.tree import async_descendants
@@ -227,12 +243,14 @@ async def async_tighten_mode(params: dict) -> dict:
             )
         )
     await add_audit(
-        session,
-        user_id=target.id,
-        actor_id=actor.id,
-        action="tighten_mode",
-        before="all",
-        after=f"custom:{len(items)}",
+        {
+            "session": session,
+            "user_id": target.id,
+            "actor_id": actor.id,
+            "action": "tighten_mode",
+            "before": "all",
+            "after": f"custom:{len(items)}",
+        }
     )
     await session.commit()
     return await async_tool_view({"session": session, "user": target})
@@ -311,7 +329,10 @@ async def async_request_approval(params: dict) -> dict:
 
 
 async def async_list_approvals(params: dict) -> list[dict]:
-    """参数：session / actor"""
+    """列出待审批工具申请
+
+    参数：session / actor
+    """
     from app.models import ToolApprovalRequest
     from app.services.account.user.tree import async_descendants
 
@@ -347,7 +368,10 @@ async def async_list_approvals(params: dict) -> list[dict]:
 
 
 async def async_decide_approval(params: dict) -> dict:
-    """参数：session / actor / request_id / approve"""
+    """通过或拒绝工具审批
+
+    参数：session / actor / request_id / approve
+    """
     from app.models import ToolApprovalRequest
 
     session: AsyncSession = params["session"]

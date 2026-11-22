@@ -14,7 +14,10 @@ from app.services.account.user.tree import async_is_descendant
 
 
 async def _async_add_shrink(params: dict) -> list[str]:
-    """参数：session / target / permissions / operator_id"""
+    """内部辅助函数：_async_add_shrink。
+
+    参数：session / target / permissions / operator_id
+    """
     session: AsyncSession = params["session"]
     target: User = params["target"]
     permissions: list[str] = params["permissions"]
@@ -42,7 +45,10 @@ async def _async_add_shrink(params: dict) -> list[str]:
 
 
 async def async_shrink_self(params: dict) -> list[str]:
-    """参数：session / user / permissions"""
+    """本人收缩自己的权限
+
+    参数：session / user / permissions
+    """
     user: User = params["user"]
     if user.role == "super_admin":
         raise ApiError("超级管理员权限固定，无需收缩")
@@ -57,7 +63,10 @@ async def async_shrink_self(params: dict) -> list[str]:
 
 
 async def async_shrink_member(params: dict) -> list[str]:
-    """参数：session / actor / target_id / permissions"""
+    """上级收缩下级权限
+
+    参数：session / actor / target_id / permissions
+    """
     session: AsyncSession = params["session"]
     actor: User = params["actor"]
     target_id: str = params["target_id"]

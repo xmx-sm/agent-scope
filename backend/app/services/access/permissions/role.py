@@ -16,7 +16,10 @@ from app.models import RolePermission
 
 
 async def async_role_permissions(params: dict) -> list[str]:
-    """参数：session / role"""
+    """查看角色权限
+
+    参数：session / role
+    """
     session: AsyncSession = params["session"]
     role: str = params["role"]
     row = await session.get(RolePermission, role)
@@ -29,7 +32,10 @@ async def async_role_permissions(params: dict) -> list[str]:
 
 
 async def async_list_permissions(params: dict) -> dict:
-    """参数：session"""
+    """列出全部权限点
+
+    参数：session
+    """
     session: AsyncSession = params["session"]
     assignable = [item for item in PERMISSIONS if not item.get("super_only")]
     roles = []
@@ -54,7 +60,10 @@ async def async_list_permissions(params: dict) -> dict:
 
 
 async def async_update_permissions(params: dict) -> dict:
-    """参数：session / role / permissions"""
+    """更新角色权限
+
+    参数：session / role / permissions
+    """
     session: AsyncSession = params["session"]
     role: str = params["role"]
     permissions: list[str] = params["permissions"]

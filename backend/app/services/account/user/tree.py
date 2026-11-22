@@ -7,7 +7,10 @@ from app.models import User
 
 
 async def async_descendants(params: dict) -> list[User]:
-    """参数：session / user_id"""
+    """查询用户的所有下级
+
+    参数：session / user_id
+    """
     session: AsyncSession = params["session"]
     user_id: str = params["user_id"]
     rows = (await session.execute(select(User))).scalars().all()
@@ -30,7 +33,10 @@ async def async_descendants(params: dict) -> list[User]:
 
 
 async def async_is_descendant(params: dict) -> bool:
-    """参数：session / ancestor_id / target_id"""
+    """判断上下级关系
+
+    参数：session / ancestor_id / target_id
+    """
     ancestor_id: str = params["ancestor_id"]
     target_id: str = params["target_id"]
     if ancestor_id == target_id:

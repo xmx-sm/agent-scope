@@ -7,7 +7,10 @@ from app.utils.rate_limiter import rate_limiter
 
 
 async def async_status(params: dict) -> dict:
-    """参数：session"""
+    """返回服务健康状态
+
+    参数：session
+    """
     session: AsyncSession = params["session"]
     data = await async_system_status({"session": session})
     data["redis"]["rate_limit_backend"] = rate_limiter.last_backend

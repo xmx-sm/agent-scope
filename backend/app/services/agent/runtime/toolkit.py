@@ -38,8 +38,12 @@ from app.services.access.tools.tool_config import async_effective as async_tool_
 
 def _scope_tool(fn: Callable[..., Awaitable[Any]], name: str, description: str,
                 user_id: str) -> FunctionTool:
+    """内部辅助函数：_scope_tool。
+    参数：fn / name / description / user_id。
+    """
     async def call(**kwargs):
-        return await fn(merge_identity({"user_id": user_id, "_actor_kind": "ai"}, kwargs))
+        """包装 scope 工具并注入服务端身份。"""
+        return await fn(merge_identity({"identity": {"user_id": user_id, "_actor_kind": "ai"}, "params": kwargs}))
 
     schema = {
         "type": "object",
@@ -59,7 +63,10 @@ def _scope_tool(fn: Callable[..., Awaitable[Any]], name: str, description: str,
 
 
 async def async_build_toolkit(params: dict) -> Toolkit:
-    """参数：session / user"""
+    """按用户权限构建 AgentScope Toolkit
+
+    参数：session / user
+    """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     view = await async_tool_view({"session": session, "user": user})
@@ -91,9 +98,10 @@ async def async_build_toolkit(params: dict) -> Toolkit:
     }
 
     def build_db_data(kwargs: dict) -> dict:
-        model_cfg = sanitize_model_db_config(db_policy, kwargs.get("db_config") or {})
+        """合并数据库策略与用户连接配置。"""
+        model_cfg = sanitize_model_db_config({"policy": db_policy, "db_config": kwargs.get("db_config") or {}})
         merged = {**model_cfg, **server_db}
-        merged = apply_db_policy(db_policy, merged)
+        merged = apply_db_policy({"policy": db_policy, "db_config": merged})
         data = {
             key: value
             for key, value in kwargs.items()
@@ -118,7 +126,7 @@ async def async_build_toolkit(params: dict) -> Toolkit:
 
     basic_tools = []
     if group_enabled.get("basic"):
-        backend = LocalBackend(workdir=user_workspace(user.id))
+        backend = LocalBackend(workdir=user_workspace({"user_id": user.id}))
         factories = {
             "Read": lambda: Read(backend=backend),
             "Write": lambda: Write(backend=backend),
@@ -161,14 +169,17 @@ async def async_build_toolkit(params: dict) -> Toolkit:
     )
 
     async def db_read(**kwargs):
+        """数据库只读工具。"""
         return await async_db_tools(build_db_data(kwargs))
 
     async def db_write(**kwargs):
+        """数据库写入工具。"""
         if not db_policy["allow_write"]:
             return {"code": 403, "data": None, "message": "数据库写入已被默认策略禁用"}
         return await async_db_write_tools(build_db_data(kwargs))
 
     async def rag_run(**kwargs):
+        """知识库工具入口。"""
         data = dict(kwargs)
         data.setdefault("rag_config", rag_service._rag_config(user.id, "default"))
         if rag_embedding is not None:
@@ -176,6 +187,7 @@ async def async_build_toolkit(params: dict) -> Toolkit:
         return await async_rag_tools(data)
 
     async def email_run(**kwargs):
+        """邮件工具入口。"""
         data = dict(kwargs)
         data["email_config"] = email_runtime
         return await async_email_tools(data)
@@ -222,6 +234,7 @@ async def async_build_toolkit(params: dict) -> Toolkit:
             used_names.add(tool_name)
 
             async def call_peer(message: str = "", _peer_name: str = peer["name"]):
+                """调用指定 A2A 伙伴。"""
                 return await async_invoke_peer_by_name(
                     {
                         "user_id": user.id,

@@ -10,8 +10,12 @@ from app.core.deps import ApiError
 from app.services.config.service import async_get_config
 
 
-async def async_config(session: AsyncSession) -> dict:
+async def async_config(params: dict) -> dict:
+    """读取 TTS 系统配置。参数：session。"""
+    session: AsyncSession = params["session"]
+
     async def get(key: str, default=""):
+        """读取系统配置。"""
         return await async_get_config({"session": session, "key": key, "default": default})
 
     return {
@@ -25,13 +29,17 @@ async def async_config(session: AsyncSession) -> dict:
 
 
 async def async_synthesize(params: dict) -> dict:
+    """把文本合成为音频。
+
+        参数：text / voice / model / session。
+        """
     session: AsyncSession = params["session"]
     text = str(params.get("text") or "").strip()
     if not text:
         raise ApiError("朗读文本不能为空")
     if len(text) > 2000:
         raise ApiError("单次朗读最多 2000 字")
-    cfg = await async_config(session)
+    cfg = await async_config({"session": session})
     if not cfg["enabled"]:
         raise ApiError("语音合成未启用，请到默认配置 → Agent 配置 → 语音合成开启")
     if not cfg["model"] or not cfg["api_key"]:

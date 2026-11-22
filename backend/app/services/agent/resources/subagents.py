@@ -14,6 +14,9 @@ _ALLOWED = {item["tool"] for item in all_items()}
 
 
 def _public(row: UserSubagent) -> dict:
+    """内部辅助函数：_public。
+    参数：row。
+    """
     return {
         "id": row.id,
         "name": row.name,
@@ -26,6 +29,10 @@ def _public(row: UserSubagent) -> dict:
 
 
 async def async_list(params: dict) -> list[dict]:
+    """列出用户子智能体。
+
+        参数：session / user。
+        """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     rows = (
@@ -37,6 +44,10 @@ async def async_list(params: dict) -> list[dict]:
 
 
 async def async_save(params: dict) -> dict:
+    """新建或更新子智能体。
+
+        参数：session / user / data。
+        """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     data: dict = params["data"]
@@ -74,6 +85,10 @@ async def async_save(params: dict) -> dict:
 
 
 async def async_delete(params: dict) -> None:
+    """删除子智能体。
+
+        参数：session / user / subagent_id。
+        """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     row = await session.get(UserSubagent, params["subagent_id"])

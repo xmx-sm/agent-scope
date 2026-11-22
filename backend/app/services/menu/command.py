@@ -11,12 +11,18 @@ from app.services.menu.query import menu_public
 
 
 def _validate_permission(params: dict) -> None:
+    """内部辅助函数：_validate_permission。
+    参数：permission。
+    """
     permission = params.get("permission")
     if permission and permission not in ALL_PERMISSION_KEYS:
         raise ApiError(f"未知权限点：{permission}")
 
 
 async def _async_validate_parent(params: dict) -> None:
+    """内部辅助函数：_async_validate_parent。
+    参数：parent_key / current_key / session。
+    """
     session: AsyncSession = params["session"]
     parent_key = params.get("parent_key")
     current_key = params.get("current_key")
@@ -34,7 +40,10 @@ async def _async_validate_parent(params: dict) -> None:
 
 
 async def async_create_menu(params: dict) -> dict:
-    """参数：session / data"""
+    """创建菜单
+
+    参数：session / data
+    """
     session: AsyncSession = params["session"]
     data: dict = params["data"]
     exists = (
@@ -60,11 +69,14 @@ async def async_create_menu(params: dict) -> dict:
     session.add(row)
     await session.commit()
     await session.refresh(row)
-    return menu_public(row)
+    return menu_public({"row": row})
 
 
 async def async_update_menu(params: dict) -> dict:
-    """参数：session / menu_id / data"""
+    """更新菜单
+
+    参数：session / menu_id / data
+    """
     session: AsyncSession = params["session"]
     row = await session.get(Menu, params["menu_id"])
     if row is None:
@@ -93,11 +105,14 @@ async def async_update_menu(params: dict) -> dict:
 
     await session.commit()
     await session.refresh(row)
-    return menu_public(row)
+    return menu_public({"row": row})
 
 
 async def async_delete_menu(params: dict) -> None:
-    """参数：session / menu_id"""
+    """删除菜单
+
+    参数：session / menu_id
+    """
     session: AsyncSession = params["session"]
     row = await session.get(Menu, params["menu_id"])
     if row is None:
@@ -112,7 +127,10 @@ async def async_delete_menu(params: dict) -> None:
 
 
 async def async_reorder_menus(params: dict) -> dict:
-    """参数：session / ids（按目标顺序排列的菜单 ID）"""
+    """菜单排序
+
+    参数：session / ids（按目标顺序排列的菜单 ID）
+    """
     session: AsyncSession = params["session"]
     ids: list[str] = params["ids"]
     if not ids:

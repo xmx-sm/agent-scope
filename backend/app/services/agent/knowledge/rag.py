@@ -13,13 +13,20 @@ RAG_ROOT = ROOT / "backend" / "uploads" / "agents"
 
 
 def _base_dir(user_id: str) -> str:
+    """内部辅助函数：_base_dir。
+    参数：user_id。
+    """
     path = RAG_ROOT / f"user_{user_id}" / "rag"
     path.mkdir(parents=True, exist_ok=True)
     return str(path)
 
 
 async def _embedding(session: AsyncSession) -> dict:
+    """内部辅助函数：_embedding。
+    参数：session。
+    """
     async def get(key: str, default=""):
+        """读取系统配置。"""
         return await async_get_config({"session": session, "key": key, "default": default})
 
     provider = str(await get("ai.embedding.provider", "") or "")
@@ -36,6 +43,9 @@ async def _embedding(session: AsyncSession) -> dict:
 
 
 def _rag_config(user_id: str, collection: str) -> dict:
+    """内部辅助函数：_rag_config。
+    参数：user_id / collection。
+    """
     return {
         "type": "sqlite",
         "sqlite_config": {"path": collection or "default", "base_dir": _base_dir(user_id)},
@@ -44,6 +54,9 @@ def _rag_config(user_id: str, collection: str) -> dict:
 
 
 async def _call(payload: dict) -> dict:
+    """内部辅助函数：_call。
+    参数：payload。
+    """
     from scope.tools.rag.main_rag import async_rag_tools
 
     result = await async_rag_tools(payload)
@@ -53,6 +66,10 @@ async def _call(payload: dict) -> dict:
 
 
 async def async_libraries(params: dict) -> list:
+    """列出旧版 RAG 向量库。
+
+        参数：session / user_id。
+        """
     session: AsyncSession = params["session"]
     user_id = params["user_id"]
     return await _call(
@@ -64,6 +81,10 @@ async def async_libraries(params: dict) -> list:
 
 
 async def async_documents(params: dict) -> list:
+    """列出旧版 RAG 文档。
+
+        参数：collection / session / user_id。
+        """
     session: AsyncSession = params["session"]
     return await _call(
         {
@@ -74,6 +95,10 @@ async def async_documents(params: dict) -> list:
 
 
 async def async_upload(params: dict) -> dict:
+    """上传旧版 RAG 文档。
+
+        参数：collection / filename / session / user_id / content。
+        """
     session: AsyncSession = params["session"]
     user_id = params["user_id"]
     collection = str(params.get("collection") or "default")
@@ -99,6 +124,10 @@ async def async_upload(params: dict) -> dict:
 
 
 async def async_search(params: dict) -> list:
+    """旧版 RAG 检索。
+
+        参数：collection / top_k / session / user_id / query。
+        """
     session: AsyncSession = params["session"]
     embedding = await _embedding(session)
     return await _call(
@@ -115,6 +144,10 @@ async def async_search(params: dict) -> list:
 
 
 async def async_delete_document(params: dict) -> dict:
+    """删除旧版 RAG 文档。
+
+        参数：collection / session / user_id / doc_id。
+        """
     session: AsyncSession = params["session"]
     return await _call(
         {
@@ -126,6 +159,10 @@ async def async_delete_document(params: dict) -> dict:
 
 
 async def async_delete_library(params: dict) -> dict:
+    """删除旧版 RAG 向量库。
+
+        参数：session / user_id / collection。
+        """
     session: AsyncSession = params["session"]
     return await _call(
         {

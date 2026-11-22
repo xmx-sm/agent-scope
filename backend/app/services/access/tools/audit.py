@@ -8,38 +8,37 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import ToolPermissionAudit
 
 
-def snapshot(enabled: bool | None, granted_by: str | None) -> str | None:
+def snapshot(params: dict) -> str | None:
+    """生成工具授权快照 JSON。参数：enabled / granted_by。"""
+    enabled = params.get("enabled")
     if enabled is None:
         return None
-    return json.dumps({"enabled": enabled, "granted_by": granted_by}, ensure_ascii=False)
+    return json.dumps(
+        {"enabled": enabled, "granted_by": params.get("granted_by")}, ensure_ascii=False
+    )
 
 
-async def add_audit(
-    session: AsyncSession,
-    *,
-    user_id: str,
-    actor_id: str,
-    action: str,
-    tool_group: str | None = None,
-    tool_name: str | None = None,
-    before: str | None = None,
-    after: str | None = None,
-) -> None:
+async def add_audit(params: dict) -> None:
+    """写入工具权限变更审计。参数：session / user_id / actor_id / action / tool_group / tool_name / before / after。"""
+    session: AsyncSession = params["session"]
     session.add(
         ToolPermissionAudit(
-            user_id=user_id,
-            actor_id=actor_id,
-            action=action,
-            tool_group=tool_group,
-            tool_name=tool_name,
-            prev_state=before,
-            new_state=after,
+            user_id=params["user_id"],
+            actor_id=params["actor_id"],
+            action=params["action"],
+            tool_group=params.get("tool_group"),
+            tool_name=params.get("tool_name"),
+            prev_state=params.get("before"),
+            new_state=params.get("after"),
         )
     )
 
 
 async def async_list_audits(params: dict) -> dict:
-    """参数：session / page / page_size / user_id / actor_id"""
+    """分页查询工具权限审计
+
+    参数：session / page / page_size / user_id / actor_id
+    """
     session: AsyncSession = params["session"]
     page = max(int(params.get("page") or 1), 1)
     page_size = min(max(int(params.get("page_size") or 20), 1), 100)

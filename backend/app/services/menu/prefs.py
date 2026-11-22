@@ -12,6 +12,9 @@ LOCKED_KEYS = {"menu.personalize"}
 
 
 def _parse(raw: str | None) -> dict[str, Any]:
+    """内部辅助函数：_parse。
+    参数：raw。
+    """
     try:
         data = json.loads(raw or "{}")
     except (ValueError, TypeError):
@@ -29,7 +32,10 @@ def _parse(raw: str | None) -> dict[str, Any]:
 
 
 async def async_get_prefs(params: dict) -> dict[str, Any]:
-    """参数：session / user_id"""
+    """读取菜单个性化
+
+    参数：session / user_id
+    """
     session: AsyncSession = params["session"]
     row = await session.get(UserMenuPref, params["user_id"])
     if row is None:
@@ -38,7 +44,10 @@ async def async_get_prefs(params: dict) -> dict[str, Any]:
 
 
 async def async_save_prefs(params: dict) -> dict[str, Any]:
-    """参数：session / user_id / data"""
+    """保存菜单个性化
+
+    参数：session / user_id / data
+    """
     session: AsyncSession = params["session"]
     data: dict = params["data"]
     order = data.get("order") if isinstance(data.get("order"), dict) else {}
@@ -65,7 +74,10 @@ async def async_save_prefs(params: dict) -> dict[str, Any]:
 
 
 async def async_reset_prefs(params: dict) -> None:
-    """参数：session / user_id"""
+    """重置菜单个性化
+
+    参数：session / user_id
+    """
     session: AsyncSession = params["session"]
     row = await session.get(UserMenuPref, params["user_id"])
     if row is not None:

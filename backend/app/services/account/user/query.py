@@ -9,7 +9,10 @@ from app.models import User
 
 
 async def async_get_user_or_404(params: dict) -> User:
-    """参数：session / user_id"""
+    """读取用户或抛出 404
+
+    参数：session / user_id
+    """
     session: AsyncSession = params["session"]
     target = await session.get(User, params["user_id"])
     if target is None:
@@ -18,7 +21,10 @@ async def async_get_user_or_404(params: dict) -> User:
 
 
 async def async_list_users(params: dict) -> dict:
-    """参数：session / page / page_size / keyword / role / viewer"""
+    """分页查询用户
+
+    参数：session / page / page_size / keyword / role / viewer
+    """
     session: AsyncSession = params["session"]
     page = max(int(params.get("page") or 1), 1)
     page_size = min(max(int(params.get("page_size") or 10), 1), 100)
@@ -68,7 +74,10 @@ async def async_list_users(params: dict) -> dict:
 
 
 async def async_stats(params: dict) -> dict:
-    """参数：session"""
+    """用户统计
+
+    参数：session
+    """
     session: AsyncSession = params["session"]
     total = (await session.execute(select(func.count()).select_from(User))).scalar_one()
     active = (

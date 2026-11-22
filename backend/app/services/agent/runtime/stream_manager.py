@@ -26,16 +26,24 @@ _lock = asyncio.Lock()
 
 
 def _error(message: str) -> str:
+    """内部辅助函数：_error。
+    参数：message。
+    """
     return f"event: error\ndata: {json.dumps({'error': message}, ensure_ascii=False)}\n\n"
 
 
 async def _run(state: _State) -> None:
+    """内部辅助函数：_run。
+    参数：state。
+    """
     try:
         async for event in async_stream_chat(
-            state.user_id,
-            state.conversation_id,
-            state.content,
-            state.attachment_ids,
+            {
+                "user_id": state.user_id,
+                "conversation_id": state.conversation_id,
+                "content": state.content,
+                "attachment_ids": state.attachment_ids,
+            }
         ):
             state.events.append(event)
             if "event: done" in event or "event: error" in event:
@@ -49,17 +57,20 @@ async def _run(state: _State) -> None:
 
 
 async def _cleanup_later(conversation_id: str, state: _State) -> None:
+    """内部辅助函数：_cleanup_later。
+    参数：conversation_id / state。
+    """
     await asyncio.sleep(600)
     if _states.get(conversation_id) is state and state.done:
         _states.pop(conversation_id, None)
 
 
-async def start_stream(
-    user_id: str,
-    conversation_id: str,
-    content: str,
-    attachment_ids: list[str] | None = None,
-) -> tuple[_State, bool]:
+async def start_stream(params: dict) -> tuple[_State, bool]:
+    """启动或复用会话生成任务。参数：user_id / conversation_id / content / attachment_ids。"""
+    user_id = params["user_id"]
+    conversation_id = params["conversation_id"]
+    content = params.get("content") or ""
+    attachment_ids = params.get("attachment_ids") or []
     async with _lock:
         current = _states.get(conversation_id)
         if current is not None and not current.done:
@@ -76,6 +87,9 @@ async def start_stream(
 
 
 async def _iter_state(state: _State) -> AsyncGenerator[str, None]:
+    """内部辅助函数：_iter_state。
+    参数：state。
+    """
     index = 0
     while True:
         while index < len(state.events):
@@ -86,15 +100,9 @@ async def _iter_state(state: _State) -> AsyncGenerator[str, None]:
         await asyncio.sleep(0.05)
 
 
-async def stream_events(
-    user_id: str,
-    conversation_id: str,
-    content: str,
-    attachment_ids: list[str] | None = None,
-) -> AsyncGenerator[str, None]:
-    state, started = await start_stream(
-        user_id, conversation_id, content, attachment_ids
-    )
+async def stream_events(params: dict) -> AsyncGenerator[str, None]:
+    """新建或复用生成任务并输出 SSE 事件。参数：user_id / conversation_id / content / attachment_ids。"""
+    state, started = await start_stream(params)
     if not started:
         yield _error("该会话正在生成中，请等待完成或使用断线续传")
         return
@@ -102,17 +110,19 @@ async def stream_events(
         yield event
 
 
-async def resume_events(user_id: str, conversation_id: str) -> AsyncGenerator[str, None]:
-    state = _states.get(conversation_id)
-    if state is None or state.user_id != user_id:
+async def resume_events(params: dict) -> AsyncGenerator[str, None]:
+    """重放生成任务事件。参数：user_id / conversation_id。"""
+    state = _states.get(params["conversation_id"])
+    if state is None or state.user_id != params["user_id"]:
         yield _error("没有可续传的生成任务")
         return
     async for event in _iter_state(state):
         yield event
 
 
-async def has_stream(conversation_id: str) -> bool:
-    state = _states.get(conversation_id)
+async def has_stream(params: dict) -> bool:
+    """判断会话是否有进行中的生成任务。参数：conversation_id。"""
+    state = _states.get(params["conversation_id"])
     return state is not None and not state.done
 
 

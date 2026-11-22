@@ -19,6 +19,9 @@ _STARTED_AT = time.time()
 
 
 def _safe(fn, default=None):
+    """内部辅助函数：_safe。
+    参数：fn / default。
+    """
     try:
         return fn()
     except Exception:  # noqa: BLE001
@@ -26,6 +29,9 @@ def _safe(fn, default=None):
 
 
 def _cpu_info() -> dict[str, Any]:
+    """内部辅助函数：_cpu_info。
+    参数：无。
+    """
     freq = _safe(psutil.cpu_freq)
     load = _safe(psutil.getloadavg)
     return {
@@ -38,6 +44,9 @@ def _cpu_info() -> dict[str, Any]:
 
 
 def _memory_info() -> dict[str, Any]:
+    """内部辅助函数：_memory_info。
+    参数：无。
+    """
     mem = psutil.virtual_memory()
     swap = psutil.swap_memory()
     return {
@@ -52,6 +61,9 @@ def _memory_info() -> dict[str, Any]:
 
 
 def _disk_info() -> dict[str, Any]:
+    """内部辅助函数：_disk_info。
+    参数：无。
+    """
     partitions = []
     seen = set()
     for part in psutil.disk_partitions(all=False):
@@ -88,6 +100,9 @@ def _disk_info() -> dict[str, Any]:
 
 
 def _local_ips() -> list[dict[str, str]]:
+    """内部辅助函数：_local_ips。
+    参数：无。
+    """
     result = []
     for name, addrs in psutil.net_if_addrs().items():
         for addr in addrs:
@@ -97,6 +112,9 @@ def _local_ips() -> list[dict[str, str]]:
 
 
 def _primary_ip() -> str | None:
+    """内部辅助函数：_primary_ip。
+    参数：无。
+    """
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             sock.connect(("8.8.8.8", 80))
@@ -106,6 +124,9 @@ def _primary_ip() -> str | None:
 
 
 def _network_info() -> dict[str, Any]:
+    """内部辅助函数：_network_info。
+    参数：无。
+    """
     io = psutil.net_io_counters()
     return {
         "bytes_sent": io.bytes_sent,
@@ -120,6 +141,9 @@ def _network_info() -> dict[str, Any]:
 
 
 def _gpu_info() -> list[dict[str, Any]]:
+    """内部辅助函数：_gpu_info。
+    参数：无。
+    """
     query = (
         "index,name,memory.total,memory.used,memory.free,"
         "utilization.gpu,temperature.gpu,driver_version"
@@ -160,6 +184,9 @@ def _gpu_info() -> list[dict[str, Any]]:
 
 
 def _process_info() -> dict[str, Any]:
+    """内部辅助函数：_process_info。
+    参数：无。
+    """
     counts = {"running": 0, "sleeping": 0, "other": 0}
     for proc in psutil.process_iter(["status"]):
         try:
@@ -177,6 +204,9 @@ def _process_info() -> dict[str, Any]:
 
 
 async def _redis_info() -> dict[str, Any]:
+    """内部辅助函数：_redis_info。
+    参数：无。
+    """
     client = await async_get_redis_client(force=True)
     if client is None:
         return {
@@ -213,6 +243,9 @@ async def _redis_info() -> dict[str, Any]:
 
 
 async def _database_info(params: dict) -> dict[str, Any]:
+    """内部辅助函数：_database_info。
+    参数：session。
+    """
     session: AsyncSession = params["session"]
     started = time.perf_counter()
     try:
@@ -229,7 +262,10 @@ async def _database_info(params: dict) -> dict[str, Any]:
 
 
 async def async_system_status(params: dict) -> dict[str, Any]:
-    """参数：session"""
+    """采集系统运行状态
+
+    参数：session
+    """
     session: AsyncSession = params["session"]
     cpu = await asyncio.to_thread(_cpu_info)
     memory = await asyncio.to_thread(_memory_info)

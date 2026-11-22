@@ -26,8 +26,12 @@ FIELDS = (
 )
 
 
-async def async_system_defaults(session: AsyncSession) -> dict[str, Any]:
+async def async_system_defaults(params: dict) -> dict[str, Any]:
+    """读取系统默认模型配置。参数：session。"""
+    session: AsyncSession = params["session"]
+
     async def get(key: str, default: Any = ""):
+        """读取系统配置。"""
         return await async_get_config({"session": session, "key": key, "default": default})
 
     return {
@@ -48,10 +52,13 @@ async def async_system_defaults(session: AsyncSession) -> dict[str, Any]:
 
 
 async def async_effective(params: dict) -> dict[str, Any]:
-    """参数：session / user"""
+    """计算生效 Agent 配置
+
+    参数：session / user
+    """
     session: AsyncSession = params["session"]
     user: User = params["user"]
-    system = await async_system_defaults(session)
+    system = await async_system_defaults({"session": session})
     row = await session.get(UserAgentConfig, user.id)
     if row is None or row.use_system_default:
         return {**system, "source": "system"}
@@ -74,10 +81,13 @@ async def async_effective(params: dict) -> dict[str, Any]:
 
 
 async def async_view(params: dict) -> dict[str, Any]:
-    """参数：session / user"""
+    """查看 Agent 配置
+
+    参数：session / user
+    """
     session: AsyncSession = params["session"]
     user: User = params["user"]
-    system = await async_system_defaults(session)
+    system = await async_system_defaults({"session": session})
     effective = await async_effective({"session": session, "user": user})
     row = await session.get(UserAgentConfig, user.id)
     raw = {
@@ -107,7 +117,10 @@ async def async_view(params: dict) -> dict[str, Any]:
 
 
 async def async_save(params: dict) -> dict[str, Any]:
-    """参数：session / user / data"""
+    """保存 Agent 配置
+
+    参数：session / user / data
+    """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     data: dict = params["data"]
@@ -144,7 +157,10 @@ async def async_save(params: dict) -> dict[str, Any]:
 
 
 async def async_reset(params: dict) -> dict[str, Any]:
-    """参数：session / user"""
+    """恢复 Agent 配置跟随系统默认
+
+    参数：session / user
+    """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     row = await session.get(UserAgentConfig, user.id)

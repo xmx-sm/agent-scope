@@ -10,7 +10,9 @@ from app.services.menu.prefs import async_get_prefs
 from app.services.access.permissions.evaluate import async_effective_permissions
 
 
-def menu_public(row: Menu) -> dict[str, Any]:
+def menu_public(params: dict) -> dict[str, Any]:
+    """把菜单 ORM 行转成公开字典。参数：row。"""
+    row: Menu = params["row"]
     return {
         "id": row.id,
         "key": row.key,
@@ -27,16 +29,22 @@ def menu_public(row: Menu) -> dict[str, Any]:
 
 
 async def async_list_all(params: dict) -> dict:
-    """参数：session"""
+    """列出全部菜单
+
+    参数：session
+    """
     session: AsyncSession = params["session"]
     rows = (
         await session.execute(select(Menu).order_by(Menu.sort_order, Menu.key))
     ).scalars().all()
-    return {"menus": [menu_public(row) for row in rows]}
+    return {"menus": [menu_public({"row": row}) for row in rows]}
 
 
 async def async_available(params: dict) -> list[dict[str, Any]]:
-    """参数：session / user，返回权限过滤后、未应用个性化偏好的菜单树。"""
+    """计算用户可见菜单
+
+    参数：session / user，返回权限过滤后、未应用个性化偏好的菜单树。
+    """
     session: AsyncSession = params["session"]
     user: User = params["user"]
 
@@ -55,6 +63,7 @@ async def async_available(params: dict) -> list[dict[str, Any]]:
     ).first() is not None
 
     def allowed(row: Menu) -> bool:
+        """判断菜单是否对当前用户可见。"""
         if row.super_only and user.role != "super_admin":
             return False
         if row.leader_only and not has_reports and user.role != "super_admin":
@@ -69,7 +78,7 @@ async def async_available(params: dict) -> list[dict[str, Any]]:
     for row in rows:
         if not allowed(row):
             continue
-        node = menu_public(row)
+        node = menu_public({"row": row})
         node["children"] = []
         node_by_key[row.key] = node
         if row.parent_key:
@@ -90,7 +99,10 @@ async def async_available(params: dict) -> list[dict[str, Any]]:
 
 
 async def async_mine(params: dict) -> list[dict[str, Any]]:
-    """参数：session / user，返回应用用户个性化后的两级菜单树。"""
+    """返回用户个性化菜单
+
+    参数：session / user，返回应用用户个性化后的两级菜单树。
+    """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     result = await async_available({"session": session, "user": user})
@@ -100,6 +112,7 @@ async def async_mine(params: dict) -> list[dict[str, Any]]:
     order = prefs.get("order") or {}
 
     def apply(items: list[dict[str, Any]], parent_key: str) -> list[dict[str, Any]]:
+        """应用个性化顺序与隐藏。"""
         kept = []
         for node in items:
             if node["key"] in hidden:

@@ -16,10 +16,16 @@ from app.utils.mask import SENTINEL
 
 
 def _new_key() -> str:
+    """内部辅助函数：_new_key。
+    参数：无。
+    """
     return "a2a_" + secrets.token_urlsafe(32)
 
 
 def _public(row: A2APeer) -> dict:
+    """内部辅助函数：_public。
+    参数：row。
+    """
     return {
         "id": row.id,
         "name": row.name,
@@ -40,6 +46,10 @@ def _public(row: A2APeer) -> dict:
 
 
 async def async_list_peers(params: dict) -> list[dict]:
+    """列出当前用户的 A2A 伙伴。
+
+        参数：session / user。
+        """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     rows = (
@@ -53,6 +63,10 @@ async def async_list_peers(params: dict) -> list[dict]:
 
 
 async def async_save_peer(params: dict) -> dict:
+    """新建或更新 A2A 伙伴。
+
+        参数：session / user / data。
+        """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     data: dict = params["data"]
@@ -113,6 +127,9 @@ async def async_save_peer(params: dict) -> dict:
 
 
 async def _owned_peer(session: AsyncSession, user: User, peer_id: str) -> A2APeer:
+    """内部辅助函数：_owned_peer。
+    参数：session / user / peer_id。
+    """
     row = await session.get(A2APeer, peer_id)
     if row is None or row.owner_user_id != user.id:
         raise ApiError("伙伴不存在", code=404)
@@ -120,6 +137,10 @@ async def _owned_peer(session: AsyncSession, user: User, peer_id: str) -> A2APee
 
 
 async def async_delete_peer(params: dict) -> None:
+    """删除 A2A 伙伴及其会话映射。
+
+        参数：session / user / peer_id。
+        """
     session: AsyncSession = params["session"]
     row = await _owned_peer(session, params["user"], params["peer_id"])
     await session.delete(row)
@@ -127,6 +148,10 @@ async def async_delete_peer(params: dict) -> None:
 
 
 async def async_rotate_key(params: dict) -> dict:
+    """重置 A2A 伙伴入站密钥。
+
+        参数：session / user / peer_id。
+        """
     session: AsyncSession = params["session"]
     row = await _owned_peer(session, params["user"], params["peer_id"])
     row.api_key = _new_key()
@@ -135,12 +160,19 @@ async def async_rotate_key(params: dict) -> dict:
 
 
 async def async_reveal_key(params: dict) -> dict:
+    """查看 A2A 伙伴密钥明文。
+
+        参数：session / user / peer_id。
+        """
     session: AsyncSession = params["session"]
     row = await _owned_peer(session, params["user"], params["peer_id"])
     return {"peer_id": row.id, "api_key": row.api_key}
 
 
 async def _count_today(session: AsyncSession, peer_id: str, direction: str) -> int:
+    """内部辅助函数：_count_today。
+    参数：session / peer_id / direction。
+    """
     day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     return int(
         (
@@ -158,6 +190,10 @@ async def _count_today(session: AsyncSession, peer_id: str, direction: str) -> i
 
 
 async def async_test_peer(params: dict) -> dict:
+    """测试 A2A 伙伴连通性。
+
+        参数：session / user / peer_id。
+        """
     session: AsyncSession = params["session"]
     row = await _owned_peer(session, params["user"], params["peer_id"])
     if not row.endpoint:
@@ -176,6 +212,10 @@ async def async_test_peer(params: dict) -> dict:
 
 
 async def async_invoke_peer(params: dict) -> dict:
+    """出站调用 A2A 伙伴。
+
+        参数：peer / message / session_hint / session / user。
+        """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     name = str(params.get("peer") or "").strip()
@@ -282,6 +322,10 @@ async def async_invoke_peer_by_name(params: dict) -> dict:
 
 
 async def async_sessions(params: dict) -> list[dict]:
+    """列出 A2A 协作记忆。
+
+        参数：session / user。
+        """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     rows = (
@@ -330,6 +374,10 @@ async def async_sessions(params: dict) -> list[dict]:
 
 
 async def async_forget_session(params: dict) -> None:
+    """清除一条 A2A 协作记忆。
+
+        参数：session / user / session_id。
+        """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     row = await session.get(A2ASessionMap, params["session_id"])
@@ -343,6 +391,10 @@ async def async_forget_session(params: dict) -> None:
 
 
 async def async_invocations(params: dict) -> list[dict]:
+    """列出 A2A 调用留痕。
+
+        参数：session / user。
+        """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     rows = (
@@ -373,7 +425,10 @@ async def async_invocations(params: dict) -> list[dict]:
 # ==================== 入站数据面 ====================
 
 
-async def resolve_inbound_peer(session: AsyncSession, api_key: str) -> A2APeer | None:
+async def resolve_inbound_peer(params: dict) -> A2APeer | None:
+    """按 X-Api-Key 解析入站伙伴。参数：session / api_key。"""
+    session: AsyncSession = params["session"]
+    api_key: str = params["api_key"]
     if not api_key:
         return None
     return (
@@ -387,7 +442,9 @@ async def resolve_inbound_peer(session: AsyncSession, api_key: str) -> A2APeer |
     ).scalars().first()
 
 
-async def inbound_catalog(peer: A2APeer) -> dict:
+async def inbound_catalog(params: dict) -> dict:
+    """返回入站伙伴的 Agent 目录。参数：peer。"""
+    peer: A2APeer = params["peer"]
     return {
         "name": peer.name,
         "description": peer.description or "Agent Scope A2A 智能体",
@@ -397,10 +454,11 @@ async def inbound_catalog(peer: A2APeer) -> dict:
     }
 
 
-async def resolve_inbound_session(
-    session: AsyncSession, peer: A2APeer, session_hint: str
-) -> str:
-    hint = (session_hint or "default")[:200]
+async def resolve_inbound_session(params: dict) -> str:
+    """按伙伴 + session_hint 复用或创建入站会话。参数：session / peer / session_hint。"""
+    session: AsyncSession = params["session"]
+    peer: A2APeer = params["peer"]
+    hint = (params.get("session_hint") or "default")[:200]
     mapping = (
         await session.execute(
             select(A2ASessionMap).where(
@@ -426,10 +484,14 @@ async def resolve_inbound_session(
 
 
 async def async_inbound_invoke(params: dict) -> dict:
+    """处理入站 A2A 调用。
+
+        参数：api_key / session / body。
+        """
     session: AsyncSession = params["session"]
     api_key = str(params.get("api_key") or "")
     body = params["body"]
-    peer = await resolve_inbound_peer(session, api_key)
+    peer = await resolve_inbound_peer({"session": session, "api_key": api_key})
     if peer is None:
         raise ApiError("密钥无效或伙伴未启用", code=401)
     if body.agent_name != peer.name:
@@ -443,14 +505,19 @@ async def async_inbound_invoke(params: dict) -> dict:
         )
         await session.commit()
         raise ApiError("今日调用额度已用完", code=429)
-    cid = await resolve_inbound_session(session, peer, body.session_hint)
+    cid = await resolve_inbound_session({"session": session, "peer": peer, "session_hint": body.session_hint})
     started = time.monotonic()
     try:
         from app.services.agent.conversation.chat import async_run_turn
 
         result = await async_run_turn(
-            peer.owner_user_id, cid, body.message, super_depth=1,
-            tools_enabled=peer.allow_tools,
+            {
+                "user_id": peer.owner_user_id,
+                "conversation_id": cid,
+                "content": body.message,
+                "super_depth": 1,
+                "tools_enabled": peer.allow_tools,
+            }
         )
     except Exception as exc:  # noqa: BLE001
         elapsed = int((time.monotonic() - started) * 1000)

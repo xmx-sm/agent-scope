@@ -10,6 +10,9 @@ from app.models import User, UserMcp
 
 
 def _public(row: UserMcp) -> dict:
+    """内部辅助函数：_public。
+    参数：row。
+    """
     return {
         "id": row.id,
         "name": row.name,
@@ -23,6 +26,10 @@ def _public(row: UserMcp) -> dict:
 
 
 async def async_list(params: dict) -> list[dict]:
+    """列出用户 MCP 服务。
+
+        参数：session / user。
+        """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     rows = (
@@ -34,6 +41,10 @@ async def async_list(params: dict) -> list[dict]:
 
 
 async def async_save(params: dict) -> dict:
+    """新建或更新 MCP 服务。
+
+        参数：session / user / data。
+        """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     data: dict = params["data"]
@@ -75,6 +86,10 @@ async def async_save(params: dict) -> dict:
 
 
 async def async_delete(params: dict) -> None:
+    """删除 MCP 服务。
+
+        参数：session / user / mcp_id。
+        """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     row = await session.get(UserMcp, params["mcp_id"])
@@ -85,6 +100,10 @@ async def async_delete(params: dict) -> None:
 
 
 async def async_active_servers(params: dict) -> dict:
+    """返回启用中的 MCP 服务配置。
+
+        参数：session / user。
+        """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     rows = (

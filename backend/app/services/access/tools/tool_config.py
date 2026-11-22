@@ -16,6 +16,9 @@ SECRET_FIELDS = {"email": ("password",), "db": ("password",)}
 
 
 def _mask(category: str, config: dict) -> dict:
+    """内部辅助函数：_mask。
+    参数：category / config。
+    """
     out = dict(config)
     for key in SECRET_FIELDS.get(category, ()):
         out[key] = mask_secret(out.get(key))
@@ -23,7 +26,11 @@ def _mask(category: str, config: dict) -> dict:
 
 
 async def _system_config(session: AsyncSession, category: str) -> dict[str, Any]:
+    """内部辅助函数：_system_config。
+    参数：session / category。
+    """
     async def get(key: str, default: Any = ""):
+        """读取系统配置。"""
         return await async_get_config({"session": session, "key": key, "default": default})
 
     if category == "email":
@@ -52,6 +59,9 @@ async def _system_config(session: AsyncSession, category: str) -> dict[str, Any]
 
 
 async def _get_row(session: AsyncSession, user_id: str, category: str):
+    """内部辅助函数：_get_row。
+    参数：session / user_id / category。
+    """
     return (
         await session.execute(
             select(UserToolConfig).where(
@@ -63,7 +73,10 @@ async def _get_row(session: AsyncSession, user_id: str, category: str):
 
 
 async def async_effective(params: dict) -> dict[str, Any]:
-    """参数：session / user_id / category"""
+    """合并系统默认与用户工具连接配置
+
+    参数：session / user_id / category
+    """
     session: AsyncSession = params["session"]
     user_id: str = params["user_id"]
     category: str = params["category"]
@@ -81,7 +94,10 @@ async def async_effective(params: dict) -> dict[str, Any]:
 
 
 async def async_view(params: dict) -> dict[str, Any]:
-    """参数：session / user_id / category"""
+    """查看用户工具连接配置
+
+    参数：session / user_id / category
+    """
     session: AsyncSession = params["session"]
     user_id: str = params["user_id"]
     category: str = params["category"]
@@ -107,7 +123,10 @@ async def async_view(params: dict) -> dict[str, Any]:
 
 
 async def async_save(params: dict) -> dict[str, Any]:
-    """参数：session / user / category / data"""
+    """保存用户工具连接配置
+
+    参数：session / user / category / data
+    """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     category: str = params["category"]
@@ -156,7 +175,10 @@ async def async_save(params: dict) -> dict[str, Any]:
 
 
 async def async_reset(params: dict) -> dict[str, Any]:
-    """参数：session / user / category"""
+    """恢复工具连接系统默认
+
+    参数：session / user / category
+    """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     category: str = params["category"]
@@ -170,7 +192,10 @@ async def async_reset(params: dict) -> dict[str, Any]:
 
 
 async def async_test_email(params: dict) -> dict:
-    """参数：session / user_id"""
+    """测试邮箱连接
+
+    参数：session / user_id
+    """
     import aiosmtplib
 
     session: AsyncSession = params["session"]
@@ -202,7 +227,10 @@ async def async_test_email(params: dict) -> dict:
 
 
 async def async_test_db(params: dict) -> dict:
-    """参数：session / user_id"""
+    """测试数据库连接
+
+    参数：session / user_id
+    """
     from app.services.agent.runtime.scope_bridge import SCOPE_DIR  # noqa: F401
     from scope.tools.db.main_db import async_db_tools
 

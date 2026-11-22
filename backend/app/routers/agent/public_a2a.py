@@ -14,10 +14,10 @@ router = APIRouter(prefix="/a2a", tags=["A2A 互联"])
 @router.get("/agents")
 async def a2a_agents(request: Request, db: AsyncSession = Depends(get_db)):
     key = request.headers.get("X-Api-Key", "")
-    peer = await a2a_service.resolve_inbound_peer(db, key)
+    peer = await a2a_service.resolve_inbound_peer({"session": db, "api_key": key})
     if peer is None:
         raise ApiError("密钥无效或伙伴未启用", code=401)
-    return ok(await a2a_service.inbound_catalog(peer))
+    return ok(await a2a_service.inbound_catalog({"peer": peer}))
 
 
 @router.post("/invoke")

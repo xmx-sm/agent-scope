@@ -27,12 +27,18 @@ _PROVIDER_MAP = {item["value"]: item for item in PROVIDERS}
 
 
 async def async_list_providers(params: dict) -> list[dict[str, Any]]:
-    """参数：无（保留字典签名统一）"""
+    """列出模型厂商预设
+
+    参数：无（保留字典签名统一）
+    """
     return PROVIDERS
 
 
 async def async_fetch_models(params: dict) -> dict[str, Any]:
-    """参数：provider / base_url / api_key"""
+    """拉取厂商模型列表
+
+    参数：provider / base_url / api_key
+    """
     provider = str(params.get("provider") or "").strip()
     base_url = str(params.get("base_url") or "").strip()
     api_key = str(params.get("api_key") or "").strip()

@@ -10,7 +10,10 @@ from app.utils.rate_limiter import rate_limiter
 
 
 async def async_rate_limit(params: dict) -> None:
-    """参数：session / key / max_key / window_key / max_default / window_default"""
+    """登录或注册限流
+
+    参数：session / key / max_key / window_key / max_default / window_default
+    """
     session: AsyncSession = params["session"]
     if not await async_get_config({"session": session, "key": "rate_limit_enabled", "default": True}):
         return

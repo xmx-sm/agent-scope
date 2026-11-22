@@ -25,7 +25,10 @@ TEXT_TYPES = {
 
 
 async def async_upload(params: dict) -> dict:
-    """参数：session / user / file"""
+    """上传对话附件
+
+    参数：session / user / file
+    """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     file: UploadFile = params["file"]
@@ -60,6 +63,10 @@ async def async_upload(params: dict) -> dict:
 
 
 async def async_get_owned(params: dict) -> AgentAttachment:
+    """读取当前用户拥有的附件。
+
+        参数：session / attachment_id / user_id。
+        """
     session: AsyncSession = params["session"]
     row = await session.get(AgentAttachment, params["attachment_id"])
     if row is None or row.user_id != params["user_id"]:
@@ -70,7 +77,9 @@ async def async_get_owned(params: dict) -> AgentAttachment:
 async def async_load_for_model(
     params: dict,
 ) -> tuple[list[dict], str, list[dict], list[dict]]:
-    """参数：session / user_id / ids / video_support / video_max_mb
+    """加载附件为模型输入
+
+    参数：session / user_id / ids / video_support / video_max_mb
     返回 (消息附件元数据, 追加文本, 图片 DataBlock 参数, 视频 DataBlock 参数)。
     """
     session: AsyncSession = params["session"]
@@ -121,9 +130,11 @@ async def async_load_for_model(
     return meta, "\n\n".join(text_parts), images, videos
 
 
-async def async_list_message_attachments(session: AsyncSession, message: AgentMessage) -> list[dict]:
+async def async_list_message_attachments(params: dict) -> list[dict]:
+    """读取消息附件元数据。参数：session / message（session 保留统一字典签名）。"""
     import json
 
+    message: AgentMessage = params["message"]
     try:
         data = json.loads(message.attachments or "[]")
     except (ValueError, TypeError):

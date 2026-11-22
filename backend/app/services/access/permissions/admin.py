@@ -15,7 +15,10 @@ from app.services.account.user.query import async_get_user_or_404
 
 
 async def async_admin_set_state(params: dict) -> dict[str, Any]:
-    """参数：session / target / granted / shrunk / temp_grants / operator_id"""
+    """超管设置用户权限状态
+
+    参数：session / target / granted / shrunk / temp_grants / operator_id
+    """
     session: AsyncSession = params["session"]
     target: User = params["target"]
     granted = params.get("granted")
@@ -46,7 +49,7 @@ async def async_admin_set_state(params: dict) -> dict[str, Any]:
             expires_at = str(item.get("expires_at") or "")
             if permission not in ALL_PERMISSION_KEYS or permission in seen:
                 continue
-            parse_expire(expires_at)
+            parse_expire({"value": expires_at})
             cleaned.append({"permission": permission, "expires_at": expires_at})
             seen.add(permission)
         state.temp_grants = json.dumps(cleaned, ensure_ascii=False)
@@ -57,7 +60,10 @@ async def async_admin_set_state(params: dict) -> dict[str, Any]:
 
 
 async def async_user_permission_detail(params: dict) -> dict:
-    """参数：session / user_id"""
+    """查看指定用户权限详情
+
+    参数：session / user_id
+    """
     session: AsyncSession = params["session"]
     target = await async_get_user_or_404(
         {"session": session, "user_id": params["user_id"]}
@@ -68,7 +74,10 @@ async def async_user_permission_detail(params: dict) -> dict:
 
 
 async def async_set_user_permissions(params: dict) -> dict:
-    """参数：session / user_id / data / operator_id"""
+    """超管设置用户授予/收缩/临时权限
+
+    参数：session / user_id / data / operator_id
+    """
     session: AsyncSession = params["session"]
     target = await async_get_user_or_404(
         {"session": session, "user_id": params["user_id"]}

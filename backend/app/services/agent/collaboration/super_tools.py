@@ -13,7 +13,10 @@ from app.models import AgentConversation, AgentMessage
 from app.services.agent.collaboration.super_agent import async_create_conversation
 
 
-def build_super_group(user_id: str, super_ctx: dict) -> list:
+def build_super_group(params: dict) -> list:
+    """构建超级智能体的 super 工具组。参数：user_id / super_ctx。"""
+    user_id = params["user_id"]
+    super_ctx = params["super_ctx"]
     agent_id = str(super_ctx.get("super_agent_id") or "")
     self_cid = str(super_ctx.get("conversation_id") or "")
     roster = super_ctx.get("roster") or []
@@ -24,9 +27,11 @@ def build_super_group(user_id: str, super_ctx: dict) -> list:
     )
 
     def err(message: str) -> dict:
+        """返回超级智能体工具错误。"""
         return {"code": 400, "data": None, "message": f"[超级智能体] {message}"}
 
     async def owned(kind: str = "all", limit: int = 50) -> list[dict]:
+        """列出本超级智能体名下的会话。"""
         async with AsyncSessionLocal() as session:
             rows = list(
                 (
@@ -72,6 +77,7 @@ def build_super_group(user_id: str, super_ctx: dict) -> list:
             return items
 
     async def target(conversation_id: str) -> AgentConversation | None:
+        """校验目标会话归属。"""
         if not conversation_id:
             return None
         async with AsyncSessionLocal() as session:
@@ -86,12 +92,18 @@ def build_super_group(user_id: str, super_ctx: dict) -> list:
             ).scalar_one_or_none()
 
     async def run_turn(conversation_id: str, content: str, timeout: int) -> dict:
+        """驱动目标会话执行一轮。"""
         from app.services.agent.conversation.chat import async_run_turn
 
         async def collect() -> dict:
+            """收集非流式执行结果。"""
             return await async_run_turn(
-                user_id, conversation_id, content,
-                super_depth=int(super_ctx.get("depth") or 0) + 1,
+                {
+                    "user_id": user_id,
+                    "conversation_id": conversation_id,
+                    "content": content,
+                    "super_depth": int(super_ctx.get("depth") or 0) + 1,
+                }
             )
 
         task = asyncio.create_task(collect())
@@ -110,6 +122,7 @@ def build_super_group(user_id: str, super_ctx: dict) -> list:
         return task.result()
 
     async def super_conversation(**kwargs) -> dict:
+        """超级智能体编排工具入口。"""
         data = dict(kwargs.get("args") or {}) if isinstance(kwargs.get("args"), dict) else {}
         for key, value in kwargs.items():
             if key != "args":

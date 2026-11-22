@@ -23,6 +23,9 @@ _tasks: set[asyncio.Task] = set()
 
 
 def _parse_rule(raw) -> dict:
+    """内部辅助函数：_parse_rule。
+    参数：raw。
+    """
     if isinstance(raw, dict):
         data = raw
     else:
@@ -34,6 +37,9 @@ def _parse_rule(raw) -> dict:
 
 
 def _normalize_rule(raw) -> dict:
+    """内部辅助函数：_normalize_rule。
+    参数：raw。
+    """
     rule = _parse_rule(raw)
     mode = str(rule.get("date_mode") or "weekday")
     if mode not in ("weekday", "month_range", "date_span"):
@@ -91,6 +97,9 @@ def _normalize_rule(raw) -> dict:
 
 
 def _day_matches(day, rule: dict) -> bool:
+    """内部辅助函数：_day_matches。
+    参数：day / rule。
+    """
     mode = rule.get("date_mode")
     if mode == "weekday":
         return day.isoweekday() in rule["weekdays"]
@@ -105,6 +114,9 @@ def _day_matches(day, rule: dict) -> bool:
 
 
 def _next_calendar(rule: dict, now_utc: datetime) -> datetime | None:
+    """内部辅助函数：_next_calendar。
+    参数：rule / now_utc。
+    """
     now_cn = now_utc.astimezone(CN)
     times = rule.get("times") or []
     for offset in range(0, 401):
@@ -120,6 +132,9 @@ def _next_calendar(rule: dict, now_utc: datetime) -> datetime | None:
 
 
 def _summary(rule: dict) -> str:
+    """内部辅助函数：_summary。
+    参数：rule。
+    """
     times = "、".join(rule.get("times") or [])
     mode = rule.get("date_mode")
     if mode == "weekday":
@@ -132,6 +147,9 @@ def _summary(rule: dict) -> str:
 
 
 def _public(row: UserScheduledJob) -> dict:
+    """内部辅助函数：_public。
+    参数：row。
+    """
     now = datetime.now(timezone.utc)
     rule = _parse_rule(row.calendar_rule)
     remaining = int((row.next_run_at - now).total_seconds()) if row.next_run_at else None
@@ -159,6 +177,10 @@ def _public(row: UserScheduledJob) -> dict:
 
 
 async def async_list(params: dict) -> list[dict]:
+    """列出当前用户的定时任务。
+
+        参数：session / user_id。
+        """
     session: AsyncSession = params["session"]
     rows = (
         await session.execute(
@@ -171,6 +193,9 @@ async def async_list(params: dict) -> list[dict]:
 
 
 async def _get_own(session: AsyncSession, user_id: str, job_id: str) -> UserScheduledJob:
+    """内部辅助函数：_get_own。
+    参数：session / user_id / job_id。
+    """
     row = await session.get(UserScheduledJob, job_id)
     if row is None or row.user_id != user_id:
         raise ApiError("定时任务不存在", code=404)
@@ -180,6 +205,9 @@ async def _get_own(session: AsyncSession, user_id: str, job_id: str) -> UserSche
 async def _validate_target(
     session: AsyncSession, user_id: str, conv_mode: str, conversation_id: str | None
 ) -> None:
+    """内部辅助函数：_validate_target。
+    参数：session / user_id / conv_mode / conversation_id。
+    """
     if conv_mode not in ("new", "fixed"):
         raise ApiError("会话模式只支持 new/fixed")
     if conv_mode == "fixed":
@@ -191,6 +219,10 @@ async def _validate_target(
 
 
 async def async_save(params: dict) -> dict:
+    """新建或更新定时任务。
+
+        参数：session / user_id / data。
+        """
     session: AsyncSession = params["session"]
     user_id = params["user_id"]
     data: dict = params["data"]
@@ -249,6 +281,10 @@ async def async_save(params: dict) -> dict:
 
 
 async def async_toggle(params: dict) -> dict:
+    """启用或停用定时任务。
+
+        参数：session / user_id / job_id / enabled。
+        """
     session: AsyncSession = params["session"]
     row = await _get_own(session, params["user_id"], params["job_id"])
     row.enabled = bool(params["enabled"])
@@ -267,6 +303,10 @@ async def async_toggle(params: dict) -> dict:
 
 
 async def async_delete(params: dict) -> None:
+    """删除定时任务。
+
+        参数：session / user_id / job_id。
+        """
     session: AsyncSession = params["session"]
     row = await _get_own(session, params["user_id"], params["job_id"])
     await session.delete(row)
@@ -274,6 +314,9 @@ async def async_delete(params: dict) -> None:
 
 
 async def _create_conversation(session: AsyncSession, job: UserScheduledJob) -> str:
+    """内部辅助函数：_create_conversation。
+    参数：session / job。
+    """
     if job.conv_mode == "fixed" and job.conversation_id:
         conv = await session.get(AgentConversation, job.conversation_id)
         if conv is not None and conv.user_id == job.user_id:
@@ -291,6 +334,9 @@ async def _create_conversation(session: AsyncSession, job: UserScheduledJob) -> 
 
 
 async def _execute(job_id: str) -> None:
+    """内部辅助函数：_execute。
+    参数：job_id。
+    """
     from app.core.database import AsyncSessionLocal
 
     async with _sem:
@@ -309,7 +355,14 @@ async def _execute(job_id: str) -> None:
                 await session.commit()
             try:
                 result = await asyncio.wait_for(
-                    async_run_turn(user_id, cid, instruction, source="cron"),
+                    async_run_turn(
+                        {
+                            "user_id": user_id,
+                            "conversation_id": cid,
+                            "content": instruction,
+                            "source": "cron",
+                        }
+                    ),
                     timeout=timeout,
                 )
                 status = "success"
@@ -336,6 +389,10 @@ async def _execute(job_id: str) -> None:
 
 
 async def async_run_now(params: dict) -> dict:
+    """立即执行一次定时任务。
+
+        参数：session / user_id / job_id。
+        """
     session: AsyncSession = params["session"]
     row = await _get_own(session, params["user_id"], params["job_id"])
     if row.id in _running:
@@ -393,7 +450,9 @@ async def async_tick(params: dict) -> int:
     return processed
 
 
-async def async_scheduler_worker(stop: asyncio.Event) -> None:
+async def async_scheduler_worker(params: dict) -> None:
+    """定时任务 worker：每 60 秒扫描并认领到期任务。参数：stop。"""
+    stop: asyncio.Event = params["stop"]
     while not stop.is_set():
         try:
             count = await async_tick({})

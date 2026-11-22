@@ -10,7 +10,10 @@ from app.services.access.permissions.evaluate import async_effective_permissions
 
 
 async def async_issue_tokens(params: dict) -> dict:
-    """参数：session / user"""
+    """签发访问与刷新令牌
+
+    参数：session / user
+    """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     minutes = int(
@@ -26,7 +29,10 @@ async def async_issue_tokens(params: dict) -> dict:
 
 
 async def async_refresh(params: dict) -> dict:
-    """参数：session / refresh_token"""
+    """刷新访问令牌
+
+    参数：session / refresh_token
+    """
     session: AsyncSession = params["session"]
     payload = decode_token(params["refresh_token"], expected_type="refresh")
     if not payload:
@@ -38,7 +44,10 @@ async def async_refresh(params: dict) -> dict:
 
 
 async def async_me_payload(params: dict) -> dict:
-    """参数：session / user"""
+    """返回当前登录用户信息
+
+    参数：session / user
+    """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     return {

@@ -146,7 +146,7 @@ async def chat_resume(
     user: User = Depends(require_permission("ai.use")),
 ):
     return StreamingResponse(
-        resume_events(user.id, conversation_id),
+        resume_events({"user_id": user.id, "conversation_id": conversation_id}),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -163,7 +163,12 @@ async def chat_stream(
 ):
     return StreamingResponse(
         stream_events(
-            user.id, body.conversation_id, body.content, body.attachment_ids
+            {
+                "user_id": user.id,
+                "conversation_id": body.conversation_id,
+                "content": body.content,
+                "attachment_ids": body.attachment_ids,
+            }
         ),
         media_type="text/event-stream",
         headers={

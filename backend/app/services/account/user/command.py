@@ -12,7 +12,10 @@ from app.services.account.user.common import async_assert_unique, clean_optional
 
 
 async def async_create_user(params: dict) -> dict:
-    """参数：session / data / operator"""
+    """创建用户
+
+    参数：session / data / operator
+    """
     session: AsyncSession = params["session"]
     data: dict = params["data"]
     operator: User | None = params.get("operator")
@@ -24,9 +27,9 @@ async def async_create_user(params: dict) -> dict:
         raise ApiError("仅超级管理员可创建超级管理员", code=403)
 
     username = data["username"].strip()
-    email = clean_optional(data.get("email"))
-    phone = clean_optional(data.get("phone"))
-    nickname = clean_optional(data.get("nickname")) or username
+    email = clean_optional({"value": data.get("email")})
+    phone = clean_optional({"value": data.get("phone")})
+    nickname = clean_optional({"value": data.get("nickname")}) or username
     await async_assert_unique(
         {"session": session, "username": username, "email": email, "phone": phone}
     )
@@ -42,7 +45,7 @@ async def async_create_user(params: dict) -> dict:
         role=role,
         leader_id=data.get("leader_id") or None,
         is_active=data.get("is_active", True),
-        avatar=clean_optional(data.get("avatar")),
+        avatar=clean_optional({"value": data.get("avatar")}),
     )
     session.add(user)
     await session.commit()
@@ -52,7 +55,10 @@ async def async_create_user(params: dict) -> dict:
 
 
 async def _async_assert_super_admin_remains(params: dict) -> None:
-    """参数：session / exclude_id"""
+    """内部辅助函数：_async_assert_super_admin_remains。
+
+    参数：session / exclude_id
+    """
     session: AsyncSession = params["session"]
     remaining = (
         await session.execute(
@@ -68,7 +74,10 @@ async def _async_assert_super_admin_remains(params: dict) -> None:
 
 
 async def async_update_user(params: dict) -> dict:
-    """参数：session / user_id / data / operator"""
+    """更新用户
+
+    参数：session / user_id / data / operator
+    """
     session: AsyncSession = params["session"]
     user_id: str = params["user_id"]
     data: dict = params["data"]
@@ -109,7 +118,7 @@ async def async_update_user(params: dict) -> dict:
     for field, label in (("email", "邮箱"), ("phone", "手机号")):
         if field not in data:
             continue
-        value = clean_optional(data[field])
+        value = clean_optional({"value": data[field]})
         if value:
             conflict = (
                 await session.execute(
@@ -121,7 +130,7 @@ async def async_update_user(params: dict) -> dict:
         setattr(user, field, value)
 
     if "avatar" in data:
-        user.avatar = clean_optional(data["avatar"])
+        user.avatar = clean_optional({"value": data["avatar"]})
 
     if "leader_id" in data:
         leader_id = data["leader_id"] or None
@@ -145,7 +154,10 @@ async def async_update_user(params: dict) -> dict:
 
 
 async def async_delete_user(params: dict) -> None:
-    """参数：session / user_id / operator"""
+    """删除用户
+
+    参数：session / user_id / operator
+    """
     session: AsyncSession = params["session"]
     user_id: str = params["user_id"]
     operator: User = params["operator"]
@@ -169,7 +181,10 @@ async def async_delete_user(params: dict) -> None:
 
 
 async def async_reset_password(params: dict) -> None:
-    """参数：session / user_id / new_password / operator"""
+    """管理员重置用户密码
+
+    参数：session / user_id / new_password / operator
+    """
     session: AsyncSession = params["session"]
     user = await session.get(User, params["user_id"])
     if user is None:

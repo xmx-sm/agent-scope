@@ -11,11 +11,17 @@ from app.services.config.service import async_get_config
 
 
 async def _config(params: dict):
+    """内部辅助函数：_config。
+    参数：按实际传参。
+    """
     return await async_get_config(params)
 
 
 async def async_send_email(params: dict) -> dict:
-    """参数：session / to / subject / content"""
+    """发送测试邮件
+
+    参数：session / to / subject / content
+    """
     session: AsyncSession = params["session"]
     to: str = str(params["to"]).strip()
     subject: str = str(params.get("subject") or "Agent Scope 测试邮件")

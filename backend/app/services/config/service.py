@@ -33,7 +33,10 @@ async def async_get_config(params: dict) -> Any:
 
 
 async def async_list_configs(params: dict) -> list[dict[str, Any]]:
-    """参数：session / domain（可选：system / agent）"""
+    """列出系统配置
+
+    参数：session / domain（可选：system / agent）
+    """
     session: AsyncSession = params["session"]
     domain = params.get("domain") or ""
     rows = (
@@ -43,7 +46,7 @@ async def async_list_configs(params: dict) -> list[dict[str, Any]]:
     for row in rows:
         if row.key.startswith("__meta."):
             continue
-        if domain and config_domain(row.key) != domain:
+        if domain and config_domain({"key": row.key}) != domain:
             continue
         try:
             value = json.loads(row.value)
@@ -60,7 +63,7 @@ async def async_list_configs(params: dict) -> list[dict[str, Any]]:
                 "description": row.description,
                 "value_type": row.value_type,
                 "group": meta.get("group", "其他"),
-                "domain": config_domain(row.key),
+                "domain": config_domain({"key": row.key}),
                 "default": meta.get("value"),
                 "secret": secret,
                 "updated_at": row.updated_at.isoformat() if row.updated_at else None,
@@ -71,7 +74,10 @@ async def async_list_configs(params: dict) -> list[dict[str, Any]]:
 
 
 async def async_update_config(params: dict) -> dict:
-    """参数：session / key / value / operator_id"""
+    """更新系统配置
+
+    参数：session / key / value / operator_id
+    """
     session: AsyncSession = params["session"]
     key: str = params["key"]
     value = params["value"]
@@ -116,14 +122,17 @@ async def async_update_config(params: dict) -> dict:
         "description": row.description,
         "value_type": row.value_type,
         "group": meta.get("group", "其他"),
-        "domain": config_domain(row.key),
+        "domain": config_domain({"key": row.key}),
         "default": meta.get("value"),
         "secret": bool(meta.get("secret")),
     }
 
 
 async def async_reset_config(params: dict) -> dict:
-    """参数：session / key / operator_id"""
+    """恢复系统配置默认值
+
+    参数：session / key / operator_id
+    """
     key: str = params["key"]
     meta = CONFIG_BY_KEY.get(key)
     if meta is None:

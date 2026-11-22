@@ -15,12 +15,19 @@ SKILL_ROOT = ROOT / "backend" / "uploads" / "agents"
 
 
 def _skill_root(user_id: str) -> Path:
+    """内部辅助函数：_skill_root。
+    参数：user_id。
+    """
     path = SKILL_ROOT / f"user_{user_id}" / "skills"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 async def async_list(params: dict) -> list[dict]:
+    """列出用户 Skills。
+
+        参数：session / user。
+        """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     rows = (
@@ -41,6 +48,9 @@ async def async_list(params: dict) -> list[dict]:
 
 
 def _safe_extract(zip_path: Path, target: Path) -> None:
+    """内部辅助函数：_safe_extract。
+    参数：zip_path / target。
+    """
     target.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(zip_path) as archive:
         for member in archive.infolist():
@@ -51,6 +61,10 @@ def _safe_extract(zip_path: Path, target: Path) -> None:
 
 
 async def async_upload_zip(params: dict) -> dict:
+    """上传并安全解压 Skills ZIP。
+
+        参数：name / session / user / filename / content。
+        """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     filename: str = params["filename"]
@@ -111,6 +125,10 @@ async def async_upload_zip(params: dict) -> dict:
 
 
 async def async_delete(params: dict) -> None:
+    """删除 Skills。
+
+        参数：session / user / skill_id。
+        """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     row = await session.get(UserSkill, params["skill_id"])
@@ -124,6 +142,10 @@ async def async_delete(params: dict) -> None:
 
 
 async def async_toggle(params: dict) -> dict:
+    """启停 Skills。
+
+        参数：is_active / session / user / skill_id。
+        """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     row = await session.get(UserSkill, params["skill_id"])
@@ -135,6 +157,10 @@ async def async_toggle(params: dict) -> dict:
 
 
 async def async_active_dirs(params: dict) -> list[str]:
+    """返回启用中的 Skills 目录。
+
+        参数：session / user。
+        """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     rows = (

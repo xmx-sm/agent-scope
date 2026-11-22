@@ -42,8 +42,8 @@ async def lifespan(app: FastAPI):
         )
     logger.info("后端已启动：%s:%s%s", settings.host, settings.port, settings.api_prefix)
     stop = asyncio.Event()
-    worker = asyncio.create_task(async_knowledge_worker(stop))
-    scheduler = asyncio.create_task(async_scheduler_worker(stop))
+    worker = asyncio.create_task(async_knowledge_worker({"stop": stop}))
+    scheduler = asyncio.create_task(async_scheduler_worker({"stop": stop}))
     yield
     stop.set()
     worker.cancel()
@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
     await close_db()
 
 
-app = FastAPI(title=settings.app_name, version="0.21.0", lifespan=lifespan)
+app = FastAPI(title=settings.app_name, version="0.22.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

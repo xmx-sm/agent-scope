@@ -22,10 +22,16 @@ from app.services.access.security.prompt import async_build_security_prompt
 
 
 def _sse(event: str, data: dict) -> str:
+    """内部辅助函数：_sse。
+    参数：event / data。
+    """
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
 def _llm_from_config(cfg: dict) -> dict:
+    """内部辅助函数：_llm_from_config。
+    参数：cfg。
+    """
     model = str(cfg.get("model") or "")
     base_url = str(cfg.get("base_url") or "")
     if not model:
@@ -50,6 +56,9 @@ def _llm_from_config(cfg: dict) -> dict:
 
 
 async def _load_llm(session, user: User, override: dict | None = None) -> tuple[dict, str, bool]:
+    """内部辅助函数：_load_llm。
+    参数：session / user / override。
+    """
     cfg = await async_effective({"session": session, "user": user})
     cfg["video_support"] = bool(
         await async_get_config({"session": session, "key": "ai.video_support", "default": False})
@@ -74,6 +83,9 @@ async def _load_llm(session, user: User, override: dict | None = None) -> tuple[
 
 
 async def _history_text(session, conversation_id: str, limit: int = 20) -> str:
+    """内部辅助函数：_history_text。
+    参数：session / conversation_id / limit。
+    """
     rows = (
         await session.execute(
             select(AgentMessage)
@@ -90,16 +102,15 @@ async def _history_text(session, conversation_id: str, limit: int = 20) -> str:
     )
 
 
-async def async_stream_chat(
-    user_id: str,
-    conversation_id: str,
-    content: str,
-    attachment_ids: list[str] | None = None,
-    super_depth: int = 0,
-    tools_enabled: bool = True,
-    source: str = "web",
-) -> AsyncGenerator[str, None]:
+async def async_stream_chat(params: dict) -> AsyncGenerator[str, None]:
     """SSE 生成器：自己管理数据库会话，避免依赖释放导致流中断。"""
+    user_id = params["user_id"]
+    conversation_id = params["conversation_id"]
+    content = params.get("content") or ""
+    attachment_ids = params.get("attachment_ids") or []
+    super_depth = int(params.get("super_depth") or 0)
+    tools_enabled = bool(params.get("tools_enabled", True))
+    source = str(params.get("source") or "web")
     from agentscope.message import Base64Source, DataBlock, TextBlock, UserMsg
     from agentscope.event import (
         ModelCallEndEvent,
@@ -164,11 +175,13 @@ async def async_stream_chat(
             }
         )
         await async_save_message(
-            session,
-            conversation_id=conversation_id,
-            role="user",
-            content=content,
-            attachments=json.dumps(meta, ensure_ascii=False),
+            {
+                "session": session,
+                "conversation_id": conversation_id,
+                "role": "user",
+                "content": content,
+                "attachments": json.dumps(meta, ensure_ascii=False),
+            }
         )
         knowledge_text = ""
         try:
@@ -215,7 +228,7 @@ async def async_stream_chat(
                 if super_ctx and super_ctx.get("role") == "main" and super_depth == 0:
                     from app.services.agent.collaboration.super_tools import build_super_group
 
-                    toolkit.tool_groups.extend(build_super_group(user.id, super_ctx))
+                    toolkit.tool_groups.extend(build_super_group({"user_id": user.id, "super_ctx": super_ctx}))
             else:
                 from agentscope.tool import Toolkit
 
@@ -400,15 +413,17 @@ async def async_stream_chat(
     final_text = "".join(text_parts).strip()
     async with AsyncSessionLocal() as session:
         assistant = await async_save_message(
-            session,
-            conversation_id=conversation_id,
-            role="assistant",
-            content=final_text,
-            reasoning="".join(reasoning_parts),
-            tool_events=json.dumps(tool_events, ensure_ascii=False),
-            input_tokens=usage["input_tokens"],
-            output_tokens=usage["output_tokens"],
-            cache_input_tokens=usage["cache_input_tokens"],
+            {
+                "session": session,
+                "conversation_id": conversation_id,
+                "role": "assistant",
+                "content": final_text,
+                "reasoning": "".join(reasoning_parts),
+                "tool_events": json.dumps(tool_events, ensure_ascii=False),
+                "input_tokens": usage["input_tokens"],
+                "output_tokens": usage["output_tokens"],
+                "cache_input_tokens": usage["cache_input_tokens"],
+            }
         )
         if model_usage:
             from app.models import AgentModelCall
@@ -435,24 +450,21 @@ async def async_stream_chat(
     })
 
 
-async def async_run_turn(
-    user_id: str,
-    conversation_id: str,
-    content: str,
-    super_depth: int = 1,
-    tools_enabled: bool = True,
-    source: str = "web",
-) -> dict:
-    """非流式驱动一轮（超级智能体编排用），返回最终文本。"""
+async def async_run_turn(params: dict) -> dict:
+    """非流式驱动一轮（超级智能体、A2A、定时任务用），返回最终文本。
+
+    参数：user_id / conversation_id / content / super_depth / tools_enabled / source
+    """
     final = ""
-    async for frame in async_stream_chat(
-        user_id,
-        conversation_id,
-        content,
-        super_depth=super_depth,
-        tools_enabled=tools_enabled,
-        source=source,
-    ):
+    payload = {
+        "user_id": params["user_id"],
+        "conversation_id": params["conversation_id"],
+        "content": params.get("content") or "",
+        "super_depth": int(params.get("super_depth") or 1),
+        "tools_enabled": bool(params.get("tools_enabled", True)),
+        "source": str(params.get("source") or "web"),
+    }
+    async for frame in async_stream_chat(payload):
         if "event: done" in frame:
             payload = frame.split("data: ", 1)[1]
             final = json.loads(payload).get("content", "")

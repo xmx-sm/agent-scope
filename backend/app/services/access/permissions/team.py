@@ -10,7 +10,10 @@ from app.services.account.user.tree import async_descendants
 
 
 async def async_team_permissions(params: dict) -> list[dict[str, Any]]:
-    """参数：session / viewer"""
+    """查看直属下级权限概览
+
+    参数：session / viewer
+    """
     session: AsyncSession = params["session"]
     viewer: User = params["viewer"]
     users = await async_descendants({"session": session, "user_id": viewer.id})

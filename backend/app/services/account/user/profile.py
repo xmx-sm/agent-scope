@@ -9,7 +9,10 @@ from app.services.account.user.common import clean_optional
 
 
 async def async_update_profile(params: dict) -> dict:
-    """参数：session / user / data"""
+    """更新个人资料
+
+    参数：session / user / data
+    """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     data: dict = params["data"]
@@ -41,7 +44,7 @@ async def async_update_profile(params: dict) -> dict:
         value = data.get(field)
         if value is None:
             continue
-        value = clean_optional(value)
+        value = clean_optional({"value": value})
         if value:
             conflict = (
                 await session.execute(

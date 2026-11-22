@@ -14,7 +14,9 @@ from app.services.agent.knowledge import (
 logger = logging.getLogger("knowledge.worker")
 
 
-async def async_knowledge_worker(stop: asyncio.Event) -> None:
+async def async_knowledge_worker(params: dict) -> None:
+    """知识库解析 worker：自动入队并按配置并发解析。参数：stop。"""
+    stop: asyncio.Event = params["stop"]
     while not stop.is_set():
         interval = 5
         try:
@@ -37,6 +39,7 @@ async def async_knowledge_worker(stop: asyncio.Event) -> None:
                 semaphore = asyncio.Semaphore(config["parse_concurrency"])
 
                 async def run_one(item: dict) -> None:
+                    """执行单个已认领的解析任务。"""
                     async with semaphore:
                         try:
                             async with AsyncSessionLocal() as session:

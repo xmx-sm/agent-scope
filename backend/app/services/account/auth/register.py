@@ -14,7 +14,10 @@ from app.services.account.user.common import async_assert_unique, clean_optional
 
 
 async def async_register(params: dict) -> dict:
-    """参数：session / data / ip"""
+    """注册用户
+
+    参数：session / data / ip
+    """
     session: AsyncSession = params["session"]
     data: dict = params["data"]
     ip: str = params["ip"]
@@ -35,9 +38,9 @@ async def async_register(params: dict) -> dict:
         raise ApiError("当前未开放注册，请联系管理员")
 
     username = data["username"].strip()
-    nickname = clean_optional(data.get("nickname")) or username
-    email = clean_optional(data.get("email"))
-    phone = clean_optional(data.get("phone"))
+    nickname = clean_optional({"value": data.get("nickname")}) or username
+    email = clean_optional({"value": data.get("email")})
+    phone = clean_optional({"value": data.get("phone")})
     password = data["password"]
 
     min_length = int(

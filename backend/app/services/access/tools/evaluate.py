@@ -10,14 +10,20 @@ from app.models import User, UserToolMode, UserToolPermission
 
 
 async def async_get_mode(params: dict) -> str:
-    """参数：session / user_id"""
+    """读取用户工具权限模式
+
+    参数：session / user_id
+    """
     session: AsyncSession = params["session"]
     row = await session.get(UserToolMode, params["user_id"])
     return (row.mode if row else "all") or "all"
 
 
 async def async_tool_view(params: dict) -> dict[str, Any]:
-    """参数：session / user，返回完整工具目录与该用户生效状态。"""
+    """构建用户工具权限视图
+
+    参数：session / user，返回完整工具目录与该用户生效状态。
+    """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     mode = await async_get_mode({"session": session, "user_id": user.id})

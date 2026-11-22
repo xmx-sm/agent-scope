@@ -49,7 +49,7 @@ async def check_db_access(
     body: DbAccessCheckIn, _: SuperAdmin, db: AsyncSession = Depends(get_db)
 ):
     policy = await db_policy_service.async_get_db_policy({"session": db})
-    allowed = db_policy_service.is_table_allowed(policy, body.database, body.table)
+    allowed = db_policy_service.is_table_allowed({"policy": policy, "db_name": body.database, "table": body.table})
     return ok({"database": body.database, "table": body.table, "allowed": allowed})
 
 

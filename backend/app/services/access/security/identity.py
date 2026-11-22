@@ -3,8 +3,9 @@
 from typing import Any
 
 
-def drop_reserved(params: Any) -> dict:
-    out = dict(params or {})
+def drop_reserved(params: dict) -> dict:
+    """丢弃模型传入的身份与内部保留键。参数：params。"""
+    out = dict(params.get("params") or {})
     for key in [
         item
         for item in out
@@ -14,7 +15,8 @@ def drop_reserved(params: Any) -> dict:
     return out
 
 
-def merge_identity(identity: dict, params: Any) -> dict:
-    merged = drop_reserved(params)
-    merged.update(identity or {})
+def merge_identity(params: dict) -> dict:
+    """合并服务端身份与模型参数，身份优先。参数：identity / params。"""
+    merged = drop_reserved({"params": params.get("params") or {}})
+    merged.update(params.get("identity") or {})
     return merged

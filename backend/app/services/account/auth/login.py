@@ -12,7 +12,10 @@ from app.utils.rate_limiter import rate_limiter
 
 
 async def async_login(params: dict) -> dict:
-    """参数：session / account / password / ip"""
+    """账号登录
+
+    参数：session / account / password / ip
+    """
     session: AsyncSession = params["session"]
     account: str = params["account"]
     password: str = params["password"]

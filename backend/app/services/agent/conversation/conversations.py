@@ -10,6 +10,9 @@ from app.models import AgentConversation, AgentMessage
 
 
 def _load_json(raw: str | None) -> list:
+    """内部辅助函数：_load_json。
+    参数：raw。
+    """
     try:
         data = json.loads(raw or "[]")
         return data if isinstance(data, list) else []
@@ -18,6 +21,10 @@ def _load_json(raw: str | None) -> list:
 
 
 async def async_list_conversations(params: dict) -> list[dict]:
+    """列出当前用户的会话。
+
+        参数：session / user_id。
+        """
     session: AsyncSession = params["session"]
     user_id: str = params["user_id"]
     rows = (
@@ -43,6 +50,10 @@ async def async_list_conversations(params: dict) -> list[dict]:
 
 
 async def async_create_conversation(params: dict) -> dict:
+    """创建会话。
+
+        参数：title / origin / super_agent_id / super_agent_member_id / parent_conversation_id / session / user_id。
+        """
     session: AsyncSession = params["session"]
     row = AgentConversation(
         user_id=params["user_id"],
@@ -64,6 +75,10 @@ async def async_create_conversation(params: dict) -> dict:
 
 
 async def async_get_owned(params: dict) -> AgentConversation:
+    """读取当前用户拥有的会话。
+
+        参数：session / conversation_id / user_id。
+        """
     session: AsyncSession = params["session"]
     row = await session.get(AgentConversation, params["conversation_id"])
     if row is None or row.user_id != params["user_id"]:
@@ -72,6 +87,10 @@ async def async_get_owned(params: dict) -> AgentConversation:
 
 
 async def async_delete_conversation(params: dict) -> None:
+    """删除会话及其消息。
+
+        参数：session。
+        """
     session: AsyncSession = params["session"]
     conv = await async_get_owned(params)
     await session.execute(
@@ -82,6 +101,10 @@ async def async_delete_conversation(params: dict) -> None:
 
 
 async def async_list_messages(params: dict) -> list[dict]:
+    """列出会话消息。
+
+        参数：session。
+        """
     session: AsyncSession = params["session"]
     conv = await async_get_owned(params)
     rows = (
@@ -105,40 +128,45 @@ async def async_list_messages(params: dict) -> list[dict]:
     ]
 
 
-async def async_save_message(
-    session: AsyncSession,
-    *,
-    conversation_id: str,
-    role: str,
-    content: str,
-    reasoning: str = "",
-    tool_events: str = "[]",
-    attachments: str = "[]",
-    input_tokens: int = 0,
-    output_tokens: int = 0,
-    cache_input_tokens: int = 0,
-) -> AgentMessage:
+async def async_save_message(params: dict) -> AgentMessage:
+    """保存一条会话消息，并在首条用户消息时自动命名会话。
+
+    参数：
+    - session：数据库会话
+    - conversation_id：会话 ID
+    - role：user / assistant / system / tool
+    - content：消息正文
+    - reasoning：思考过程
+    - tool_events：工具调用事件 JSON 字符串
+    - attachments：附件元数据 JSON 字符串
+    - input_tokens / output_tokens / cache_input_tokens：模型用量
+    """
+    session: AsyncSession = params["session"]
     row = AgentMessage(
-        conversation_id=conversation_id,
-        role=role,
-        content=content,
-        reasoning=reasoning,
-        tool_events=tool_events,
-        attachments=attachments,
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        cache_input_tokens=cache_input_tokens,
+        conversation_id=params["conversation_id"],
+        role=params["role"],
+        content=params.get("content") or "",
+        reasoning=params.get("reasoning") or "",
+        tool_events=params.get("tool_events") or "[]",
+        attachments=params.get("attachments") or "[]",
+        input_tokens=int(params.get("input_tokens") or 0),
+        output_tokens=int(params.get("output_tokens") or 0),
+        cache_input_tokens=int(params.get("cache_input_tokens") or 0),
     )
     session.add(row)
-    conv = await session.get(AgentConversation, conversation_id)
-    if conv is not None and conv.title == "新会话" and role == "user":
-        conv.title = (content or "新会话")[:30]
+    conv = await session.get(AgentConversation, params["conversation_id"])
+    if conv is not None and conv.title == "新会话" and params["role"] == "user":
+        conv.title = (params.get("content") or "新会话")[:30]
     await session.commit()
     await session.refresh(row)
     return row
 
 
 async def async_rename_conversation(params: dict) -> dict:
+    """重命名会话。
+
+        参数：title / session。
+        """
     session: AsyncSession = params["session"]
     conv = await async_get_owned(params)
     title = str(params.get("title") or "").strip()
@@ -150,6 +178,10 @@ async def async_rename_conversation(params: dict) -> dict:
 
 
 async def async_usage_stats(params: dict) -> dict:
+    """统计当前用户会话与 token 用量。
+
+        参数：session / user_id。
+        """
     from sqlalchemy import func
 
     session: AsyncSession = params["session"]

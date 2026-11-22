@@ -21,6 +21,9 @@ LLM_FIELDS = (
 
 
 def _load(raw: str | None) -> dict:
+    """内部辅助函数：_load。
+    参数：raw。
+    """
     try:
         data = json.loads(raw or "{}")
         return data if isinstance(data, dict) else {}
@@ -29,6 +32,9 @@ def _load(raw: str | None) -> dict:
 
 
 def _member_dict(row: SuperAgentMember) -> dict:
+    """内部辅助函数：_member_dict。
+    参数：row。
+    """
     llm = _load(row.llm_config)
     if llm.get("api_key"):
         llm["api_key"] = mask_secret(llm["api_key"])
@@ -45,6 +51,9 @@ def _member_dict(row: SuperAgentMember) -> dict:
 
 
 async def _cfg_dict(session: AsyncSession, cfg: SuperAgentConfig) -> dict:
+    """内部辅助函数：_cfg_dict。
+    参数：session / cfg。
+    """
     rows = (
         await session.execute(
             select(SuperAgentMember)
@@ -66,6 +75,10 @@ async def _cfg_dict(session: AsyncSession, cfg: SuperAgentConfig) -> dict:
 
 
 async def async_list(params: dict) -> list[dict]:
+    """列出当前用户的超级智能体。
+
+        参数：session / user_id。
+        """
     session: AsyncSession = params["session"]
     rows = (
         await session.execute(
@@ -78,6 +91,10 @@ async def async_list(params: dict) -> list[dict]:
 
 
 async def async_get(params: dict) -> dict | None:
+    """获取单个超级智能体配置。
+
+        参数：super_agent_id / session / user_id。
+        """
     session: AsyncSession = params["session"]
     cfg = await _get_cfg(session, params["user_id"], params.get("super_agent_id"))
     return await _cfg_dict(session, cfg) if cfg else None
@@ -86,6 +103,9 @@ async def async_get(params: dict) -> dict | None:
 async def _get_cfg(
     session: AsyncSession, user_id: str, super_agent_id: str | None = None
 ) -> SuperAgentConfig | None:
+    """内部辅助函数：_get_cfg。
+    参数：session / user_id / super_agent_id。
+    """
     stmt = select(SuperAgentConfig).where(SuperAgentConfig.user_id == user_id)
     if super_agent_id:
         stmt = stmt.where(SuperAgentConfig.id == super_agent_id)
@@ -95,6 +115,9 @@ async def _get_cfg(
 
 
 async def _members(session: AsyncSession, agent_id: str) -> list[SuperAgentMember]:
+    """内部辅助函数：_members。
+    参数：session / agent_id。
+    """
     return list(
         (
             await session.execute(
@@ -107,6 +130,10 @@ async def _members(session: AsyncSession, agent_id: str) -> list[SuperAgentMembe
 
 
 async def async_save(params: dict) -> dict:
+    """整体保存超级智能体主/子成员。
+
+        参数：session / user_id / data。
+        """
     session: AsyncSession = params["session"]
     user_id = params["user_id"]
     data: dict = params["data"]
@@ -210,6 +237,10 @@ async def async_save(params: dict) -> dict:
 
 
 async def async_delete(params: dict) -> None:
+    """删除超级智能体配置。
+
+        参数：super_agent_id / session / user_id。
+        """
     session: AsyncSession = params["session"]
     cfg = await _get_cfg(session, params["user_id"], params.get("super_agent_id"))
     if cfg is None:
@@ -222,6 +253,10 @@ async def async_delete(params: dict) -> None:
 
 
 async def async_enabled(params: dict) -> dict | None:
+    """返回已启用且可用的超级智能体。
+
+        参数：super_agent_id / session / user_id。
+        """
     session: AsyncSession = params["session"]
     cfg = await _get_cfg(session, params["user_id"], params.get("super_agent_id"))
     if cfg is None or not cfg.enabled:
@@ -281,6 +316,10 @@ async def async_resolve_member(params: dict) -> dict | None:
 
 
 async def async_create_conversation(params: dict) -> dict:
+    """创建超级智能体成员会话。
+
+        参数：super_agent_id / member_id / role / title / parent_conversation_id / session / user_id。
+        """
     session: AsyncSession = params["session"]
     user_id = params["user_id"]
     cfg = await _get_cfg(session, user_id, params.get("super_agent_id"))

@@ -13,6 +13,8 @@
 | `app/core/deps.py` | 鉴权依赖、统一响应、ApiError |
 | `app/core/permissions.py` | 权限点单一真相源 |
 | `app/core/seed.py` | 种子账号、配置、角色权限、菜单布局迁移 |
+
+> 全部服务函数的入参与功能说明见 [服务函数索引.md](./服务函数索引.md)。
 | `app/core/tools.py` | AI 工具目录 |
 | `app/utils/mask.py` | 密钥脱敏与 `******` 回写哨兵 |
 | `app/utils/redis_util.py` | Redis 探活与客户端 |

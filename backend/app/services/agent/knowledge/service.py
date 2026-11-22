@@ -30,11 +30,18 @@ _NAME_RE = re.compile(r"^[A-Za-z0-9_\-一-龥]{1,64}$")
 
 
 def _library_dir(user_id: str, name: str) -> Path:
+    """内部辅助函数：_library_dir。
+    参数：user_id / name。
+    """
     return LIBRARY_ROOT / f"user_{user_id}" / "libraries" / name
 
 
 async def _system_embedding(session: AsyncSession) -> dict:
+    """内部辅助函数：_system_embedding。
+    参数：session。
+    """
     async def get(key: str, default=""):
+        """读取系统配置。"""
         return await async_get_config({"session": session, "key": key, "default": default})
 
     provider = str(await get("ai.embedding.provider", "") or "")
@@ -54,6 +61,9 @@ async def _system_embedding(session: AsyncSession) -> dict:
 
 
 def _rag_config(library: VectorLibrary) -> dict:
+    """内部辅助函数：_rag_config。
+    参数：library。
+    """
     root = _library_dir(library.user_id, library.name)
     root.mkdir(parents=True, exist_ok=True)
     try:
@@ -77,6 +87,9 @@ def _rag_config(library: VectorLibrary) -> dict:
 
 
 async def _embedding(session: AsyncSession, library: VectorLibrary) -> dict:
+    """内部辅助函数：_embedding。
+    参数：session / library。
+    """
     try:
         explicit = json.loads(library.embedding or "{}")
     except (ValueError, TypeError):
@@ -87,6 +100,9 @@ async def _embedding(session: AsyncSession, library: VectorLibrary) -> dict:
 
 
 async def _call(payload: dict) -> dict:
+    """内部辅助函数：_call。
+    参数：payload。
+    """
     from scope.tools.rag.main_rag import async_rag_tools
 
     result = await async_rag_tools(payload)
@@ -106,6 +122,9 @@ async def _log(
     details: dict | None = None,
     error: str = "",
 ) -> None:
+    """内部辅助函数：_log。
+    参数：session。
+    """
     session.add(
         VectorLog(
             user_id=user_id,
@@ -120,6 +139,9 @@ async def _log(
 
 
 def _public_library(row: VectorLibrary, permission: str = "owner") -> dict:
+    """内部辅助函数：_public_library。
+    参数：row / permission。
+    """
     embedding = json.loads(row.embedding or "{}")
     if embedding.get("api_key"):
         embedding["api_key"] = SENTINEL
@@ -144,6 +166,9 @@ def _public_library(row: VectorLibrary, permission: str = "owner") -> dict:
 async def _accessible(
     session: AsyncSession, user_id: str, library_id: str, write: bool = False
 ) -> tuple[VectorLibrary, str]:
+    """内部辅助函数：_accessible。
+    参数：session / user_id / library_id / write。
+    """
     row = await session.get(VectorLibrary, library_id)
     if row is None:
         raise ApiError("向量库不存在", code=404)
@@ -165,6 +190,9 @@ async def _accessible(
 
 
 async def _accessible_ids(session: AsyncSession, user_id: str) -> list[str]:
+    """内部辅助函数：_accessible_ids。
+    参数：session / user_id。
+    """
     own = (
         await session.execute(
             select(VectorLibrary.id).where(VectorLibrary.user_id == user_id)
@@ -181,6 +209,10 @@ async def _accessible_ids(session: AsyncSession, user_id: str) -> list[str]:
 
 
 async def async_libraries(params: dict) -> list[dict]:
+    """列出本人及共享给自己的向量库。
+
+        参数：session / user_id。
+        """
     session: AsyncSession = params["session"]
     user_id = params["user_id"]
     own = (
@@ -234,6 +266,10 @@ async def async_libraries(params: dict) -> list[dict]:
 
 
 async def async_library_create(params: dict) -> dict:
+    """创建向量库。
+
+        参数：session / user_id / data。
+        """
     session: AsyncSession = params["session"]
     user_id = params["user_id"]
     data: dict = params["data"]
@@ -266,6 +302,10 @@ async def async_library_create(params: dict) -> dict:
 
 
 async def async_library_update(params: dict) -> dict:
+    """更新向量库配置。
+
+        参数：session / user_id / library_id / data。
+        """
     session: AsyncSession = params["session"]
     row, permission = await _accessible(
         session, params["user_id"], params["library_id"], write=True
@@ -295,6 +335,10 @@ async def async_library_update(params: dict) -> dict:
 
 
 async def async_library_delete(params: dict) -> None:
+    """删除向量库及文档/切片。
+
+        参数：session / library_id / user_id。
+        """
     session: AsyncSession = params["session"]
     row = await session.get(VectorLibrary, params["library_id"])
     if row is None or row.user_id != params["user_id"]:
@@ -321,6 +365,10 @@ async def async_library_delete(params: dict) -> None:
 
 
 async def async_library_rebuild(params: dict) -> dict:
+    """重建向量库索引。
+
+        参数：session / library_id / user_id。
+        """
     session: AsyncSession = params["session"]
     row = await session.get(VectorLibrary, params["library_id"])
     if row is None or row.user_id != params["user_id"]:
@@ -348,6 +396,10 @@ async def async_library_rebuild(params: dict) -> dict:
 
 
 async def async_library_test(params: dict) -> dict:
+    """测试向量库连通性。
+
+        参数：session / user_id / library_id。
+        """
     session: AsyncSession = params["session"]
     row, _ = await _accessible(session, params["user_id"], params["library_id"])
     result = await _call({"function": "list", "rag_config": _rag_config(row)})
@@ -355,6 +407,10 @@ async def async_library_test(params: dict) -> dict:
 
 
 async def async_share_add(params: dict) -> dict:
+    """共享向量库给指定用户。
+
+        参数：permission / session / library_id / user_id / target_user_id。
+        """
     session: AsyncSession = params["session"]
     library = await session.get(VectorLibrary, params["library_id"])
     if library is None or library.user_id != params["user_id"]:
@@ -390,6 +446,10 @@ async def async_share_add(params: dict) -> dict:
 
 
 async def async_shares(params: dict) -> list[dict]:
+    """列出向量库共享成员。
+
+        参数：session / library_id / user_id。
+        """
     session: AsyncSession = params["session"]
     library = await session.get(VectorLibrary, params["library_id"])
     if library is None or library.user_id != params["user_id"]:
@@ -415,6 +475,10 @@ async def async_shares(params: dict) -> list[dict]:
 
 
 async def async_share_remove(params: dict) -> None:
+    """取消向量库共享。
+
+        参数：session / library_id / user_id / target_user_id。
+        """
     session: AsyncSession = params["session"]
     library = await session.get(VectorLibrary, params["library_id"])
     if library is None or library.user_id != params["user_id"]:
@@ -429,6 +493,10 @@ async def async_share_remove(params: dict) -> None:
 
 
 async def async_share_candidates(params: dict) -> list[dict]:
+    """搜索可共享的用户。
+
+        参数：q / session / user_id。
+        """
     session: AsyncSession = params["session"]
     q = str(params.get("q") or "").strip()
     stmt = select(User).where(User.is_active.is_(True), User.id != params["user_id"])
@@ -445,6 +513,10 @@ async def async_share_candidates(params: dict) -> list[dict]:
 
 
 async def async_upload_document(params: dict) -> dict:
+    """上传文档到向量库。
+
+        参数：filename / session / user_id / library_id / content。
+        """
     session: AsyncSession = params["session"]
     user_id = params["user_id"]
     library, permission = await _accessible(
@@ -481,6 +553,9 @@ async def async_upload_document(params: dict) -> dict:
 
 
 def _public_document(row: VectorDocument) -> dict:
+    """内部辅助函数：_public_document。
+    参数：row。
+    """
     return {
         "id": row.id,
         "library_id": row.library_id,
@@ -496,6 +571,10 @@ def _public_document(row: VectorDocument) -> dict:
 
 
 async def async_documents(params: dict) -> dict:
+    """列出可访问的文档。
+
+        参数：library_id / status / session / user_id。
+        """
     session: AsyncSession = params["session"]
     if params.get("library_id"):
         await _accessible(session, params["user_id"], params["library_id"])
@@ -514,6 +593,9 @@ async def async_documents(params: dict) -> dict:
 
 
 async def _parse_document(session: AsyncSession, doc: VectorDocument) -> VectorDocument:
+    """内部辅助函数：_parse_document。
+    参数：session / doc。
+    """
     library = await session.get(VectorLibrary, doc.library_id)
     if library is None:
         raise ApiError("向量库不存在", code=404)
@@ -598,6 +680,10 @@ async def async_parse_document(params: dict) -> dict:
 
 
 async def async_parse_pending(params: dict) -> dict:
+    """把待解析/失败文档加入解析队列。
+
+        参数：session / user_id / library_id。
+        """
     session: AsyncSession = params["session"]
     library, _ = await _accessible(
         session, params["user_id"], params["library_id"], write=True
@@ -619,6 +705,10 @@ async def async_parse_pending(params: dict) -> dict:
 
 
 async def async_parse_config(params: dict) -> dict:
+    """读取知识库解析并发配置。
+
+        参数：session。
+        """
     session: AsyncSession = params["session"]
     concurrency = int(
         await async_get_config(
@@ -643,6 +733,10 @@ async def async_parse_config(params: dict) -> dict:
 
 
 async def async_set_parse_config(params: dict) -> dict:
+    """保存知识库解析并发配置。
+
+        参数：session / data / operator_id。
+        """
     from app.services.config.service import async_update_config
 
     session: AsyncSession = params["session"]
@@ -703,6 +797,10 @@ async def async_claim_parse_documents(params: dict) -> list[dict]:
 
 
 async def async_run_claimed(params: dict) -> dict | None:
+    """执行一个已认领的文档解析任务。
+
+        参数：session / document_id。
+        """
     session: AsyncSession = params["session"]
     doc = await session.get(VectorDocument, params["document_id"])
     if doc is None:
@@ -714,6 +812,10 @@ async def async_run_claimed(params: dict) -> dict | None:
 
 
 async def async_delete_document(params: dict) -> None:
+    """删除文档、切片与源文件。
+
+        参数：session / document_id / user_id。
+        """
     session: AsyncSession = params["session"]
     doc = await session.get(VectorDocument, params["document_id"])
     if doc is None:
@@ -742,6 +844,10 @@ async def async_delete_document(params: dict) -> None:
 
 
 async def async_chunks(params: dict) -> dict:
+    """读取文档切片。
+
+        参数：session / document_id / user_id。
+        """
     session: AsyncSession = params["session"]
     doc = await session.get(VectorDocument, params["document_id"])
     if doc is None:
@@ -763,6 +869,10 @@ async def async_chunks(params: dict) -> dict:
 
 
 async def async_document_file(params: dict) -> tuple[Path, str]:
+    """返回文档源文件路径与文件名。
+
+        参数：session / document_id / user_id。
+        """
     session: AsyncSession = params["session"]
     doc = await session.get(VectorDocument, params["document_id"])
     if doc is None:
@@ -775,6 +885,10 @@ async def async_document_file(params: dict) -> tuple[Path, str]:
 
 
 async def async_search(params: dict) -> dict:
+    """跨可访问向量库检索。
+
+        参数：library_ids / top_k / score_threshold / session / user_id / query。
+        """
     session: AsyncSession = params["session"]
     user_id = params["user_id"]
     libraries = []
@@ -843,6 +957,10 @@ async def async_search(params: dict) -> dict:
 
 
 async def async_logs(params: dict) -> dict:
+    """列出知识库操作日志。
+
+        参数：library_id / session / user_id。
+        """
     session: AsyncSession = params["session"]
     stmt = select(VectorLog).where(VectorLog.user_id == params["user_id"])
     if params.get("library_id"):

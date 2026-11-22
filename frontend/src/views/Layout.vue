@@ -44,7 +44,7 @@
           </router-link>
         </template>
       </nav>
-      <div v-if="!collapsed" class="sidebar-footer">v0.21.0</div>
+      <div v-if="!collapsed" class="sidebar-footer">v0.22.0</div>
     </el-aside>
 
     <!-- 移动端抽屉 -->

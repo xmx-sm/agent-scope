@@ -216,8 +216,9 @@ CONFIG_DEFINITIONS: list[dict[str, Any]] = [
 CONFIG_BY_KEY = {item["key"]: item for item in CONFIG_DEFINITIONS}
 
 
-def config_domain(key: str) -> str:
-    """配置所属域：agent 专属 vs 系统。"""
+def config_domain(params: dict) -> str:
+    """配置所属域：agent 专属 vs 系统。参数：key。"""
+    key = str(params["key"])
     if key.startswith(("ai.", "agent.", "rag.")):
         return "agent"
     return "system"

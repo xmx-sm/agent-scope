@@ -11,11 +11,17 @@ from app.models import ToolPolicy, User, UserToolMode, UserToolPermission
 
 
 async def _async_get_row(session: AsyncSession) -> ToolPolicy | None:
+    """内部辅助函数：_async_get_row。
+    参数：session。
+    """
     return await session.get(ToolPolicy, 1)
 
 
 async def async_get_policy(params: dict) -> dict[str, Any]:
-    """参数：session"""
+    """读取新用户默认工具策略
+
+    参数：session
+    """
     session: AsyncSession = params["session"]
     row = await _async_get_row(session)
     if row is None:
@@ -28,7 +34,10 @@ async def async_get_policy(params: dict) -> dict[str, Any]:
 
 
 async def async_defaults_view(params: dict) -> dict[str, Any]:
-    """参数：session，返回策略 + 带 granted 标记的工具目录。"""
+    """查看默认工具策略与工具目录
+
+    参数：session，返回策略 + 带 granted 标记的工具目录。
+    """
     session: AsyncSession = params["session"]
     policy = await async_get_policy({"session": session})
     granted = {(item.get("group"), item.get("tool") or "") for item in policy["default_grants"]}
@@ -47,7 +56,10 @@ async def async_defaults_view(params: dict) -> dict[str, Any]:
 
 
 async def async_set_policy(params: dict) -> dict[str, Any]:
-    """参数：session / data"""
+    """保存新用户默认工具策略
+
+    参数：session / data
+    """
     session: AsyncSession = params["session"]
     data: dict = params["data"]
     mode = data.get("new_user_mode") or "all"
@@ -78,7 +90,10 @@ async def async_set_policy(params: dict) -> dict[str, Any]:
 
 
 async def async_apply_new_user(params: dict) -> None:
-    """参数：session / user，按默认策略初始化新用户工具权限。"""
+    """按默认策略初始化新用户工具权限
+
+    参数：session / user，按默认策略初始化新用户工具权限。
+    """
     session: AsyncSession = params["session"]
     user: User = params["user"]
     policy = await async_get_policy({"session": session})
