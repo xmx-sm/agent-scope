@@ -21,7 +21,13 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-from agentscope.agent import Agent
+from agentscope.agent import (
+    Agent,
+    ContextConfig,
+    InjectionConfig,
+    ModelConfig,
+    ReActConfig,
+)
 from agentscope.event import (
     ConfirmResult,
     ExternalExecutionResultEvent,
@@ -30,6 +36,7 @@ from agentscope.event import (
     UserConfirmResultEvent,
 )
 from agentscope.message import Msg, TextBlock, ToolResultBlock, ToolResultState
+from agentscope.permission import PermissionContext
 from agentscope.state import AgentState
 from agentscope.tool import FunctionTool, Toolkit
 
@@ -141,12 +148,24 @@ async def _run_reply_loop(agent: Agent, toolkit: Toolkit, inputs: Any) -> Any:
     return final
 
 
+def _coerce(value: Any, cls: Any, name: str) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, cls):
+        return value
+    if isinstance(value, dict):
+        try:
+            return cls.model_validate(value)
+        except Exception as e:
+            raise ValueError(f"{name} 配置非法：{e}") from e
+    raise ValueError(f"{name} 必须是 {cls.__name__} 或字典，收到 {type(value).__name__}")
+
 async def _build_subagent(spec: dict, data: dict) -> Dict[str, Any]:
-    model = data.get("model")
+    model = data.get("model") or spec.get("model")
     if model is None:
         llm_cfg = data.get("llm") or spec.get("llm") or data.get("default_llm")
         if not isinstance(llm_cfg, dict) or not llm_cfg:
-            return _err(f"子智能体 {spec.get('name')} 缺少模型配置（llm/default_llm）",
+            return _err(f"子智能体 {spec.get('name')} 缺少模型配置（llm/default_llm/model）",
                         "async_run_subagent")
         r = await async_get_llm_model({"llm": llm_cfg})
         if r.get("code") != 200:
@@ -155,18 +174,54 @@ async def _build_subagent(spec: dict, data: dict) -> Dict[str, Any]:
 
     toolkit = spec.get("toolkit") or data.get("toolkit")
     if toolkit is None:
-        toolkit = Toolkit(tools=normalize_tools(spec.get("tools") or []))
+        try:
+            toolkit = Toolkit(tools=normalize_tools(
+                spec.get("tools") or [], spec.get("tool_defaults") or {}))
+        except (TypeError, ValueError) as e:
+            return _err(str(e), "async_run_subagent")
 
-    agent = Agent(
-        name=spec.get("name"),
-        system_prompt=spec.get("system_prompt"),
-        model=model,
-        toolkit=toolkit,
-        state=AgentState(),
-        react_config=data.get("react_config"),
-        context_config=data.get("context_config"),
-    )
-    return _ok({"agent": agent, "toolkit": toolkit})
+    try:
+        middlewares = spec.get("middlewares") or data.get("middlewares") or []
+        if not isinstance(middlewares, list):
+            raise ValueError("middlewares 必须是列表")
+
+        context_config = _coerce(
+            data.get("context_config") or spec.get("context_config"),
+            ContextConfig, "context_config")
+        react_config = _coerce(
+            data.get("react_config") or spec.get("react_config"),
+            ReActConfig, "react_config")
+        model_config = _coerce(
+            data.get("model_config") or spec.get("model_config"),
+            ModelConfig, "model_config")
+        injection_config = _coerce(
+            data.get("injection_config") or spec.get("injection_config"),
+            InjectionConfig, "injection_config")
+        permission_context = _coerce(
+            spec.get("permission_context") or data.get("permission_context"),
+            PermissionContext, "permission_context")
+
+        state_cfg = spec.get("state") or data.get("state")
+        if state_cfg is None:
+            state = AgentState(permission_context=permission_context or PermissionContext())
+        else:
+            state = _coerce(state_cfg, AgentState, "state")
+
+        agent = Agent(
+            name=spec.get("name"),
+            system_prompt=spec.get("system_prompt"),
+            model=model,
+            toolkit=toolkit,
+            middlewares=middlewares or None,
+            state=state,
+            model_config=model_config,
+            react_config=react_config,
+            context_config=context_config,
+            injection_config=injection_config,
+        )
+        return _ok({"agent": agent, "toolkit": toolkit})
+    except (TypeError, ValueError) as e:
+        return _err(str(e), "async_run_subagent")
 
 
 async def async_run_subagent(data: dict = None) -> Dict[str, Any]:

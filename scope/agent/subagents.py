@@ -8,9 +8,15 @@ spec 全部由调用方传入（不内置模板）：
         "description": "负责检索资料",
         "system_prompt": "你是研究员...",
         "tools": ["async_rag_tools", "async_req_tools"],  # or 函数/ToolBase
+        "tool_defaults": {"async_rag_tools": {"top_k": 5}},  # 可选
         "llm": {...},          # 可选，独立模型
+        "model": model_obj,    # 可选，直接复用模型对象
         "mode": "blackbox",    # blackbox / transparent / auto
         "background": false,   # 可选
+        "middlewares": [...],  # 可选
+        "react_config": {...}, # 可选
+        "context_config": {...}, # 可选
+        "permission_context": {...}, # 可选
     }
 
 本文件只做校验和解析，不创建 Agent；实际执行在 ``delegate.py``。
@@ -18,10 +24,13 @@ spec 全部由调用方传入（不内置模板）：
 
 from __future__ import annotations
 
+import copy
+import functools
 import importlib
+import inspect
 import os
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from agentscope.tool import FunctionTool, ToolBase
 
@@ -149,6 +158,14 @@ async def async_get_subagents(data: dict = None) -> Dict[str, Any]:
                 return _err(f"子智能体 {name} 的 llm 必须是字典", fn)
             if spec.get("toolkit") is not None and not hasattr(spec["toolkit"], "add_tool"):
                 return _err(f"子智能体 {name} 的 toolkit 无效", fn)
+            if spec.get("tool_defaults") is not None:
+                if not isinstance(spec["tool_defaults"], dict):
+                    return _err(f"子智能体 {name} 的 tool_defaults 必须是字典", fn)
+                for tname, targs in spec["tool_defaults"].items():
+                    if not isinstance(targs, dict):
+                        return _err(f"子智能体 {name} 的 tool_defaults.{tname} 必须是字典", fn)
+            if spec.get("middlewares") is not None and not isinstance(spec["middlewares"], list):
+                return _err(f"子智能体 {name} 的 middlewares 必须是列表", fn)
             result.append(spec)
         return _ok(result, f"共创建 {len(result)} 个子智能体")
     except ValueError as e:
@@ -157,16 +174,62 @@ async def async_get_subagents(data: dict = None) -> Dict[str, Any]:
         return _err(f"子智能体解析失败：{type(e).__name__}: {e}", fn)
 
 
-def normalize_tools(tools: List[Any]) -> List[Any]:
-    """函数统一包成 FunctionTool，ToolBase 原样保留。"""
+def normalize_tools(tools: List[Any], defaults: Optional[Dict[str, dict]] = None) -> List[Any]:
+    """函数统一包成 FunctionTool，ToolBase 原样保留。
+
+    ``defaults`` 按工具名给默认参数：
+    - 单参 ``data`` 的工具：默认值合并进 ``data`` 字典
+    - 其它函数：作为顶层 kwargs 默认值
+    - ToolBase 不支持注入默认参数（明确报错，避免静默失效）
+    """
+    defaults = defaults or {}
     out = []
     for t in tools or []:
         if isinstance(t, ToolBase):
+            name = getattr(t, "name", "")
+            if name in defaults:
+                raise ValueError(f"工具 {name} 是 ToolBase，不支持 tool_defaults")
             out.append(t)
-        elif callable(t):
-            out.append(FunctionTool(t))
-        else:
+            continue
+        if not callable(t):
             raise ValueError(f"无效工具: {type(t).__name__}")
+        name = getattr(t, "__name__", "")
+        tool_defaults = defaults.get(name)
+        if tool_defaults is None:
+            out.append(FunctionTool(t))
+            continue
+        if not isinstance(tool_defaults, dict):
+            raise ValueError(f"tool_defaults.{name} 必须是字典")
+
+        sig = inspect.signature(t)
+        params = list(sig.parameters)
+
+        @functools.wraps(t)
+        async def _wrapped(*args, _func=t, _defaults=tool_defaults,
+                           _params=params, **kwargs):
+            kw = dict(kwargs)
+            if _params == ["data"]:
+                base = copy.deepcopy(_defaults)
+                incoming = kw.get("data")
+                if isinstance(incoming, dict):
+                    base.update(incoming)
+                    kw["data"] = base
+                elif incoming is None:
+                    kw["data"] = base
+                else:
+                    # 坏类型交给原函数自己的校验
+                    kw["data"] = incoming
+            else:
+                merged = copy.deepcopy(_defaults)
+                merged.update(kw)
+                kw = merged
+            res = _func(*args, **kw)
+            if inspect.isawaitable(res):
+                res = await res
+            return res
+
+        _wrapped.__signature__ = sig
+        out.append(FunctionTool(_wrapped, name=name or None))
     return out
 
 
