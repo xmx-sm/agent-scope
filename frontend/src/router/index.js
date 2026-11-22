@@ -45,12 +45,7 @@ const routes = [
         component: () => import('../views/MenuPersonalize.vue'),
         meta: { title: '菜单个性化', permission: 'dashboard' }
       },
-      {
-        path: 'admin',
-        name: 'AdminHome',
-        component: () => import('../views/AdminHome.vue'),
-        meta: { title: '管理后台', permission: 'admin.users', superAdminOnly: true }
-      },
+      { path: 'admin', redirect: '/admin/users' },
       {
         path: 'admin/users',
         name: 'UserManage',
@@ -65,13 +60,25 @@ const routes = [
       },
       {
         path: 'admin/settings',
-        name: 'AdminSettings',
-        component: () => import('../views/admin/Settings.vue'),
-        meta: {
-          title: '默认设置',
-          permission: 'admin.settings',
-          superAdminOnly: true
-        }
+        redirect: '/admin/config/system'
+      },
+      {
+        path: 'admin/config/system',
+        name: 'ConfigurationSystem',
+        component: () => import('../views/admin/ConfigurationSystem.vue'),
+        meta: { title: '系统设置', permission: 'admin.settings', superAdminOnly: true }
+      },
+      {
+        path: 'admin/config/roles',
+        name: 'ConfigurationRoles',
+        component: () => import('../views/admin/ConfigurationRoles.vue'),
+        meta: { title: '角色权限', permission: 'admin.permissions', superAdminOnly: true }
+      },
+      {
+        path: 'admin/config/menus',
+        name: 'ConfigurationMenus',
+        component: () => import('../views/admin/ConfigurationMenus.vue'),
+        meta: { title: '菜单配置', permission: 'admin.menus', superAdminOnly: true }
       }
     ]
   },

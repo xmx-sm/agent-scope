@@ -54,7 +54,10 @@ Login.vue → auth.login()
 | `/system/status` | `views/SystemStatus.vue` | 408 | `system.status` | CPU/GPU/磁盘/Redis 等 |
 | `/profile` | `views/Profile.vue` | 166 | `profile` | 资料、头像、改密 |
 | `/admin/users` | `views/admin/UserManage.vue` | 632 | `admin.users` + 超管 | 用户 CRUD、权限弹窗 |
-| `/admin/settings` | `views/admin/Settings.vue` | 301 | `admin.settings` + 超管 | 默认设置、角色权限矩阵 |
+| `/admin/config/system` | `views/admin/ConfigurationSystem.vue` | 200 | `admin.settings` + 超管 | 系统设置 |
+| `/admin/config/roles` | `views/admin/ConfigurationRoles.vue` | 130 | `admin.permissions` + 超管 | 角色权限 |
+| `/admin/config/menus` | `views/admin/ConfigurationMenus.vue` | 14 | `admin.menus` + 超管 | 菜单配置 |
+| `/admin/agent` | `views/admin/AgentConfig.vue` | 340 | `ai.config` + 超管 | Agent 配置 |
 | `/` | `views/Layout.vue` | 359 | 登录 | 侧栏、抽屉、顶栏、用户菜单 |
 
 ### 路由守卫顺序
@@ -160,7 +163,7 @@ Vite 会按路由做动态 import，页面级 chunk 分离；Element Plus 主包
 
 ---
 
-## 七、v0.3.0 新增
+## 七、v0.3.0 新增（历史，部分文件已被 v0.4.1 拆分）
 
 | 文件 | 行数 | 职责 |
 |---|---:|---|
@@ -183,7 +186,7 @@ Settings → MenuConfig → /admin/menus CRUD + reorder + /admin/permissions
 
 ---
 
-## 八、v0.3.2 新增
+## 八、v0.3.2 新增（历史，AdminHome 已在 v0.4.1 移除）
 
 | 文件 | 行数 | 职责 |
 |---|---:|---|
@@ -225,3 +228,19 @@ AgentConfig → GET /admin/configs?domain=agent
             → POST /admin/agent/models
             → PUT /admin/configs/{key}
 ```
+
+---
+
+## 十、v0.4.1 配置页拆分
+
+| 文件 | 行数 | 路由 | 职责 |
+|---|---:|---|---|
+| `src/views/admin/ConfigurationSystem.vue` | 200 | `/admin/config/system` | 系统域配置折叠列表 |
+| `src/views/admin/ConfigurationRoles.vue` | 130 | `/admin/config/roles` | 角色权限矩阵 |
+| `src/views/admin/ConfigurationMenus.vue` | 14 | `/admin/config/menus` | 菜单配置容器 |
+| `src/views/admin/AgentConfig.vue` | 340 | `/admin/agent` | Agent 模型配置 |
+
+已删除：
+
+- `src/views/admin/Settings.vue`（左右 Tab）
+- `src/views/AdminHome.vue`（聚合入口）

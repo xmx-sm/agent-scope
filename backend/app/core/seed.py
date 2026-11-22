@@ -47,11 +47,27 @@ SEED_MENUS: list[dict[str, Any]] = [
     {"key": "menu.team", "parent_key": None, "title": "管理下级",
      "path": "/team/permissions", "icon": "UserFilled", "permission": "permissions.team",
      "super_only": False, "leader_only": True, "sort_order": 30},
-    {"key": "menu.status", "parent_key": None, "title": "运行信息",
+    {"key": "group.system", "parent_key": None, "title": "系统", "path": "",
+     "icon": "Monitor", "permission": None, "super_only": False, "sort_order": 40},
+    {"key": "menu.users", "parent_key": "group.system", "title": "用户管理",
+     "path": "/admin/users", "icon": "UserFilled", "permission": "admin.users",
+     "super_only": True, "sort_order": 10},
+    {"key": "menu.status", "parent_key": "group.system", "title": "运行信息",
      "path": "/system/status", "icon": "Monitor", "permission": "system.status",
-     "super_only": False, "sort_order": 35},
-    {"key": "menu.admin", "parent_key": None, "title": "管理后台",
-     "path": "/admin", "icon": "Setting", "permission": "admin.users",
+     "super_only": False, "sort_order": 20},
+    {"key": "group.config", "parent_key": None, "title": "默认配置", "path": "",
+     "icon": "Setting", "permission": None, "super_only": False, "sort_order": 50},
+    {"key": "menu.config.system", "parent_key": "group.config", "title": "系统设置",
+     "path": "/admin/config/system", "icon": "Setting", "permission": "admin.settings",
+     "super_only": True, "sort_order": 10},
+    {"key": "menu.config.roles", "parent_key": "group.config", "title": "角色权限",
+     "path": "/admin/config/roles", "icon": "Lock", "permission": "admin.permissions",
+     "super_only": True, "sort_order": 20},
+    {"key": "menu.config.menus", "parent_key": "group.config", "title": "菜单配置",
+     "path": "/admin/config/menus", "icon": "Menu", "permission": "admin.menus",
+     "super_only": True, "sort_order": 30},
+    {"key": "menu.agent", "parent_key": "group.config", "title": "Agent 配置",
+     "path": "/admin/agent", "icon": "Cpu", "permission": "ai.config",
      "super_only": True, "sort_order": 40},
 ]
 
@@ -108,11 +124,11 @@ async def async_seed(params: dict) -> None:
         created_configs += 1
 
     created_menus = 0
-    layout_marker = await session.get(SystemConfig, "__meta.menu_layout_v3")
+    layout_marker = await session.get(SystemConfig, "__meta.menu_layout_v4")
     if layout_marker is None:
         legacy_keys = [
-            "group.permissions", "group.system", "menu.users", "menu.settings",
-            "menu.team_permissions",
+            "group.permissions", "menu.settings", "menu.team_permissions", "menu.admin",
+            "menu.config",
         ]
         for key in legacy_keys:
             row = (
@@ -131,8 +147,8 @@ async def async_seed(params: dict) -> None:
                         setattr(row, field, value)
         session.add(
             SystemConfig(
-                key="__meta.menu_layout_v3",
-                value='"3"',
+                key="__meta.menu_layout_v4",
+                value='"4"',
                 label="内部：菜单布局版本",
                 description="内部迁移标记，不在默认设置中展示",
                 value_type="string",
