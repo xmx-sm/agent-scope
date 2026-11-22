@@ -5,7 +5,7 @@
 目标是把「模型、Agent 运行循环、工具、权限审批、记忆、RAG、存储」收敛成一套可复用的框架层，
 业务侧只负责配置和编排，而不是每个项目重写一遍 Agent 底座。
 
-当前进度：**工具层、配置中心、模型/媒体/RAG/Agent/权限框架层已实现；下一步服务化入口、存储与中间件。**
+当前进度：**工具层、配置中心、模型/媒体/RAG/Agent/权限/中间件框架层已实现；下一步服务化入口与存储。**
 
 - AgentScope：`2.0.12`
 - Python：`3.14.8`
@@ -26,6 +26,7 @@
 | RAG 层 | `scope/rag/`：文档解析/切片/embedding、SQLite 向量库、注册表、KnowledgeBase/RAGMiddleware；`tools/rag/` 工具入口 | 8 文件 |
 | 子智能体 | `scope/agent/`：主 Agent builder/runtime、上下文管理、子智能体、委派、审批、取消、Plan、Pipeline、SOP | 9 文件 |
 | 权限层 | `scope/permission/`：官方 `PermissionContext` 字典构建；`sqlite/audit/pending/function_rules` 字典开关；SQLite 规则/审计/pending；函数级工具适配 | 5 文件 |
+| 中间件层 | `scope/middleware/`：Tracing / Budget / TTS / ModelRouter / RAG / Memory / Steering / 自定义中间件字典工厂 | 2 文件 |
 | Skills | `scope/skills/`：用户自定义目录加载（`LocalSkillLoader`） | 2 文件 |
 
 工具域能力：
@@ -66,8 +67,8 @@
 ```
 scope/
 ├── agent/          # 主 Agent builder/runtime + 上下文管理 + 子智能体已实现；Toolkit 装配待完善
-├── middleware/     # 空：记忆、预算、Tracing、ModelRouter
-├── permission/     # 已实现：PermissionContext 字典构建、模式切换、建议规则
+├── middleware/     # 已实现：Tracing / Budget / TTS / ModelRouter / RAG / Memory / Steering
+├── permission/     # 已实现：PermissionContext、SQLite 规则/审计/pending、函数级规则
 ├── skills/         # 已实现：用户自定义 Skills 目录加载
 ├── storage/        # 空：会话 / 消息 / 工作区
 └── main.py         # 0 字节：装配入口 / 服务入口
@@ -111,6 +112,9 @@ agent_scope/
     │   ├── bundle.py            # 统一权限字典与开关
     │   ├── tool.py              # 按 data["function"] 细分的 FunctionTool
     │   ├── store.py             # SQLite 规则 / 审计 / pending
+    │   └── __init__.py
+    ├── middleware/              # 官方 Agent 中间件
+    │   ├── factory.py           # 字典 → Tracing/Budget/TTS/ModelRouter/RAG/Memory
     │   └── __init__.py
     ├── llm/                     # 模型工厂（Chat / Embedding / TTS / ASR）
     │   ├── agent_model.py       # 对外入口

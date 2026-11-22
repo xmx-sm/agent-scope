@@ -53,6 +53,11 @@ except ImportError:
     from permission.bundle import async_build_permission_bundle
 
 try:
+    from ..middleware import async_get_middlewares
+except ImportError:
+    from middleware import async_get_middlewares
+
+try:
     from config import get as _cfg_get
 except ImportError:
     from scope.config import get as _cfg_get
@@ -274,9 +279,17 @@ async def async_get_agent(data: dict = None) -> Dict[str, Any]:
             except ValueError as e:
                 return _err(str(e), fn)
 
-        middlewares = agent_cfg.get("middlewares") or data.get("middlewares") or []
-        if not isinstance(middlewares, list):
-            return _err("middlewares 必须是列表", fn)
+        raw_middlewares = agent_cfg.get("middlewares")
+        if raw_middlewares is None:
+            raw_middlewares = agent_cfg.get("middleware")
+        if raw_middlewares is None:
+            raw_middlewares = data.get("middlewares")
+        if raw_middlewares is None:
+            raw_middlewares = data.get("middleware")
+        middlewares_r = await async_get_middlewares(raw_middlewares)
+        if middlewares_r.get("code") != 200:
+            return middlewares_r
+        middlewares = middlewares_r["data"]
 
         agent = Agent(
             name=str(agent_cfg.get("name") or "assistant"),

@@ -49,6 +49,11 @@ try:
 except ImportError:
     from permission.bundle import async_build_permission_bundle
 
+try:
+    from ..middleware import async_get_middlewares
+except ImportError:
+    from middleware import async_get_middlewares
+
 from .subagents import async_get_subagents, build_subagent_toolkit
 
 _WHERE_FILE = os.path.abspath(__file__)
@@ -225,9 +230,17 @@ async def _build_subagent(spec: dict, data: dict) -> Dict[str, Any]:
         return _err(str(e), "async_run_subagent")
 
     try:
-        middlewares = spec.get("middlewares") or data.get("middlewares") or []
-        if not isinstance(middlewares, list):
-            raise ValueError("middlewares 必须是列表")
+        raw_middlewares = spec.get("middlewares")
+        if raw_middlewares is None:
+            raw_middlewares = spec.get("middleware")
+        if raw_middlewares is None:
+            raw_middlewares = data.get("middlewares")
+        if raw_middlewares is None:
+            raw_middlewares = data.get("middleware")
+        middlewares_r = await async_get_middlewares(raw_middlewares)
+        if middlewares_r.get("code") != 200:
+            raise ValueError(middlewares_r.get("message") or "中间件构建失败")
+        middlewares = middlewares_r["data"]
 
         context_config = _coerce(
             data.get("context_config") or spec.get("context_config"),
