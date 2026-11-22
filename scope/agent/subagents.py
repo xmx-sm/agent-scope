@@ -32,7 +32,7 @@ import os
 import sys
 from typing import Any, Dict, List, Optional
 
-from agentscope.tool import FunctionTool, ToolBase
+from agentscope.tool import FunctionTool, ToolBase, ToolGroup, Toolkit
 
 _WHERE_FILE = os.path.abspath(__file__)
 # 兼容 scope.agent 包导入：工具域使用顶层 ``from config import ...``，
@@ -164,6 +164,15 @@ async def async_get_subagents(data: dict = None) -> Dict[str, Any]:
                 for tname, targs in spec["tool_defaults"].items():
                     if not isinstance(targs, dict):
                         return _err(f"子智能体 {name} 的 tool_defaults.{tname} 必须是字典", fn)
+            if spec.get("tool_groups") is not None and not isinstance(
+                    spec["tool_groups"], (list, dict)):
+                return _err(f"子智能体 {name} 的 tool_groups 必须是列表或字典", fn)
+            if spec.get("allowed_groups") is not None and not isinstance(
+                    spec["allowed_groups"], (list, dict)):
+                return _err(f"子智能体 {name} 的 allowed_groups 必须是列表或字典", fn)
+            for fld in ("allow_tools", "allowed_tools", "deny_tools", "denied_tools"):
+                if spec.get(fld) is not None and not isinstance(spec[fld], list):
+                    return _err(f"子智能体 {name} 的 {fld} 必须是列表", fn)
             if spec.get("middlewares") is not None and not isinstance(spec["middlewares"], list):
                 return _err(f"子智能体 {name} 的 middlewares 必须是列表", fn)
             result.append(spec)
@@ -233,4 +242,129 @@ def normalize_tools(tools: List[Any], defaults: Optional[Dict[str, dict]] = None
     return out
 
 
-__all__ = ["async_get_subagents", "resolve_tools", "normalize_tools"]
+def _tool_name(tool: Any) -> str:
+    return str(getattr(tool, "name", type(tool).__name__))
+
+
+def _filter_tools(tools: List[Any], allow: Optional[set], deny: Optional[set]) -> List[Any]:
+    out = []
+    for t in tools or []:
+        name = _tool_name(t)
+        if allow is not None and name not in allow:
+            continue
+        if deny is not None and name in deny:
+            continue
+        out.append(t)
+    return out
+
+
+def _group_defs(raw: Any) -> List[dict]:
+    """把 tool_groups 统一成 [{name, description?, instructions?, tools?, ...}]。"""
+    if raw is None:
+        return []
+    items: List[dict] = []
+    if isinstance(raw, dict):
+        for name, value in raw.items():
+            if isinstance(value, list):
+                items.append({"name": name, "tools": value})
+            elif isinstance(value, dict):
+                items.append({"name": name, **value})
+            else:
+                raise ValueError(f"tool_groups.{name} 必须是列表或字典")
+        return items
+    if not isinstance(raw, list):
+        raise ValueError("tool_groups 必须是列表或字典")
+    for item in raw:
+        if isinstance(item, str):
+            items.append({"name": item})
+        elif isinstance(item, dict):
+            items.append(dict(item))
+        else:
+            raise ValueError(
+                f"tool_groups 元素必须是字符串或字典，收到 {type(item).__name__}")
+    return items
+
+
+def build_subagent_toolkit(
+    spec: dict,
+    parent_toolkit: Optional[Toolkit] = None,
+    fallback_toolkit: Optional[Toolkit] = None,
+) -> Toolkit:
+    """按 spec 构建子智能体专属 Toolkit。
+
+    优先级：
+        1. spec.toolkit 显式完整 Toolkit
+        2. spec.tools / spec.tool_groups 构建
+        3. fallback_toolkit（直接调用方显式传 data.toolkit；委派工具不传）
+        4. 空 Toolkit
+
+    tool_groups 支持：
+        ["rag", "net"]                       # 从 parent_toolkit 选组
+        {"rag": ["async_rag_tools"]}         # 直接定义组
+        [{"name":"rag","tools":[...]}]       # 完整定义
+    """
+    defaults = spec.get("tool_defaults") or {}
+    allow = spec.get("allow_tools", spec.get("allowed_tools"))
+    deny = spec.get("deny_tools", spec.get("denied_tools"))
+    allow_set = set(str(x) for x in allow) if isinstance(allow, list) else None
+    deny_set = set(str(x) for x in deny) if isinstance(deny, list) else None
+
+    explicit = spec.get("toolkit")
+    if explicit is not None:
+        if not isinstance(explicit, Toolkit):
+            raise ValueError("spec.toolkit 必须是 Toolkit")
+        return explicit
+
+    tools_cfg = spec.get("tools")
+    groups_cfg = spec.get("tool_groups", spec.get("allowed_groups"))
+    if tools_cfg in (None, []) and groups_cfg in (None, [], {}):
+        if fallback_toolkit is not None:
+            return fallback_toolkit
+        return Toolkit()
+
+    basic_tools = normalize_tools(
+        resolve_tools(tools_cfg) if tools_cfg else [], defaults)
+    basic_tools = _filter_tools(basic_tools, allow_set, deny_set)
+
+    groups: List[ToolGroup] = []
+    parent_map = {g.name: g for g in (getattr(parent_toolkit, "tool_groups", []) or [])}
+    for item in _group_defs(groups_cfg):
+        name = str(item.get("name") or "").strip()
+        if not name:
+            raise ValueError("tool_groups 元素缺少 name")
+        if name == "basic":
+            # basic 不能作为 ToolGroup 传入，合并到基本工具
+            if name in parent_map:
+                basic_tools.extend(_filter_tools(
+                    list(parent_map[name].tools), allow_set, deny_set))
+            if item.get("tools"):
+                basic_tools.extend(_filter_tools(
+                    normalize_tools(resolve_tools(item["tools"]), defaults),
+                    allow_set, deny_set))
+            continue
+
+        if "tools" in item:
+            group_tools = normalize_tools(resolve_tools(item.get("tools")), defaults)
+        elif name in parent_map:
+            group_tools = list(parent_map[name].tools)
+        else:
+            raise ValueError(f"未找到工具组: {name}（且未提供 tools 定义）")
+
+        groups.append(ToolGroup(
+            name=name,
+            description=str(item.get("description") or (
+                getattr(parent_map.get(name), "description", None) or name)),
+            instructions=item.get("instructions") or getattr(
+                parent_map.get(name), "instructions", None),
+            tools=_filter_tools(group_tools, allow_set, deny_set),
+            skills_or_loaders=item.get("skills_or_loaders") or list(
+                getattr(parent_map.get(name), "skills_or_loaders", []) or []),
+            mcps=item.get("mcps") or list(
+                getattr(parent_map.get(name), "mcps", []) or []),
+        ))
+
+    return Toolkit(tools=basic_tools, tool_groups=groups)
+
+
+__all__ = ["async_get_subagents", "resolve_tools", "normalize_tools",
+           "build_subagent_toolkit"]

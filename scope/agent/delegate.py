@@ -45,7 +45,7 @@ try:
 except ImportError:
     from llm.agent_model import async_get_llm_model
 
-from .subagents import async_get_subagents, normalize_tools
+from .subagents import async_get_subagents, build_subagent_toolkit
 
 _WHERE_FILE = os.path.abspath(__file__)
 
@@ -172,13 +172,14 @@ async def _build_subagent(spec: dict, data: dict) -> Dict[str, Any]:
             return _err(f"子智能体模型初始化失败：{r.get('message')}", "async_run_subagent")
         model = r["data"]
 
-    toolkit = spec.get("toolkit") or data.get("toolkit")
-    if toolkit is None:
-        try:
-            toolkit = Toolkit(tools=normalize_tools(
-                spec.get("tools") or [], spec.get("tool_defaults") or {}))
-        except (TypeError, ValueError) as e:
-            return _err(str(e), "async_run_subagent")
+    try:
+        toolkit = build_subagent_toolkit(
+            spec,
+            parent_toolkit=data.get("parent_toolkit"),
+            fallback_toolkit=data.get("toolkit"),
+        )
+    except (TypeError, ValueError) as e:
+        return _err(str(e), "async_run_subagent")
 
     try:
         middlewares = spec.get("middlewares") or data.get("middlewares") or []
@@ -430,7 +431,7 @@ async def register_delegate_tool(
         payload = {
             "subagent": subagent,
             "task": task,
-            "toolkit": toolkit,
+            "parent_toolkit": toolkit,
         }
         if mode:
             payload["mode"] = mode
