@@ -9,6 +9,7 @@
 - ``delegate.register_delegate_tool``：注册委派 / 列表 / 后台任务查询
 """
 
+from .builder import async_get_agent
 from .delegate import (
     async_cancel_subagent_task,
     async_delegate_tool,
@@ -23,6 +24,7 @@ from .subagents import async_get_subagents, normalize_tools, resolve_tools
 
 __all__ = [
     "AgentRuntime",
+    "async_get_agent",
     "async_get_subagents",
     "resolve_tools",
     "normalize_tools",

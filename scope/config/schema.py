@@ -143,6 +143,26 @@ SYSTEM: List[Item] = [
     Item("system.cmd_run.output_part", "tail", "str", "system", "超限时保留哪部分: head/tail/middle"),
 ]
 
+# ── agent 域（主 Agent 上下文管理）───────────────────────────────
+AGENT: List[Item] = [
+    Item("agent.context.trigger_ratio", 0.8, "float", "agent", "上下文压缩触发比例（≤0.9）"),
+    Item("agent.context.reserve_ratio", 0.1, "float", "agent", "压缩后保留比例"),
+    Item("agent.context.context_buffer_ratio", 0.2, "float", "agent", "压缩阈值前缓冲区"),
+    Item("agent.context.tool_result_limit", 50000, "int", "agent", "单条工具结果最大 token 数"),
+    Item("agent.context.max_image_num", 5, "int", "agent", "上下文保留最大图片数"),
+    Item("agent.context.compression_tool_enabled", False, "bool", "agent", "是否暴露 CompressContext 工具"),
+    Item("agent.context.compression_fallback_to_truncation", True, "bool", "agent", "摘要失败是否退化为截断"),
+    Item("agent.injection.inject_runtime_state", True, "bool", "agent", "是否注入运行时状态"),
+    Item("agent.injection.timezone", "UTC", "str", "agent", "运行时状态注入时区"),
+    Item("agent.injection.time_format", "%Y-%m-%dT%H:%M:%S", "str", "agent", "时间格式"),
+    Item("agent.injection.time_interval", 0.5, "float", "agent", "时间注入最小间隔（小时）"),
+    Item("agent.injection.tool_retries_limit", 3, "int", "agent", "同名同参工具连续失败注入阈值"),
+    Item("agent.injection.emit_hint_event", True, "bool", "agent", "注入时是否产出 HintBlockEvent"),
+    Item("agent.offload.enabled", False, "bool", "agent", "是否启用上下文卸载"),
+    Item("agent.offload.type", "local", "str", "agent", "卸载器类型（当前 local）"),
+    Item("agent.offload.workdir", None, "str", "agent", "卸载工作目录（不预置）"),
+]
+
 # ── rag 域 ───────────────────────────────────────────────────────
 RAG: List[Item] = [
     # 类型/集合名属选择类参数，不预置；运行时 data > sqlite > 400。
@@ -177,7 +197,7 @@ MCP: List[Item] = [
 ]
 
 # 全部配置项（顺序即灌库顺序）
-ALL: List[Item] = DB + MAIL + NET + CRAWL + SYSTEM + RAG + MCP
+ALL: List[Item] = DB + MAIL + NET + CRAWL + SYSTEM + AGENT + RAG + MCP
 
 # key → Item 索引
 BY_KEY: Dict[str, Item] = {it.key: it for it in ALL}

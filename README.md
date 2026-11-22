@@ -20,11 +20,11 @@
 | 层 | 内容 | 规模 |
 |---|---|---|
 | 工具层 | 5 个通用域：db / net / mail / mcp / system + `tools/rag` | 40 文件 |
-| 配置层 | `scope/config/`：SQLite 配置中心，89 项默认配置 | 4 文件 / 619 行 |
+| 配置层 | `scope/config/`：SQLite 配置中心，105 项默认配置 | 4 文件 / 619 行 |
 | 模型层 | `scope/llm/`：多厂商 Chat / Embedding / TTS / ASR 工厂，视频 formatter | 3 文件 |
 | 媒体层 | `scope/media/`：TTS 落盘 / base64 / URL、ASR 转写、文件闸门 | 4 文件 |
 | RAG 层 | `scope/rag/`：文档解析/切片/embedding、SQLite 向量库、注册表、KnowledgeBase/RAGMiddleware；`tools/rag/` 工具入口 | 8 文件 |
-| 子智能体 | `scope/agent/`：spec 校验、独立 AgentState 执行、委派工具、后台任务、取消、工具组权限 | 4 文件 |
+| 子智能体 | `scope/agent/`：主 Agent builder/runtime、上下文管理、子智能体、委派、审批、取消 | 6 文件 |
 
 工具域能力：
 
@@ -63,7 +63,7 @@
 
 ```
 scope/
-├── agent/          # 子智能体 + 主 Agent runtime 已实现；builder / toolkit 装配待实现
+├── agent/          # 主 Agent builder/runtime + 上下文管理 + 子智能体已实现；Toolkit 装配待完善
 ├── middleware/     # 空：记忆、预算、Tracing、ModelRouter
 ├── permission/     # 空：工具审批（下一步）
 ├── skills/         # 空：Skill 加载
@@ -87,17 +87,19 @@ agent_scope/
 ├── .gitignore
 └── scope/
     ├── config/                  # SQLite 配置中心
-    │   ├── schema.py            # 89 项配置的单一真相源
+    │   ├── schema.py            # 105 项配置的单一真相源
     │   ├── store.py             # 读写 + 进程级缓存 + 生命周期 API
     │   ├── merge.py             # pick / pick_str / pick_int
     │   └── __init__.py
     ├── common/                  # 跨层文件闸门
     │   ├── fs.py                # check_read/check_write
     │   └── __init__.py
-    ├── agent/                   # 子智能体与主 Agent runtime
-    │   ├── subagents.py         # spec 校验 / 工具解析 / 工具组权限
-    │   ├── delegate.py          # 独立 AgentState 执行 / 委派工具 / 后台任务
+    ├── agent/                   # 主 Agent 与子智能体
+    │   ├── builder.py           # 主 Agent 装配（模型/Toolkit/上下文）
+    │   ├── context.py           # 上下文压缩 / 运行时注入 / 卸载
     │   ├── runtime.py           # 主 Agent 事件流 / 审批 / 中断
+    │   ├── subagents.py         # spec 校验 / 工具解析 / 工具组权限
+    │   ├── delegate.py          # 独立 AgentState 执行 / 委派工具
     │   └── __init__.py
     ├── llm/                     # 模型工厂（Chat / Embedding / TTS / ASR）
     │   ├── agent_model.py       # 对外入口
@@ -131,7 +133,7 @@ agent_scope/
         ├── CODE_INDEX.md        # 文件 / 符号 / 依赖图
         ├── 工具拆分规范.md      # 组织规则与验证方法
         ├── 踩坑记录.md          # 使用侧坑、集成坑、误诊纠正
-        ├── 配置说明.md          # 89 项配置与生命周期
+        ├── 配置说明.md          # 105 项配置与生命周期
         └── 框架层规划.md        # 框架层缺口、审批/RAG 设计、路线图
 ```
 
@@ -207,7 +209,7 @@ asyncio.run(main())
 
 | 优先级 | 内容 |
 |---|---|
-| P0 | 框架骨架：`agent/builder.py`、`agent/runtime.py`、Toolkit 装配、skills、`main.py`、`pyproject.toml` |
+| P0 | 框架骨架：`agent/builder.py`、`agent/runtime.py`、`agent/context.py`、Toolkit 装配、skills、`main.py`、`pyproject.toml` |
 | P1 | `permission/`：基于 `agentscope.permission` 的规则、确认事件、SQLite 规则与审计、非交互自动拒绝 |
 | P1 | `rag/`：官方 `KnowledgeBase` + `RAGMiddleware`，文件解析/切片/embedding/注册表，多租户隔离 |
 | P2 | 子智能体与委派、A2A、Mem0/文件记忆、storage、agentscope.app 服务化 |
