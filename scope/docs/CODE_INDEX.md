@@ -291,12 +291,12 @@ _helper  ←  executors  ←  dialect  ←  {postgresql, mysql, sqlite}
 ## 七、`config/` — 默认配置中心（基础设施层）
 
 与 `tools/` 平级，不在 `tools/` 下。五域的硬编码默认值收敛到这里的 `config.db`（SQLite）。
-读取优先级 **data > sqlite > None**；连接/身份类参数（`db.type`、`db.port.*`、`db.database`、mail 的 smtp/imap host+port）**无源码兜底**，data 与 sqlite 都无值时返回 400。完整契约、73 项配置表、三类语义见《配置说明.md》。
+读取优先级 **data > sqlite > None**；连接/身份类参数（`db.type`、`db.port.*`、`db.database`、mail 的 smtp/imap host+port）**无源码兜底**，data 与 sqlite 都无值时返回 400。完整契约、88 项配置表、三类语义见《配置说明.md》。
 
 | 文件 | 行数 | 职责 | 依赖 |
 |------|------|------|------|
 | `__init__.py` | 61 | 统一导出（生命周期 API + 三合并辅助 + schema 查询） | `schema`, `store`, `merge` |
-| `schema.py` | 195 | **73 项配置的单一真相源**：Item(key/value/type/category/note/secret/hard_max) + 导入即自检 `_selfcheck()` | — |
+| `schema.py` | 195 | **88 项配置的单一真相源**：Item(key/value/type/category/note/secret/hard_max) + 导入即自检 `_selfcheck()` | — |
 | `store.py` | 298 | `config.db` 读写 + 进程级缓存（同步读一次、`get()` 走内存）+ 生命周期 `configure/init_db/load/aload/get/clamp_get/set_value/unset` | `schema` |
 | `merge.py` | 62 | `pick`/`pick_str`/`pick_int` 三合并辅助，处理 falsy 语义差异（0/False 有效 vs 空串未传） | `store` |
 

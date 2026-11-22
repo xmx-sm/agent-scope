@@ -20,7 +20,7 @@
 | 层 | 内容 | 规模 |
 |---|---|---|
 | 工具层 | 5 个通用域：db / net / mail / mcp / system + `tools/rag` | 40 文件 |
-| 配置层 | `scope/config/`：SQLite 配置中心，73 项默认配置 | 4 文件 / 619 行 |
+| 配置层 | `scope/config/`：SQLite 配置中心，88 项默认配置 | 4 文件 / 619 行 |
 | 模型层 | `scope/llm/`：多厂商 Chat / Embedding / TTS / ASR 工厂，视频 formatter | 3 文件 |
 | 媒体层 | `scope/media/`：TTS 落盘 / base64 / URL、ASR 转写、文件闸门 | 4 文件 |
 | RAG 层 | `scope/rag/`：文档解析/切片/embedding、SQLite 向量库、注册表；`tools/rag/` 工具入口 | 6 文件 |
@@ -86,7 +86,7 @@ agent_scope/
 ├── .gitignore
 └── scope/
     ├── config/                  # SQLite 配置中心
-    │   ├── schema.py            # 73 项配置的单一真相源
+    │   ├── schema.py            # 88 项配置的单一真相源
     │   ├── store.py             # 读写 + 进程级缓存 + 生命周期 API
     │   ├── merge.py             # pick / pick_str / pick_int
     │   └── __init__.py
@@ -119,7 +119,7 @@ agent_scope/
         ├── CODE_INDEX.md        # 文件 / 符号 / 依赖图
         ├── 工具拆分规范.md      # 组织规则与验证方法
         ├── 踩坑记录.md          # 使用侧坑、集成坑、误诊纠正
-        ├── 配置说明.md          # 73 项配置与生命周期
+        ├── 配置说明.md          # 88 项配置与生命周期
         └── 框架层规划.md        # 框架层缺口、审批/RAG 设计、路线图
 ```
 

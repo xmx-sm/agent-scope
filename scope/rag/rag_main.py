@@ -26,6 +26,7 @@ import importlib
 import os
 from typing import Any, Dict
 
+from .config import resolve
 from .registry import record_delete, record_delete_library, record_write
 
 # 后端名 -> 模块名（相对本包）
@@ -87,12 +88,14 @@ def _unavailable(rag_type: str, fn: str) -> Dict[str, Any]:
 def _prepare(data: dict, function: str, fn: str) -> Dict[str, Any]:
     if not isinstance(data, dict):
         return _err("data 必须是字典对象", fn)
-    rag_cfg = data.get("rag_config")
-    if not isinstance(rag_cfg, dict):
+    if not isinstance(data.get("rag_config"), dict):
         return _err("缺少 rag_config 配置段", fn)
-    rag_cfg = dict(rag_cfg)
+    try:
+        out = resolve(data)
+    except (TypeError, ValueError) as e:
+        return _err(str(e), fn)
+    rag_cfg = dict(out["rag_config"])
     rag_cfg.setdefault("rag_function", function)
-    out = dict(data)
     out["rag_config"] = rag_cfg
     return _ok(out)
 

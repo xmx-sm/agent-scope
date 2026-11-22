@@ -143,6 +143,27 @@ SYSTEM: List[Item] = [
     Item("system.cmd_run.output_part", "tail", "str", "system", "超限时保留哪部分: head/tail/middle"),
 ]
 
+# ── rag 域 ───────────────────────────────────────────────────────
+RAG: List[Item] = [
+    # 类型/集合名属选择类参数，不预置；运行时 data > sqlite > 400。
+    Item("rag.type", None, "str", "rag", "缺省向量库类型（不预置；调用未传且库中未配置时报错）"),
+    Item("rag.sqlite.path", None, "str", "rag", "SQLite 集合名（不预置；调用未传且库中未配置时报错）"),
+    Item("rag.sqlite.base_dir", None, "str", "rag", "SQLite 数据根目录（不预置；未配置时代码回落 cwd/rag_db）"),
+    Item("rag.vector_type", "dense", "str", "rag", "向量类型；当前 SQLite 仅支持 dense"),
+    Item("rag.top_k", 10, "int", "rag", "检索默认返回条数（代码上限 200）"),
+    Item("rag.score_threshold", None, "float", "rag", "检索最低相似度（None=不过滤）"),
+    Item("rag.chunk_size", 256, "int", "rag", "切片目标 token 数"),
+    Item("rag.overlap", 0, "int", "rag", "相邻切片重叠 token 数"),
+    Item("rag.require_file", True, "bool", "rag", "文件解析是否要求路径真实存在（防路径当正文）"),
+    # embedding 模型配置：未显式传 data["embedding"] 时由 RAG 读取
+    Item("rag.embedding.provider", None, "str", "rag", "embedding provider（不预置）"),
+    Item("rag.embedding.model", None, "str", "rag", "embedding 模型 ID（不预置）"),
+    Item("rag.embedding.base_url", None, "str", "rag", "embedding API 地址（不预置）"),
+    Item("rag.embedding.api_key", None, "str", "rag", "embedding API Key（不预置）", secret=True),
+    Item("rag.embedding.dimensions", None, "int", "rag", "embedding 维度（不预置）"),
+    Item("rag.embedding.batch_size", 64, "int", "rag", "embedding 单批条数"),
+]
+
 # ── mcp 域 ───────────────────────────────────────────────────────
 # 注意：mcp 只有 1 个域级默认。timeout/execution_timeout/is_stateful 等都是
 # **per-server 配置**（从 mcpServers 每个 server 段读，见 build_client），
@@ -155,7 +176,7 @@ MCP: List[Item] = [
 ]
 
 # 全部配置项（顺序即灌库顺序）
-ALL: List[Item] = DB + MAIL + NET + CRAWL + SYSTEM + MCP
+ALL: List[Item] = DB + MAIL + NET + CRAWL + SYSTEM + RAG + MCP
 
 # key → Item 索引
 BY_KEY: Dict[str, Item] = {it.key: it for it in ALL}
