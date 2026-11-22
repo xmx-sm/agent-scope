@@ -21,6 +21,7 @@
 |---|---|---|
 | 工具层 | 5 个域：db / net / mail / mcp / system | 39 文件 / 127 顶层函数 / 6726 行 |
 | 配置层 | `scope/config/`：SQLite 配置中心，73 项默认配置 | 4 文件 / 619 行 |
+| 模型层 | `scope/llm/`：多厂商 Chat / Embedding / TTS / ASR 工厂，视频 formatter | 3 文件 |
 
 工具域能力：
 
@@ -59,7 +60,6 @@
 ```
 scope/
 ├── agent/          # 空：Agent 工厂、运行循环、Toolkit 装配、子智能体
-├── llm/            # 空：多厂商 LLM / embedding / TTS / STT 工厂
 ├── middleware/     # 空：记忆、预算、Tracing、ModelRouter
 ├── permission/     # 空：工具审批（下一步）
 ├── rag/            # 空：知识库 / RAG（下一步）
@@ -67,6 +67,9 @@ scope/
 ├── storage/        # 空：会话 / 消息 / 工作区
 └── main.py         # 0 字节：装配入口 / 服务入口
 ```
+
+> `llm/` 已实现（模型工厂 + 多模态 formatter），见
+> [docs/框架层规划.md](scope/docs/框架层规划.md) 第三节-B。
 
 框架层缺口、目标结构、审批与 RAG 的详细设计见
 [docs/框架层规划.md](scope/docs/框架层规划.md)。
@@ -84,6 +87,10 @@ agent_scope/
     │   ├── schema.py            # 73 项配置的单一真相源
     │   ├── store.py             # 读写 + 进程级缓存 + 生命周期 API
     │   ├── merge.py             # pick / pick_str / pick_int
+    │   └── __init__.py
+    ├── llm/                     # 模型工厂（Chat / Embedding / TTS / ASR）
+    │   ├── factory.py
+    │   ├── formatters.py        # 视频输入 formatter
     │   └── __init__.py
     ├── tools/
     │   ├── db/                  # 数据库工具（四层结构：_helper → executors → dialect → 方言入口）
@@ -106,11 +113,23 @@ agent_scope/
 ## 三、快速开始
 
 ```bash
-cd scope
-python -m venv .venv
-source .venv/bin/activate
-pip install agentscope httpx aiosmtplib aioimaplib beautifulsoup4 \
-            asyncpg aiomysql pymongo sqlglot
+cd <path-to>/agent_scope
+
+# 虚拟环境由 uv 创建（仓库根的 .venv）
+uv venv .venv
+uv pip install --python .venv/bin/python \
+    agentscope httpx aiosmtplib aioimaplib beautifulsoup4 \
+    asyncpg aiomysql pymongo sqlglot
+
+# 运行（从仓库根；不要用 scope/../.venv/bin/python 这种相对路径，
+# uv 会因 sys.prefix 解析不一致打印 RuntimeWarning）
+uv run --no-project python your_script.py
+```
+
+也可以直接使用绝对路径解释器：
+
+```bash
+/mnt/sda2/qoder/qoder/agent_scope/.venv/bin/python your_script.py
 ```
 
 工具层要求 `scope/` 在 `sys.path`（当前工具文件使用顶层 `from config import ...`）：
