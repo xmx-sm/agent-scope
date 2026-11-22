@@ -8,7 +8,16 @@ from app.models.agent import (
     UserAgentConfig,
 )
 from app.models.common import new_id, utc_now
-from app.models.knowledge import VectorDocument, VectorLibrary, VectorLog
+from app.models.a2a import A2AInvocation, A2APeer, A2ASessionMap
+from app.models.knowledge import (
+    VectorChunk,
+    VectorDocument,
+    VectorLibrary,
+    VectorLibraryShare,
+    VectorLog,
+)
+from app.models.scheduled import UserScheduledJob
+from app.models.super_agent import SuperAgentConfig, SuperAgentMember
 from app.models.menu import Menu, UserMenuPref
 from app.models.skill import UserMcp, UserSkill
 from app.models.subagent import UserSubagent
@@ -36,6 +45,14 @@ __all__ = [
     "VectorLibrary",
     "VectorDocument",
     "VectorLog",
+    "VectorChunk",
+    "VectorLibraryShare",
+    "SuperAgentConfig",
+    "SuperAgentMember",
+    "A2APeer",
+    "A2AInvocation",
+    "A2ASessionMap",
+    "UserScheduledJob",
     "User",
     "UserPermissionState",
     "UserToolMode",

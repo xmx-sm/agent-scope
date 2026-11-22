@@ -82,6 +82,30 @@ const routes = [
         meta: { title: '子智能体', permission: 'ai.use' }
       },
       {
+        path: 'agent-super',
+        name: 'AgentSuper',
+        component: () => import('../views/SuperAgent.vue'),
+        meta: { title: '超级智能体', permission: 'ai.use' }
+      },
+      {
+        path: 'agent-a2a',
+        name: 'AgentA2A',
+        component: () => import('../views/A2A.vue'),
+        meta: { title: 'A2A 协作', permission: 'ai.use' }
+      },
+      {
+        path: 'tool-approvals',
+        name: 'ToolApprovals',
+        component: () => import('../views/ToolApprovals.vue'),
+        meta: { title: '工具审批', permission: 'permissions.team' }
+      },
+      {
+        path: 'agent-scheduled',
+        name: 'AgentScheduled',
+        component: () => import('../views/Scheduled.vue'),
+        meta: { title: '定时任务', permission: 'ai.use' }
+      },
+      {
         path: 'agent-stats',
         name: 'AgentStats',
         component: () => import('../views/AgentStats.vue'),
@@ -115,6 +139,12 @@ const routes = [
       {
         path: 'admin/settings',
         redirect: '/admin/config/system'
+      },
+      {
+        path: 'admin/tool-audits',
+        name: 'ToolAudits',
+        component: () => import('../views/admin/ToolAudits.vue'),
+        meta: { title: '工具权限审计', permission: 'admin.audits', superAdminOnly: true }
       },
       {
         path: 'admin/config/system',

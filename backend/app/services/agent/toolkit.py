@@ -153,6 +153,7 @@ async def async_build_toolkit(params: dict) -> Toolkit:
     from scope.tools.net.main_net import async_req_tools
     from scope.tools.rag.main_rag import async_rag_tools
     from scope.tools.system.main_sys import async_sys_tools
+    from app.services.agent.a2a import async_a2a_tools
 
     async def db_read(**kwargs):
         return await async_db_tools(build_db_data(kwargs))
@@ -187,6 +188,7 @@ async def async_build_toolkit(params: dict) -> Toolkit:
         "mcp": {"async_mcp_tools": (async_mcp_tools, "MCP 客户端")},
         "sys": {"async_sys_tools": (async_sys_tools, "Shell 命令")},
         "rag": {"async_rag_tools": (rag_run, "知识库检索")},
+        "a2a": {"async_a2a_tools": (async_a2a_tools, "A2A 伙伴调用")},
     }
     if db_policy["allow_write"]:
         registry["db"]["async_db_write_tools"] = (db_write, "数据库写入")

@@ -24,6 +24,9 @@ class VectorLibrary(Base):
     config: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
     origin: Mapped[str] = mapped_column(String(20), nullable=False, default="platform")
+    auto_parse: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    parse_interval: Mapped[int] = mapped_column(Integer, nullable=False, default=300)
+    last_scan_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
@@ -60,4 +63,36 @@ class VectorLog(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     details: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     error_message: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class VectorChunk(Base):
+    __tablename__ = "vector_chunks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    document_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("vector_documents.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    library_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    metadata_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class VectorLibraryShare(Base):
+    __tablename__ = "vector_library_shares"
+    __table_args__ = (
+        UniqueConstraint("library_id", "target_user_id", name="uq_vector_share_target"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    library_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("vector_libraries.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    owner_user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    target_user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    permission: Mapped[str] = mapped_column(String(20), nullable=False, default="read")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

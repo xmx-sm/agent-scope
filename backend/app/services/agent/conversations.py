@@ -31,6 +31,10 @@ async def async_list_conversations(params: dict) -> list[dict]:
         {
             "id": row.id,
             "title": row.title,
+            "origin": row.origin,
+            "super_agent_id": row.super_agent_id,
+            "super_agent_member_id": row.super_agent_member_id,
+            "parent_conversation_id": row.parent_conversation_id,
             "created_at": row.created_at.isoformat() if row.created_at else None,
             "updated_at": row.updated_at.isoformat() if row.updated_at else None,
         }
@@ -43,6 +47,10 @@ async def async_create_conversation(params: dict) -> dict:
     row = AgentConversation(
         user_id=params["user_id"],
         title=str(params.get("title") or "新会话")[:200],
+        origin=params.get("origin"),
+        super_agent_id=params.get("super_agent_id"),
+        super_agent_member_id=params.get("super_agent_member_id"),
+        parent_conversation_id=params.get("parent_conversation_id"),
     )
     session.add(row)
     await session.commit()
@@ -170,4 +178,57 @@ async def async_usage_stats(params: dict) -> dict:
         "input_tokens": int(input_tokens),
         "output_tokens": int(output_tokens),
         "total_tokens": int(input_tokens) + int(output_tokens),
+    }
+
+
+async def async_branch_conversation(params: dict) -> dict:
+    """从某条消息创建分支会话：复制该消息及之前的消息。"""
+    session: AsyncSession = params["session"]
+    source = await async_get_owned(
+        {"session": session, "user_id": params["user_id"],
+         "conversation_id": params["conversation_id"]}
+    )
+    target = await session.get(AgentMessage, params["message_id"])
+    if target is None or target.conversation_id != source.id:
+        raise ApiError("消息不存在", code=404)
+    rows = (
+        await session.execute(
+            select(AgentMessage)
+            .where(AgentMessage.conversation_id == source.id)
+            .order_by(AgentMessage.created_at.asc())
+        )
+    ).scalars().all()
+    branch = AgentConversation(
+        user_id=params["user_id"],
+        title=f"分支 · {source.title}"[:200],
+        origin="branch",
+        super_agent_id=source.super_agent_id,
+        super_agent_member_id=source.super_agent_member_id,
+        parent_conversation_id=source.id,
+    )
+    session.add(branch)
+    await session.flush()
+    for row in rows:
+        session.add(
+            AgentMessage(
+                conversation_id=branch.id,
+                role=row.role,
+                content=row.content,
+                reasoning=row.reasoning,
+                tool_events=row.tool_events,
+                attachments=row.attachments,
+                input_tokens=row.input_tokens,
+                output_tokens=row.output_tokens,
+                cache_input_tokens=row.cache_input_tokens,
+            )
+        )
+        if row.id == target.id:
+            break
+    await session.commit()
+    await session.refresh(branch)
+    return {
+        "id": branch.id,
+        "title": branch.title,
+        "origin": branch.origin,
+        "parent_conversation_id": branch.parent_conversation_id,
     }

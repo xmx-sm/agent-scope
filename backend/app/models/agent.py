@@ -17,6 +17,10 @@ class AgentConversation(Base):
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False, default="新会话")
+    origin: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    super_agent_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    super_agent_member_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    parent_conversation_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now

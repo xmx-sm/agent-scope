@@ -1,7 +1,7 @@
 """Agent 对话路由。"""
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -10,16 +10,25 @@ from app.models import User
 from app.schemas import (
     KnowledgeSearchIn,
     LibraryCreateIn,
+    LibraryShareIn,
     LibraryUpdateIn,
     SubagentSaveIn,
+    SuperAgentSaveIn,
+    SuperConversationIn,
+    A2APeerIn,
+    A2AInvokeIn,
     RagSearchIn,
+    ScheduledSaveIn,
+    ScheduledToggleIn,
     McpSaveIn,
     ToggleIn,
     ChatStreamIn,
+    ConversationBranchIn,
     ConversationCreateIn,
     ConversationRenameIn,
     ModelFetchIn,
     ToolConfigIn,
+    TtsIn,
     UserAgentConfigIn,
 )
 from app.services.agent import conversations as conv_service
@@ -28,11 +37,15 @@ from app.services.agent import knowledge as knowledge_service
 from app.services.agent import rag as rag_service
 from app.services.agent import skills as skill_service
 from app.services.agent import subagents as subagent_service
+from app.services.agent import super_agent as super_service
+from app.services.agent import a2a as a2a_service
+from app.services.agent import scheduled as scheduled_service
+from app.services.agent import speech as speech_service
 from app.services.agent import stats as stats_service
 from app.services.agent import attachments as attachment_service
 from app.services.agent import user_config as user_config_service
 from app.services.tools import tool_config as tool_config_service
-from app.services.agent.chat import async_stream_chat
+from app.services.agent.stream_manager import resume_events, stream_events
 from app.services.config import agent as agent_config_service
 from app.utils.mask import SENTINEL
 
@@ -546,6 +559,26 @@ async def delete_conversation(
     return ok(None, "会话已删除")
 
 
+@router.post("/conversations/{conversation_id}/branch")
+async def branch_conversation(
+    conversation_id: str,
+    body: ConversationBranchIn,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    return ok(
+        await conv_service.async_branch_conversation(
+            {
+                "session": db,
+                "user_id": user.id,
+                "conversation_id": conversation_id,
+                "message_id": body.message_id,
+            }
+        ),
+        "分支已创建",
+    )
+
+
 @router.get("/conversations/{conversation_id}/messages")
 async def list_messages(
     conversation_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
@@ -557,13 +590,29 @@ async def list_messages(
     )
 
 
+@router.get("/chat/resume/{conversation_id}")
+async def chat_resume(
+    conversation_id: str,
+    user: User = Depends(require_permission("ai.use")),
+):
+    return StreamingResponse(
+        resume_events(user.id, conversation_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
 @router.post("/chat/stream")
 async def chat_stream(
     body: ChatStreamIn,
     user: User = Depends(require_permission("ai.use")),
 ):
     return StreamingResponse(
-        async_stream_chat(
+        stream_events(
             user.id, body.conversation_id, body.content, body.attachment_ids
         ),
         media_type="text/event-stream",
@@ -572,4 +621,326 @@ async def chat_stream(
             "X-Accel-Buffering": "no",
             "Connection": "keep-alive",
         },
+    )
+
+
+# ==================== 超级智能体 ====================
+
+@router.get("/super-agent")
+async def super_agent_get(
+    user: CurrentUser, super_agent_id: str = "", db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await super_service.async_get(
+            {"session": db, "user_id": user.id, "super_agent_id": super_agent_id or None}
+        )
+    )
+
+
+@router.get("/super-agents")
+async def super_agent_list(user: CurrentUser, db: AsyncSession = Depends(get_db)):
+    return ok(await super_service.async_list({"session": db, "user_id": user.id}))
+
+
+@router.post("/super-agent")
+async def super_agent_save(
+    body: SuperAgentSaveIn, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await super_service.async_save(
+            {"session": db, "user_id": user.id, "data": body.model_dump()}
+        ),
+        "超级智能体已保存",
+    )
+
+
+@router.delete("/super-agent")
+async def super_agent_delete(
+    user: CurrentUser, super_agent_id: str = "", db: AsyncSession = Depends(get_db)
+):
+    await super_service.async_delete(
+        {"session": db, "user_id": user.id, "super_agent_id": super_agent_id or None}
+    )
+    return ok(None, "已删除")
+
+
+@router.post("/super-agent/main-conversation")
+async def super_main_conversation(
+    body: SuperConversationIn, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await super_service.async_create_conversation(
+            {
+                "session": db,
+                "user_id": user.id,
+                "super_agent_id": body.super_agent_id,
+                "member_id": body.member_id,
+                "role": body.role,
+                "title": body.title,
+            }
+        ),
+        "主会话已创建",
+    )
+
+
+@router.post("/super-agent/conversation")
+async def super_member_conversation(
+    body: SuperConversationIn, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await super_service.async_create_conversation(
+            {
+                "session": db,
+                "user_id": user.id,
+                "super_agent_id": body.super_agent_id,
+                "member_id": body.member_id,
+                "role": body.role,
+                "title": body.title,
+            }
+        ),
+        "会话已创建",
+    )
+
+
+# ==================== A2A 管理面 ====================
+
+@router.get("/a2a/peers")
+async def a2a_peers(user: CurrentUser, db: AsyncSession = Depends(get_db)):
+    return ok(await a2a_service.async_list_peers({"session": db, "user": user}))
+
+
+@router.post("/a2a/peers")
+async def a2a_peer_save(
+    body: A2APeerIn, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await a2a_service.async_save_peer(
+            {"session": db, "user": user, "data": body.model_dump()}
+        ),
+        "伙伴已保存",
+    )
+
+
+@router.delete("/a2a/peers/{peer_id}")
+async def a2a_peer_delete(
+    peer_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    await a2a_service.async_delete_peer({"session": db, "user": user, "peer_id": peer_id})
+    return ok(None, "已删除")
+
+
+@router.post("/a2a/peers/{peer_id}/rotate")
+async def a2a_peer_rotate(
+    peer_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await a2a_service.async_rotate_key({"session": db, "user": user, "peer_id": peer_id}),
+        "密钥已重置",
+    )
+
+
+@router.get("/a2a/peers/{peer_id}/key")
+async def a2a_peer_key(
+    peer_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await a2a_service.async_reveal_key({"session": db, "user": user, "peer_id": peer_id})
+    )
+
+
+@router.post("/a2a/peers/{peer_id}/test")
+async def a2a_peer_test(
+    peer_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await a2a_service.async_test_peer({"session": db, "user": user, "peer_id": peer_id}),
+        "连接成功",
+    )
+
+
+@router.post("/a2a/invoke")
+async def a2a_invoke(
+    body: A2AInvokeIn, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await a2a_service.async_invoke_peer(
+            {
+                "session": db,
+                "user": user,
+                "peer": body.peer,
+                "message": body.message,
+                "session_hint": body.session_hint,
+            }
+        )
+    )
+
+
+@router.get("/a2a/invocations")
+async def a2a_invocations(user: CurrentUser, db: AsyncSession = Depends(get_db)):
+    return ok(await a2a_service.async_invocations({"session": db, "user": user}))
+
+
+@router.get("/knowledge/share-candidates")
+async def knowledge_share_candidates(
+    user: CurrentUser, q: str = "", db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await knowledge_service.async_share_candidates(
+            {"session": db, "user_id": user.id, "q": q}
+        )
+    )
+
+
+@router.get("/knowledge/libraries/{library_id}/shares")
+async def knowledge_shares(
+    library_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await knowledge_service.async_shares(
+            {"session": db, "user_id": user.id, "library_id": library_id}
+        )
+    )
+
+
+@router.post("/knowledge/libraries/{library_id}/shares")
+async def knowledge_share_add(
+    library_id: str,
+    body: LibraryShareIn,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    return ok(
+        await knowledge_service.async_share_add(
+            {
+                "session": db,
+                "user_id": user.id,
+                "library_id": library_id,
+                "target_user_id": body.target_user_id,
+                "permission": body.permission,
+            }
+        ),
+        "已共享",
+    )
+
+
+@router.delete("/knowledge/libraries/{library_id}/shares/{target_user_id}")
+async def knowledge_share_remove(
+    library_id: str,
+    target_user_id: str,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    await knowledge_service.async_share_remove(
+        {
+            "session": db,
+            "user_id": user.id,
+            "library_id": library_id,
+            "target_user_id": target_user_id,
+        }
+    )
+    return ok(None, "已取消共享")
+
+
+@router.post("/knowledge/libraries/{library_id}/parse-pending")
+async def knowledge_parse_pending(
+    library_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await knowledge_service.async_parse_pending(
+            {"session": db, "user_id": user.id, "library_id": library_id}
+        ),
+        "批量解析完成",
+    )
+
+
+@router.get("/knowledge/documents/{document_id}/chunks")
+async def knowledge_document_chunks(
+    document_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await knowledge_service.async_chunks(
+            {"session": db, "user_id": user.id, "document_id": document_id}
+        )
+    )
+
+
+@router.get("/knowledge/documents/{document_id}/download")
+async def knowledge_document_download(
+    document_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    path, filename = await knowledge_service.async_document_file(
+        {"session": db, "user_id": user.id, "document_id": document_id}
+    )
+    return FileResponse(path, filename=filename)
+
+
+# ==================== 定时任务 ====================
+
+@router.get("/scheduled-jobs")
+async def scheduled_list(user: CurrentUser, db: AsyncSession = Depends(get_db)):
+    return ok(await scheduled_service.async_list({"session": db, "user_id": user.id}))
+
+
+@router.post("/scheduled-jobs")
+async def scheduled_save(
+    body: ScheduledSaveIn, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await scheduled_service.async_save(
+            {"session": db, "user_id": user.id, "data": body.model_dump()}
+        ),
+        "定时任务已保存",
+    )
+
+
+@router.post("/scheduled-jobs/{job_id}/toggle")
+async def scheduled_toggle(
+    job_id: str,
+    body: ScheduledToggleIn,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    return ok(
+        await scheduled_service.async_toggle(
+            {
+                "session": db,
+                "user_id": user.id,
+                "job_id": job_id,
+                "enabled": body.enabled,
+            }
+        )
+    )
+
+
+@router.post("/scheduled-jobs/{job_id}/run-now")
+async def scheduled_run_now(
+    job_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await scheduled_service.async_run_now(
+            {"session": db, "user_id": user.id, "job_id": job_id}
+        ),
+        "已提交执行",
+    )
+
+
+@router.delete("/scheduled-jobs/{job_id}")
+async def scheduled_delete(
+    job_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    await scheduled_service.async_delete(
+        {"session": db, "user_id": user.id, "job_id": job_id}
+    )
+    return ok(None, "已删除")
+
+
+@router.post("/tts")
+async def agent_tts(body: TtsIn, user: CurrentUser, db: AsyncSession = Depends(get_db)):
+    result = await speech_service.async_synthesize(
+        {"session": db, "text": body.text, "voice": body.voice, "model": body.model}
+    )
+    return Response(
+        content=result["audio"],
+        media_type=result["media_type"],
+        headers={"X-Tts-Bytes": str(result["bytes"])},
     )

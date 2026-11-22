@@ -67,6 +67,14 @@ TOOL_GROUPS: list[dict] = [
         ],
     },
     {
+        "name": "a2a",
+        "label": "A2A 协作",
+        "description": "调用已配置的局域网伙伴智能体",
+        "tools": [
+            {"name": "async_a2a_tools", "label": "伙伴调用", "description": "列出/调用 A2A 伙伴"},
+        ],
+    },
+    {
         "name": "rag",
         "label": "知识库工具",
         "description": "知识库写入、检索与删除",

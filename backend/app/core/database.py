@@ -87,6 +87,29 @@ async def init_db() -> None:
                     "memory_enabled BOOLEAN NOT NULL DEFAULT FALSE"
                 )
             )
+            for column, ddl in (
+                ("auto_parse", "BOOLEAN NOT NULL DEFAULT FALSE"),
+                ("parse_interval", "INTEGER NOT NULL DEFAULT 300"),
+                ("last_scan_at", "TIMESTAMPTZ"),
+            ):
+                await conn.execute(
+                    text(
+                        f"ALTER TABLE vector_libraries ADD COLUMN IF NOT EXISTS "
+                        f"{column} {ddl}"
+                    )
+                )
+            for column, ddl in (
+                ("origin", "VARCHAR(20)"),
+                ("super_agent_id", "VARCHAR(36)"),
+                ("super_agent_member_id", "VARCHAR(36)"),
+                ("parent_conversation_id", "VARCHAR(36)"),
+            ):
+                await conn.execute(
+                    text(
+                        f"ALTER TABLE agent_conversations ADD COLUMN IF NOT EXISTS "
+                        f"{column} {ddl}"
+                    )
+                )
 
 
 async def close_db() -> None:

@@ -15,6 +15,9 @@ from app.services.agent.scope_bridge import ROOT
 ATTACHMENT_ROOT = ROOT / "backend" / "uploads" / "agents"
 MAX_SIZE = 20 * 1024 * 1024
 IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
+VIDEO_TYPES = {
+    "video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/mpeg",
+}
 TEXT_TYPES = {
     "text/plain", "text/markdown", "application/json", "text/csv", "text/html",
     "application/xml", "text/xml",
@@ -64,9 +67,11 @@ async def async_get_owned(params: dict) -> AgentAttachment:
     return row
 
 
-async def async_load_for_model(params: dict) -> tuple[list[dict], str, list[dict]]:
-    """参数：session / user_id / ids
-    返回 (消息附件元数据, 追加文本, 图片 DataBlock 参数)。
+async def async_load_for_model(
+    params: dict,
+) -> tuple[list[dict], str, list[dict], list[dict]]:
+    """参数：session / user_id / ids / video_support / video_max_mb
+    返回 (消息附件元数据, 追加文本, 图片 DataBlock 参数, 视频 DataBlock 参数)。
     """
     session: AsyncSession = params["session"]
     user_id: str = params["user_id"]
@@ -74,6 +79,9 @@ async def async_load_for_model(params: dict) -> tuple[list[dict], str, list[dict
     meta: list[dict] = []
     text_parts: list[str] = []
     images: list[dict] = []
+    videos: list[dict] = []
+    video_support = bool(params.get("video_support"))
+    max_video = int(params.get("video_max_mb") or 20) * 1024 * 1024
     for attachment_id in ids:
         row = await session.get(AgentAttachment, attachment_id)
         if row is None or row.user_id != user_id:
@@ -88,6 +96,20 @@ async def async_load_for_model(params: dict) -> tuple[list[dict], str, list[dict
         if row.mime_type in IMAGE_TYPES:
             data = base64.b64encode(Path(row.path).read_bytes()).decode()
             images.append({"data": data, "media_type": row.mime_type, "name": row.filename})
+        elif row.mime_type in VIDEO_TYPES:
+            if not video_support:
+                text_parts.append(
+                    f"[附件 {row.filename} 是视频，但视频理解未开启，请到 Agent 配置开启]"
+                )
+            elif row.size > max_video:
+                text_parts.append(
+                    f"[附件 {row.filename} 超过视频上限 {max_video // 1024 // 1024}MB，未发送]"
+                )
+            else:
+                data = base64.b64encode(Path(row.path).read_bytes()).decode()
+                videos.append(
+                    {"data": data, "media_type": row.mime_type, "name": row.filename}
+                )
         elif row.mime_type in TEXT_TYPES:
             try:
                 text = Path(row.path).read_text(encoding="utf-8", errors="replace")
@@ -96,7 +118,7 @@ async def async_load_for_model(params: dict) -> tuple[list[dict], str, list[dict
             text_parts.append(f"[附件 {row.filename}]\n{text[:20000]}")
         else:
             text_parts.append(f"[附件 {row.filename}，类型 {row.mime_type}，暂未解析内容]")
-    return meta, "\n\n".join(text_parts), images
+    return meta, "\n\n".join(text_parts), images, videos
 
 
 async def async_list_message_attachments(session: AsyncSession, message: AgentMessage) -> list[dict]:

@@ -11,6 +11,8 @@ class LibraryCreateIn(BaseModel):
     description: str = ""
     embedding: dict[str, Any] = Field(default_factory=dict)
     config: dict[str, Any] = Field(default_factory=dict)
+    auto_parse: bool = False
+    parse_interval: int = 300
 
 
 class LibraryUpdateIn(BaseModel):
@@ -18,6 +20,8 @@ class LibraryUpdateIn(BaseModel):
     embedding: dict[str, Any] | None = None
     config: dict[str, Any] | None = None
     status: str | None = None
+    auto_parse: bool | None = None
+    parse_interval: int | None = None
 
 
 class KnowledgeSearchIn(BaseModel):
@@ -25,3 +29,8 @@ class KnowledgeSearchIn(BaseModel):
     library_ids: list[str] = Field(default_factory=list)
     top_k: int = 5
     score_threshold: float | None = None
+
+
+class LibraryShareIn(BaseModel):
+    target_user_id: str
+    permission: str = "read"

@@ -5,3 +5,7 @@ from pydantic import BaseModel, Field
 
 class ConversationRenameIn(BaseModel):
     title: str = Field(min_length=1, max_length=200)
+
+
+class ConversationBranchIn(BaseModel):
+    message_id: str

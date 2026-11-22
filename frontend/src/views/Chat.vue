@@ -46,6 +46,20 @@
               </el-collapse>
             </div>
             <pre class="content">{{ msg.content }}</pre>
+            <div v-if="msg.content && !msg.streaming" class="msg-actions">
+              <el-button
+                v-if="msg.role === 'assistant'"
+                text
+                size="small"
+                @click="toggleSpeak(msg)"
+              >{{ speakingId === msg.id ? '停止朗读' : '朗读' }}</el-button>
+              <el-button
+                v-if="!String(msg.id).startsWith('user-') && !String(msg.id).startsWith('stream-')"
+                text
+                size="small"
+                @click="createBranch(msg)"
+              >分支</el-button>
+            </div>
             <div v-if="msg.attachments?.length" class="msg-attachments">
               <el-tag v-for="file in msg.attachments" :key="file.id" size="small" effect="plain">
                 {{ file.filename }}
@@ -104,6 +118,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ChatDotRound,
@@ -119,7 +134,11 @@ import api from '../utils/api'
 
 const isMobile = ref(window.innerWidth < 768)
 const convOpen = ref(false)
+const route = useRoute()
+const router = useRouter()
 const conversations = ref([])
+const speakingId = ref('')
+let audioPlayer = null
 const currentId = ref('')
 const messages = ref([])
 const stats = ref(null)
@@ -174,6 +193,14 @@ async function renameConversation(conv) {
 async function loadConversations() {
   try {
     conversations.value = await api.get('/agent/conversations')
+    const wanted = route.query.conversation
+    if (wanted) {
+      const target = conversations.value.find((item) => item.id === wanted)
+      if (target) {
+        await selectConversation(target)
+        return
+      }
+    }
     if (!currentId.value && conversations.value.length) {
       await selectConversation(conversations.value[0])
     }
@@ -342,42 +369,33 @@ async function send() {
     if (!response.ok || !response.body) {
       throw new Error(`HTTP ${response.status}`)
     }
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      const frames = buffer.split('\n\n')
-      buffer = frames.pop() || ''
-      for (const frame of frames) {
-        if (!frame.trim()) continue
-        let event = 'message'
-        let data = {}
-        for (const line of frame.split('\n')) {
-          if (line.startsWith('event:')) event = line.slice(6).trim()
-          else if (line.startsWith('data:')) {
-            try {
-              data = JSON.parse(line.slice(5).trim())
-            } catch {
-              data = {}
-            }
-          }
+    await readStream(response)
+    await finishStream()
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      ElMessage.info('已停止生成')
+    } else {
+      ElMessage.warning('连接中断，正在尝试续传…')
+      try {
+        const streamingMsg = messages.value[messages.value.length - 1]
+        if (streamingMsg && streamingMsg.streaming) {
+          streamingMsg.content = ''
+          streamingMsg.reasoning = ''
+          streamingMsg.tool_events = '[]'
         }
-        handleEvent(event, data)
+        streamText.value = ''
+        const response = await fetch(
+          `${import.meta.env.VITE_API_BASE || '/api'}/agent/chat/resume/${currentId.value}`,
+          { headers: { Authorization: `Bearer ${localStorage.getItem('access_token') || ''}` } }
+        )
+        if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`)
+        await readStream(response)
+        await finishStream()
+        ElMessage.success('已续传')
+      } catch (resumeError) {
+        ElMessage.error(resumeError.message || '续传失败，请刷新页面查看已生成内容')
       }
     }
-    const last = messages.value[messages.value.length - 1]
-    if (last && last.streaming) {
-      last.content = streamText.value
-      last.streaming = false
-    }
-    await loadConversations()
-    await loadStats()
-    await selectConversation({ id: currentId.value })
-  } catch (error) {
-    if (error.name !== 'AbortError') ElMessage.error(error.message || '发送失败')
   } finally {
     streaming.value = false
     controller = null
@@ -386,9 +404,117 @@ async function send() {
   }
 }
 
+async function readStream(response) {
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const frames = buffer.split('\n\n')
+    buffer = frames.pop() || ''
+    for (const frame of frames) {
+      if (!frame.trim()) continue
+      let event = 'message'
+      let data = {}
+      for (const line of frame.split('\n')) {
+        if (line.startsWith('event:')) event = line.slice(6).trim()
+        else if (line.startsWith('data:')) {
+          try {
+            data = JSON.parse(line.slice(5).trim())
+          } catch {
+            data = {}
+          }
+        }
+      }
+      handleEvent(event, data)
+    }
+  }
+}
+
+async function finishStream() {
+  const last = messages.value[messages.value.length - 1]
+  if (last && last.streaming) {
+    last.content = streamText.value
+    last.streaming = false
+  }
+  await loadConversations()
+  await loadStats()
+  await selectConversation({ id: currentId.value })
+}
+
 function stop() {
   if (controller) controller.abort()
   streaming.value = false
+}
+
+async function createBranch(msg) {
+  try {
+    const conv = await api.post(`/agent/conversations/${currentId.value}/branch`, {
+      message_id: msg.id
+    })
+    ElMessage.success('分支已创建')
+    router.push({ path: '/chat', query: { conversation: conv.id } })
+  } catch {
+    /* ignore */
+  }
+}
+
+function cleanSpeech(text) {
+  return String(text || '')
+    .replace(/```[\s\S]*?```/g, ' 代码块 ')
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/[#>*_~\-]{1,}/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function stopSpeak() {
+  if (audioPlayer) {
+    audioPlayer.pause()
+    audioPlayer = null
+  }
+  speakingId.value = ''
+}
+
+async function toggleSpeak(msg) {
+  if (speakingId.value === msg.id) {
+    stopSpeak()
+    return
+  }
+  const text = cleanSpeech(msg.content)
+  if (!text) return
+  stopSpeak()
+  speakingId.value = msg.id
+  try {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE || '/api'}/agent/tts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('access_token') || ''}`
+      },
+      body: JSON.stringify({ text: text.slice(0, 2000) })
+    })
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.msg || `HTTP ${response.status}`)
+    }
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    audioPlayer = new Audio(url)
+    audioPlayer.onended = () => {
+      URL.revokeObjectURL(url)
+      stopSpeak()
+    }
+    await audioPlayer.play()
+  } catch (error) {
+    stopSpeak()
+    ElMessage.error(error.message || '语音合成失败')
+  }
 }
 
 onMounted(() => {
@@ -396,7 +522,10 @@ onMounted(() => {
   loadConversations()
   loadStats()
 })
-onBeforeUnmount(() => window.removeEventListener('resize', onResize))
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onResize)
+  stopSpeak()
+})
 </script>
 
 <style scoped>
@@ -617,4 +746,8 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
     padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
   }
 }
+</style>
+
+<style scoped>
+.msg-actions { margin-top: 4px; }
 </style>

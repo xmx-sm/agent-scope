@@ -1,28 +1,50 @@
 <template>
   <div class="page">
     <h2 class="page-title">知识库</h2>
-    <p class="page-desc">向量库、文档解析、检索与操作日志；Embedding 默认来自「默认配置 → Agent 配置」</p>
+    <p class="page-desc">向量库、文档解析、切片预览、共享、检索与日志；Embedding 默认来自「默认配置 → Agent 配置」</p>
 
     <el-tabs v-model="activeTab" class="kb-tabs">
-      <!-- 向量库 -->
       <el-tab-pane label="向量库" name="libraries">
         <div class="panel" v-loading="loadingLibraries">
           <div class="toolbar">
+            <el-tag v-if="libraries.length" type="info" effect="plain">共 {{ libraries.length }} 个库</el-tag>
             <div class="grow"></div>
             <el-button type="primary" :icon="Plus" @click="openLibraryCreate">创建向量库</el-button>
           </div>
           <el-table :data="libraries" size="small" stripe>
-            <el-table-column prop="name" label="名称" min-width="140" />
-            <el-table-column prop="vector_type" label="类型" width="110" />
-            <el-table-column prop="document_count" label="文档" width="80" />
-            <el-table-column prop="chunk_count" label="切片" width="80" />
-            <el-table-column prop="description" label="描述" min-width="160" show-overflow-tooltip />
-            <el-table-column label="操作" width="260" fixed="right">
+            <el-table-column label="名称" min-width="150">
               <template #default="{ row }">
-                <el-button link type="primary" @click="openLibraryEdit(row)">编辑</el-button>
-                <el-button link type="primary" :loading="testingId === row.id" @click="testLibrary(row)">测试</el-button>
-                <el-button link type="warning" @click="rebuildLibrary(row)">重建</el-button>
-                <el-button link type="danger" @click="deleteLibrary(row)">删除</el-button>
+                <div class="lib-name">
+                  <span>{{ row.name }}</span>
+                  <el-tag v-if="row.is_shared" size="small" type="warning">共享自 {{ row.owner_name }}</el-tag>
+                  <el-tag v-else-if="row.share_count" size="small" type="success">已共享 {{ row.share_count }}</el-tag>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column prop="vector_type" label="类型" width="105" />
+            <el-table-column prop="document_count" label="文档" width="70" />
+            <el-table-column prop="chunk_count" label="切片" width="70" />
+            <el-table-column label="自动解析" width="95">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.auto_parse ? 'success' : 'info'">
+                  {{ row.auto_parse ? `${row.parse_interval}s` : '关闭' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="权限" width="90">
+              <template #default="{ row }">{{ permissionText(row.permission) }}</template>
+            </el-table-column>
+            <el-table-column prop="description" label="描述" min-width="140" show-overflow-tooltip />
+            <el-table-column label="操作" width="300" fixed="right">
+              <template #default="{ row }">
+                <template v-if="row.permission === 'owner'">
+                  <el-button link type="primary" @click="openLibraryEdit(row)">编辑</el-button>
+                  <el-button link type="primary" :loading="testingId === row.id" @click="testLibrary(row)">测试</el-button>
+                  <el-button link type="warning" @click="rebuildLibrary(row)">重建</el-button>
+                  <el-button link type="primary" @click="openShare(row)">共享</el-button>
+                  <el-button link type="danger" @click="deleteLibrary(row)">删除</el-button>
+                </template>
+                <el-button v-else link type="primary" :loading="testingId === row.id" @click="testLibrary(row)">测试</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -30,24 +52,46 @@
         </div>
       </el-tab-pane>
 
-      <!-- 文档 -->
       <el-tab-pane label="文档" name="documents">
         <div class="panel" v-loading="loadingDocuments">
           <div class="toolbar">
-            <el-select v-model="docLibraryId" placeholder="选择向量库" style="width: 220px" @change="loadDocuments">
-              <el-option v-for="lib in libraries" :key="lib.id" :label="lib.name" :value="lib.id" />
+            <el-select v-model="docLibraryId" placeholder="选择向量库" style="width: 230px" @change="loadDocuments">
+              <el-option
+                v-for="lib in libraries"
+                :key="lib.id"
+                :label="lib.is_shared ? `${lib.name}（${lib.owner_name} 共享）` : lib.name"
+                :value="lib.id"
+              />
             </el-select>
-            <el-select v-model="docStatus" placeholder="全部状态" clearable style="width: 140px" @change="loadDocuments">
+            <el-select v-model="docStatus" placeholder="全部状态" clearable style="width: 130px" @change="loadDocuments">
               <el-option label="待解析" value="pending" />
               <el-option label="解析中" value="parsing" />
               <el-option label="已解析" value="parsed" />
               <el-option label="失败" value="failed" />
             </el-select>
+            <div class="grow"></div>
             <input ref="fileInput" type="file" hidden multiple @change="uploadDocuments" />
-            <el-button type="primary" :icon="Upload" :loading="uploading" :disabled="!docLibraryId" @click="fileInput.click()">
-              上传文档
-            </el-button>
+            <el-button
+              type="primary"
+              :icon="Upload"
+              :loading="uploading"
+              :disabled="!docLibraryId || !docWritable"
+              @click="fileInput.click()"
+            >上传文档</el-button>
+            <el-button
+              :loading="parsingPending"
+              :disabled="!docLibraryId || !docWritable"
+              @click="parsePending"
+            >批量解析</el-button>
           </div>
+          <el-alert
+            v-if="docLibrary && !docWritable"
+            type="info"
+            :closable="false"
+            show-icon
+            title="该库为只读共享，不能上传/解析/删除文档"
+            style="margin-bottom: 10px"
+          />
           <el-table :data="documents" size="small" stripe>
             <el-table-column prop="filename" label="文件" min-width="220" show-overflow-tooltip />
             <el-table-column label="状态" width="100">
@@ -55,19 +99,26 @@
                 <el-tag size="small" :type="statusTag(row.status)">{{ statusText(row.status) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="chunk_count" label="切片" width="80" />
-            <el-table-column label="大小" width="100">
+            <el-table-column prop="chunk_count" label="切片" width="70" />
+            <el-table-column label="大小" width="95">
               <template #default="{ row }">{{ bytesText(row.filesize) }}</template>
             </el-table-column>
             <el-table-column label="错误" min-width="140" show-overflow-tooltip>
               <template #default="{ row }">{{ row.error_message || '—' }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="150">
+            <el-table-column label="操作" width="210">
               <template #default="{ row }">
-                <el-button link type="primary" :loading="parsingId === row.id" :disabled="row.status === 'parsing'" @click="parseDocument(row)">
-                  解析
-                </el-button>
-                <el-button link type="danger" @click="deleteDocument(row)">删除</el-button>
+                <el-button link type="primary" @click="previewChunks(row)">切片</el-button>
+                <el-button link type="primary" @click="downloadDocument(row)">下载</el-button>
+                <el-button
+                  v-if="docWritable"
+                  link
+                  type="primary"
+                  :loading="parsingId === row.id"
+                  :disabled="row.status === 'parsing'"
+                  @click="parseDocument(row)"
+                >解析</el-button>
+                <el-button v-if="docWritable" link type="danger" @click="deleteDocument(row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -75,12 +126,16 @@
         </div>
       </el-tab-pane>
 
-      <!-- 检索 -->
       <el-tab-pane label="检索" name="search">
         <div class="panel">
           <div class="toolbar">
-            <el-select v-model="searchLibs" multiple collapse-tags placeholder="全部库" style="min-width: 220px">
-              <el-option v-for="lib in libraries" :key="lib.id" :label="lib.name" :value="lib.id" />
+            <el-select v-model="searchLibs" multiple collapse-tags placeholder="全部可访问库" style="min-width: 220px">
+              <el-option
+                v-for="lib in libraries"
+                :key="lib.id"
+                :label="lib.is_shared ? `${lib.name}（共享）` : lib.name"
+                :value="lib.id"
+              />
             </el-select>
             <el-input v-model="query" placeholder="输入问题" clearable @keyup.enter="search" />
             <el-input-number v-model="topK" :min="1" :max="50" />
@@ -109,7 +164,6 @@
         </div>
       </el-tab-pane>
 
-      <!-- 日志 -->
       <el-tab-pane label="日志" name="logs">
         <div class="panel" v-loading="loadingLogs">
           <div class="toolbar">
@@ -129,7 +183,6 @@
       </el-tab-pane>
     </el-tabs>
 
-    <!-- 向量库编辑 -->
     <el-dialog v-model="libraryDialog" :title="libraryEditing ? '编辑向量库' : '创建向量库'" :width="isMobile ? '94%' : '620px'">
       <el-form :model="libraryForm" label-position="top">
         <div class="form-grid">
@@ -143,6 +196,14 @@
           </el-form-item>
         </div>
         <el-form-item label="描述"><el-input v-model="libraryForm.description" /></el-form-item>
+        <div class="form-grid">
+          <el-form-item label="自动解析">
+            <el-switch v-model="libraryForm.auto_parse" />
+          </el-form-item>
+          <el-form-item label="扫描间隔（秒，最小 60）">
+            <el-input-number v-model="libraryForm.parse_interval" :min="60" :max="86400" :step="60" />
+          </el-form-item>
+        </div>
         <el-divider content-position="left">Embedding（留空跟随系统）</el-divider>
         <div class="form-grid">
           <el-form-item label="服务商"><el-input v-model="libraryForm.embedding.provider" placeholder="openai-compatible" /></el-form-item>
@@ -160,11 +221,60 @@
         <el-button type="primary" :loading="savingLibrary" @click="saveLibrary">保存</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="shareDialog" :title="`共享「${shareLibrary?.name || ''}」`" :width="isMobile ? '94%' : '560px'">
+      <div class="toolbar">
+        <el-select
+          v-model="shareTarget"
+          filterable
+          remote
+          :remote-method="searchCandidates"
+          placeholder="搜索用户"
+          style="flex: 1"
+        >
+          <el-option
+            v-for="user in candidates"
+            :key="user.id"
+            :label="`${user.nickname || user.username}（${user.username}）`"
+            :value="user.id"
+          />
+        </el-select>
+        <el-select v-model="sharePermission" style="width: 120px">
+          <el-option label="只读" value="read" />
+          <el-option label="可写" value="read_write" />
+        </el-select>
+        <el-button type="primary" :disabled="!shareTarget" @click="addShare">共享</el-button>
+      </div>
+      <el-table :data="shares" size="small">
+        <el-table-column prop="target_name" label="用户" min-width="130" />
+        <el-table-column prop="target_account" label="账号" min-width="120" />
+        <el-table-column label="权限" width="90">
+          <template #default="{ row }">{{ row.permission === 'read_write' ? '可写' : '只读' }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="90">
+          <template #default="{ row }">
+            <el-button link type="danger" @click="removeShare(row)">移除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-if="!shares.length" description="尚未共享" :image-size="50" />
+      <template #footer><el-button @click="shareDialog = false">关闭</el-button></template>
+    </el-dialog>
+
+    <el-dialog v-model="chunkDialog" :title="`切片预览 · ${chunkDoc?.filename || ''}`" :width="isMobile ? '94%' : '760px'">
+      <div v-loading="loadingChunks" class="chunk-list">
+        <div v-for="chunk in chunks" :key="chunk.id" class="chunk-item">
+          <div class="chunk-index">#{{ chunk.index + 1 }}</div>
+          <pre>{{ chunk.text }}</pre>
+        </div>
+        <el-empty v-if="!chunks.length && !loadingChunks" description="暂无切片" :image-size="60" />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload } from '@element-plus/icons-vue'
 import api from '../utils/api'
@@ -180,17 +290,16 @@ const loadingLibraries = ref(false)
 const loadingDocuments = ref(false)
 const loadingLogs = ref(false)
 const uploading = ref(false)
+const parsingPending = ref(false)
 const parsingId = ref('')
 const testingId = ref('')
 const savingLibrary = ref(false)
 const libraryDialog = ref(false)
 const libraryEditing = ref(false)
 const libraryForm = reactive({
-  id: '',
-  name: '',
-  vector_type: 'sqlite',
-  description: '',
-  embedding: { provider: '', model: '', base_url: '', api_key: '', dimensions: 0 }
+  id: '', name: '', vector_type: 'sqlite', description: '',
+  embedding: { provider: '', model: '', base_url: '', api_key: '', dimensions: 0 },
+  auto_parse: false, parse_interval: 300
 })
 const configText = ref('{"chunk_size":256,"overlap":0}')
 const docLibraryId = ref('')
@@ -201,14 +310,29 @@ const query = ref('')
 const topK = ref(5)
 const searching = ref(false)
 const fileInput = ref(null)
+const shareDialog = ref(false)
+const shareLibrary = ref(null)
+const shareTarget = ref('')
+const sharePermission = ref('read')
+const shares = ref([])
+const candidates = ref([])
+const chunkDialog = ref(false)
+const chunkDoc = ref(null)
+const chunks = ref([])
+const loadingChunks = ref(false)
 
 const vectorTypes = ['sqlite', 'zvec', 'qdrant', 'milvus', 'faiss', 'chroma', 'pgvector', 'oceanbase', 'mongodb', 'elasticsearch']
+const docLibrary = computed(() => libraries.value.find((item) => item.id === docLibraryId.value))
+const docWritable = computed(() => ['owner', 'read_write'].includes(docLibrary.value?.permission))
 
 function statusTag(status) {
   return { pending: 'info', parsing: 'warning', parsed: 'success', failed: 'danger' }[status] || 'info'
 }
 function statusText(status) {
   return { pending: '待解析', parsing: '解析中', parsed: '已解析', failed: '失败' }[status] || status
+}
+function permissionText(permission) {
+  return { owner: '所有者', read: '只读', read_write: '可写' }[permission] || permission
 }
 function bytesText(value) {
   const num = Number(value || 0)
@@ -221,7 +345,9 @@ async function loadLibraries() {
   loadingLibraries.value = true
   try {
     libraries.value = await api.get('/agent/knowledge/libraries')
-    if (!docLibraryId.value && libraries.value.length) docLibraryId.value = libraries.value[0].id
+    if (!libraries.value.find((item) => item.id === docLibraryId.value)) {
+      docLibraryId.value = libraries.value[0]?.id || ''
+    }
   } catch {
     /* ignore */
   } finally {
@@ -259,11 +385,9 @@ async function loadLogs() {
 function openLibraryCreate() {
   libraryEditing.value = false
   Object.assign(libraryForm, {
-    id: '',
-    name: '',
-    vector_type: 'sqlite',
-    description: '',
-    embedding: { provider: '', model: '', base_url: '', api_key: '', dimensions: 0 }
+    id: '', name: '', vector_type: 'sqlite', description: '',
+    embedding: { provider: '', model: '', base_url: '', api_key: '', dimensions: 0 },
+    auto_parse: false, parse_interval: 300
   })
   configText.value = '{"chunk_size":256,"overlap":0}'
   libraryDialog.value = true
@@ -272,11 +396,8 @@ function openLibraryCreate() {
 function openLibraryEdit(row) {
   libraryEditing.value = true
   Object.assign(libraryForm, {
-    id: row.id,
-    name: row.name,
-    vector_type: row.vector_type,
-    description: row.description,
-    embedding: { ...row.embedding }
+    id: row.id, name: row.name, vector_type: row.vector_type, description: row.description,
+    embedding: { ...row.embedding }, auto_parse: row.auto_parse, parse_interval: row.parse_interval
   })
   configText.value = JSON.stringify(row.config || {}, null, 2)
   libraryDialog.value = true
@@ -296,7 +417,9 @@ async function saveLibrary() {
       await api.put(`/agent/knowledge/libraries/${libraryForm.id}`, {
         description: libraryForm.description,
         embedding: libraryForm.embedding,
-        config
+        config,
+        auto_parse: libraryForm.auto_parse,
+        parse_interval: libraryForm.parse_interval
       })
       ElMessage.success('向量库已更新')
     } else {
@@ -305,7 +428,9 @@ async function saveLibrary() {
         vector_type: libraryForm.vector_type,
         description: libraryForm.description,
         embedding: libraryForm.embedding,
-        config
+        config,
+        auto_parse: libraryForm.auto_parse,
+        parse_interval: libraryForm.parse_interval
       })
       ElMessage.success('向量库已创建')
     }
@@ -374,6 +499,7 @@ async function uploadDocuments(event) {
     }
     ElMessage.success('上传完成')
     await loadDocuments()
+    await loadLibraries()
   } catch {
     /* ignore */
   } finally {
@@ -391,6 +517,21 @@ async function parseDocument(row) {
   } finally {
     parsingId.value = ''
     await loadDocuments()
+    await loadLibraries()
+  }
+}
+
+async function parsePending() {
+  parsingPending.value = true
+  try {
+    const data = await api.post(`/agent/knowledge/libraries/${docLibraryId.value}/parse-pending`)
+    ElMessage.success(`共 ${data.total} 个，成功 ${data.parsed}，失败 ${data.failed}`)
+    await loadDocuments()
+    await loadLibraries()
+  } catch {
+    /* ignore */
+  } finally {
+    parsingPending.value = false
   }
 }
 
@@ -404,6 +545,97 @@ async function deleteDocument(row) {
     await api.delete(`/agent/knowledge/documents/${row.id}`)
     ElMessage.success('已删除')
     await loadDocuments()
+    await loadLibraries()
+  } catch {
+    /* ignore */
+  }
+}
+
+async function previewChunks(row) {
+  chunkDoc.value = row
+  chunkDialog.value = true
+  loadingChunks.value = true
+  try {
+    const data = await api.get(`/agent/knowledge/documents/${row.id}/chunks`)
+    chunks.value = data.chunks
+  } catch {
+    chunks.value = []
+  } finally {
+    loadingChunks.value = false
+  }
+}
+
+async function downloadDocument(row) {
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_API_BASE || '/api'}/agent/knowledge/documents/${row.id}/download`,
+      { headers: { Authorization: `Bearer ${localStorage.getItem('access_token') || ''}` } }
+    )
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = row.filename
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    ElMessage.error(error.message || '下载失败')
+  }
+}
+
+async function openShare(row) {
+  shareLibrary.value = row
+  shareTarget.value = ''
+  sharePermission.value = 'read'
+  candidates.value = []
+  shareDialog.value = true
+  await loadShares()
+  await searchCandidates('')
+}
+
+async function loadShares() {
+  if (!shareLibrary.value) return
+  try {
+    shares.value = await api.get(`/agent/knowledge/libraries/${shareLibrary.value.id}/shares`)
+  } catch {
+    shares.value = []
+  }
+}
+
+async function searchCandidates(keyword) {
+  try {
+    candidates.value = await api.get('/agent/knowledge/share-candidates', {
+      params: { q: keyword || '' }
+    })
+  } catch {
+    candidates.value = []
+  }
+}
+
+async function addShare() {
+  try {
+    await api.post(`/agent/knowledge/libraries/${shareLibrary.value.id}/shares`, {
+      target_user_id: shareTarget.value,
+      permission: sharePermission.value
+    })
+    ElMessage.success('已共享')
+    shareTarget.value = ''
+    await loadShares()
+    await loadLibraries()
+  } catch {
+    /* ignore */
+  }
+}
+
+async function removeShare(row) {
+  try {
+    await api.delete(
+      `/agent/knowledge/libraries/${shareLibrary.value.id}/shares/${row.target_user_id}`
+    )
+    ElMessage.success('已取消共享')
+    await loadShares()
+    await loadLibraries()
   } catch {
     /* ignore */
   }
@@ -439,47 +671,16 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.toolbar {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0 18px;
-}
-
-.search-results {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.search-item {
-  border: 1px solid var(--app-border);
-  border-radius: 10px;
-  padding: 10px 12px;
-}
-
-.search-meta {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.search-item pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 13px;
-}
-
-.search-errors {
-  margin-bottom: 10px;
-}
+.toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 18px; }
+.lib-name { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.search-results { display: flex; flex-direction: column; gap: 10px; }
+.search-item { border: 1px solid var(--app-border); border-radius: 10px; padding: 10px 12px; }
+.search-meta { display: flex; gap: 10px; align-items: center; margin-bottom: 6px; }
+.search-item pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 13px; }
+.search-errors { margin-bottom: 10px; }
+.chunk-list { max-height: 62vh; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+.chunk-item { border: 1px solid var(--app-border); border-radius: 10px; padding: 8px 12px; }
+.chunk-index { font-size: 12px; color: var(--app-muted); margin-bottom: 6px; }
+.chunk-item pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 13px; }
 </style>

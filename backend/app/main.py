@@ -1,5 +1,6 @@
 """FastAPI 应用入口。"""
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -9,12 +10,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
-from app.routers import agent, auth, config, menu, permissions, system, tools, user
+from app.routers import a2a, agent, auth, config, menu, permissions, system, tools, user
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, close_db, init_db
 from app.core.deps import ApiError
 from app.core.seed import async_seed
 from app.utils.redis_util import async_close_redis, async_get_redis_client
+from app.services.agent.knowledge_worker import async_knowledge_worker
+from app.services.agent.scheduled import async_scheduler_worker
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,12 +40,18 @@ async def lifespan(app: FastAPI):
             settings.redis_host, settings.redis_port,
         )
     logger.info("后端已启动：%s:%s%s", settings.host, settings.port, settings.api_prefix)
+    stop = asyncio.Event()
+    worker = asyncio.create_task(async_knowledge_worker(stop))
+    scheduler = asyncio.create_task(async_scheduler_worker(stop))
     yield
+    stop.set()
+    worker.cancel()
+    scheduler.cancel()
     await async_close_redis()
     await close_db()
 
 
-app = FastAPI(title=settings.app_name, version="0.18.0", lifespan=lifespan)
+app = FastAPI(title=settings.app_name, version="0.19.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -98,5 +107,6 @@ for router in (
     tools.router,
     agent.router,
     agent.admin_router,
+    a2a.router,
 ):
     app.include_router(router, prefix=settings.api_prefix)

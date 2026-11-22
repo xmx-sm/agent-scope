@@ -25,8 +25,7 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-async def _load_llm(session, user: User) -> tuple[dict, str, bool]:
-    cfg = await async_effective({"session": session, "user": user})
+def _llm_from_config(cfg: dict) -> dict:
     model = str(cfg.get("model") or "")
     base_url = str(cfg.get("base_url") or "")
     if not model:
@@ -45,7 +44,33 @@ async def _load_llm(session, user: User) -> tuple[dict, str, bool]:
         "temperature": float(cfg.get("temperature", 0.7) or 0.7),
         "max_tokens": int(cfg.get("max_tokens", 4096) or 4096),
         "context_size": int(cfg.get("context_window", 131072) or 131072),
-    }, str(cfg.get("system_prompt") or ""), bool(cfg.get("memory_enabled", False))
+        "video_support": bool(cfg.get("video_support")),
+        "video_fps": float(cfg.get("video_fps") or 0) or None,
+    }
+
+
+async def _load_llm(session, user: User, override: dict | None = None) -> tuple[dict, str, bool]:
+    cfg = await async_effective({"session": session, "user": user})
+    cfg["video_support"] = bool(
+        await async_get_config({"session": session, "key": "ai.video_support", "default": False})
+    )
+    cfg["video_fps"] = float(
+        await async_get_config({"session": session, "key": "ai.video_fps", "default": 0}) or 0
+    )
+    cfg["video_max_mb"] = int(
+        await async_get_config({"session": session, "key": "ai.video_max_mb", "default": 20}) or 20
+    )
+    if override:
+        cfg.update(override)
+    model = str(cfg.get("model") or "")
+    base_url = str(cfg.get("base_url") or "")
+    if not model:
+        raise ValueError("请先在 Agent 配置中填写对话模型")
+    if not base_url:
+        raise ValueError("请先在 Agent 配置中填写模型 API 地址")
+    return _llm_from_config(cfg), str(cfg.get("system_prompt") or ""), bool(
+        cfg.get("memory_enabled", False)
+    )
 
 
 async def _history_text(session, conversation_id: str, limit: int = 20) -> str:
@@ -66,7 +91,13 @@ async def _history_text(session, conversation_id: str, limit: int = 20) -> str:
 
 
 async def async_stream_chat(
-    user_id: str, conversation_id: str, content: str, attachment_ids: list[str] | None = None
+    user_id: str,
+    conversation_id: str,
+    content: str,
+    attachment_ids: list[str] | None = None,
+    super_depth: int = 0,
+    tools_enabled: bool = True,
+    source: str = "web",
 ) -> AsyncGenerator[str, None]:
     """SSE 生成器：自己管理数据库会话，避免依赖释放导致流中断。"""
     from agentscope.message import Base64Source, DataBlock, TextBlock, UserMsg
@@ -93,9 +124,44 @@ async def async_stream_chat(
         if conv is None or conv.user_id != user_id:
             yield _sse("error", {"error": "会话不存在"})
             return
+        super_ctx = None
+        member_override = None
+        if conv.super_agent_member_id and conv.super_agent_id:
+            from app.services.agent.super_agent import async_resolve_member
+
+            resolved = await async_resolve_member(
+                {
+                    "session": session,
+                    "user": user,
+                    "super_agent_id": conv.super_agent_id,
+                    "member_id": conv.super_agent_member_id,
+                }
+            )
+            if resolved:
+                member_override = resolved["config"]
+                super_ctx = {
+                    **resolved["super_agent"],
+                    "conversation_id": conversation_id,
+                    "depth": super_depth,
+                    "roster": resolved["roster"],
+                }
         history = await _history_text(session, conversation_id)
-        meta, attachment_text, images = await async_load_for_model(
-            {"session": session, "user_id": user_id, "ids": attachment_ids or []}
+        meta, attachment_text, images, videos = await async_load_for_model(
+            {
+                "session": session,
+                "user_id": user_id,
+                "ids": attachment_ids or [],
+                "video_support": bool(
+                    await async_get_config(
+                        {"session": session, "key": "ai.video_support", "default": False}
+                    )
+                ),
+                "video_max_mb": int(
+                    await async_get_config(
+                        {"session": session, "key": "ai.video_max_mb", "default": 20}
+                    ) or 20
+                ),
+            }
         )
         await async_save_message(
             session,
@@ -104,13 +170,59 @@ async def async_stream_chat(
             content=content,
             attachments=json.dumps(meta, ensure_ascii=False),
         )
+        knowledge_text = ""
         try:
-            llm, user_prompt, memory_enabled = await _load_llm(session, user)
+            llm, user_prompt, memory_enabled = await _load_llm(
+                session, user, member_override
+            )
             security_prompt = await async_build_security_prompt({"session": session})
             system_prompt = user_prompt or "你是一个企业智能助手。"
-            toolkit = await async_build_toolkit({"session": session, "user": user})
-            subagent_specs = await async_subagent_specs(
-                {"session": session, "user": user}
+            knowledge_text = ""
+            try:
+                from app.services.agent.knowledge import async_search
+
+                found = await async_search(
+                    {
+                        "session": session,
+                        "user_id": user.id,
+                        "query": content,
+                        "library_ids": [],
+                        "top_k": 4,
+                    }
+                )
+                hits = found.get("results") or []
+                if hits:
+                    lines = []
+                    for index, item in enumerate(hits[:4], 1):
+                        text = str(item.get("text") or "").strip()
+                        if not text:
+                            continue
+                        lines.append(
+                            f"[{index}] 《{item.get('library_name') or '知识库'}》"
+                            f"（相关度 {float(item.get('score') or 0):.3f}）\n"
+                            f"{text[:1200]}"
+                        )
+                    if lines:
+                        knowledge_text = (
+                            "\n\n[知识库参考]\n" + "\n\n".join(lines)
+                            + "\n\n以上内容来自用户可访问的知识库。回答时优先采用；"
+                            "如与用户问题无关可忽略，不要编造未出现的引用。"
+                        )
+            except Exception:  # noqa: BLE001 - 未配置 embedding / 无库时不阻断对话
+                knowledge_text = ""
+            if tools_enabled:
+                toolkit = await async_build_toolkit({"session": session, "user": user})
+                if super_ctx and super_ctx.get("role") == "main" and super_depth == 0:
+                    from app.services.agent.super_tools import build_super_group
+
+                    toolkit.tool_groups.extend(build_super_group(user.id, super_ctx))
+            else:
+                from agentscope.tool import Toolkit
+
+                toolkit = Toolkit(tools=[], tool_groups=[])
+            subagent_specs = (
+                await async_subagent_specs({"session": session, "user": user})
+                if tools_enabled else []
             )
             if subagent_specs:
                 from scope.agent.delegate import register_delegate_tool
@@ -122,13 +234,21 @@ async def async_stream_chat(
                     owner=user.id,
                     register_task_tool=True,
                 )
-            skill_dirs = await async_active_dirs({"session": session, "user": user})
-            mcp_servers = await async_active_servers({"session": session, "user": user})
+            skill_dirs = (
+                await async_active_dirs({"session": session, "user": user})
+                if tools_enabled else []
+            )
+            mcp_servers = (
+                await async_active_servers({"session": session, "user": user})
+                if tools_enabled else []
+            )
         except Exception as exc:  # noqa: BLE001
             yield _sse("error", {"error": str(exc)})
             return
 
     full_prompt = system_prompt.strip()
+    if knowledge_text:
+        full_prompt += knowledge_text
     if security_prompt:
         full_prompt += "\n\n" + security_prompt.strip()
     if history:
@@ -191,15 +311,22 @@ async def async_stream_chat(
 
     runtime = AgentRuntime(result["data"]["agent"], default_approval="allow")
     user_text = content
-    if attachment_text and not images:
+    if attachment_text and not images and not videos:
         user_text = f"{content}\n\n{attachment_text}"
-    if images:
+    if images or videos:
         blocks = [TextBlock(type="text", text=user_text)]
         for image in images:
             blocks.append(
                 DataBlock(
                     source=Base64Source(data=image["data"], media_type=image["media_type"]),
                     name=image["name"],
+                )
+            )
+        for video in videos:
+            blocks.append(
+                DataBlock(
+                    source=Base64Source(data=video["data"], media_type=video["media_type"]),
+                    name=video["name"],
                 )
             )
         user_msg = UserMsg("user", blocks)
@@ -292,7 +419,7 @@ async def async_stream_chat(
                         user_id=user_id,
                         conversation_id=conversation_id,
                         message_id=assistant.id,
-                        source="web",
+                        source=source,
                         model_name=model_name,
                         calls=item["calls"],
                         input_tokens=item["input_tokens"],
@@ -306,3 +433,30 @@ async def async_stream_chat(
         "message_id": assistant.id,
         "content": final_text,
     })
+
+
+async def async_run_turn(
+    user_id: str,
+    conversation_id: str,
+    content: str,
+    super_depth: int = 1,
+    tools_enabled: bool = True,
+    source: str = "web",
+) -> dict:
+    """非流式驱动一轮（超级智能体编排用），返回最终文本。"""
+    final = ""
+    async for frame in async_stream_chat(
+        user_id,
+        conversation_id,
+        content,
+        super_depth=super_depth,
+        tools_enabled=tools_enabled,
+        source=source,
+    ):
+        if "event: done" in frame:
+            payload = frame.split("data: ", 1)[1]
+            final = json.loads(payload).get("content", "")
+        elif "event: error" in frame:
+            payload = frame.split("data: ", 1)[1]
+            raise RuntimeError(json.loads(payload).get("error", "执行失败"))
+    return {"code": 200, "content": final, "submitted": False, "message": "success"}

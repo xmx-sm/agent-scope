@@ -15,6 +15,7 @@ PERMISSIONS: list[dict] = [
     {"key": "admin.settings", "name": "默认设置", "group": "管理", "super_only": True},
     {"key": "admin.permissions", "name": "权限配置", "group": "管理", "super_only": True},
     {"key": "admin.menus", "name": "菜单配置", "group": "管理", "super_only": True},
+    {"key": "admin.audits", "name": "权限审计", "group": "管理", "super_only": True},
     {"key": "system.status", "name": "运行状态", "group": "管理", "super_only": True},
 ]
 

@@ -57,7 +57,7 @@ async def async_available(params: dict) -> list[dict[str, Any]]:
     def allowed(row: Menu) -> bool:
         if row.super_only and user.role != "super_admin":
             return False
-        if row.leader_only and not has_reports:
+        if row.leader_only and not has_reports and user.role != "super_admin":
             return False
         if row.permission and row.permission not in effective:
             return False
