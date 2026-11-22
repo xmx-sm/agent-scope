@@ -28,7 +28,7 @@
 ## 一、目录总览
 
 全仓 **43 个 Python 文件 / 7345 行**：工具层 `tools/` 39 文件 6726 行 + 基础设施层 `config/` 4 文件 619 行。
-框架层中 `llm/`（模型工厂）与 `media/`（TTS/ASR 落盘服务）已实现；其余 `agent/`、`middleware/`、`permission/`、`rag/`、`skills/`、`storage/` 尚未实现，缺口与规划见《框架层规划.md》。
+框架层中 `llm/`（模型工厂）、`media/`（TTS/ASR 落盘服务）与 `rag/`（SQLite 本地知识库 + `tools/rag`）已实现；其余 `agent/`、`middleware/`、`permission/`、`skills/`、`storage/` 尚未实现，缺口与规划见《框架层规划.md》。
 
 ```
 tools/

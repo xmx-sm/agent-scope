@@ -19,10 +19,11 @@
 
 | 层 | 内容 | 规模 |
 |---|---|---|
-| 工具层 | 5 个域：db / net / mail / mcp / system | 39 文件 / 127 顶层函数 / 6726 行 |
+| 工具层 | 5 个通用域：db / net / mail / mcp / system + `tools/rag` | 40 文件 |
 | 配置层 | `scope/config/`：SQLite 配置中心，73 项默认配置 | 4 文件 / 619 行 |
 | 模型层 | `scope/llm/`：多厂商 Chat / Embedding / TTS / ASR 工厂，视频 formatter | 3 文件 |
 | 媒体层 | `scope/media/`：TTS 落盘 / base64 / URL、ASR 转写、文件闸门 | 4 文件 |
+| RAG 层 | `scope/rag/`：文档解析/切片/embedding、SQLite 向量库、注册表；`tools/rag/` 工具入口 | 6 文件 |
 
 工具域能力：
 
@@ -33,6 +34,7 @@
 | `mail` | 发信、收信、按条件查找、附件、分页 |
 | `mcp` | MCP 客户端与配置解析（stdio / http） |
 | `system` | Shell 命令执行 |
+| `rag` | 知识库写入 / 检索 / 删除 / 列表；默认 SQLite 后端 |
 
 配置层的约定：
 
@@ -63,14 +65,13 @@ scope/
 ├── agent/          # 空：Agent 工厂、运行循环、Toolkit 装配、子智能体
 ├── middleware/     # 空：记忆、预算、Tracing、ModelRouter
 ├── permission/     # 空：工具审批（下一步）
-├── rag/            # 空：知识库 / RAG（下一步）
 ├── skills/         # 空：Skill 加载
 ├── storage/        # 空：会话 / 消息 / 工作区
 └── main.py         # 0 字节：装配入口 / 服务入口
 ```
 
-> `llm/` 与 `media/` 已实现（模型工厂 + 多模态 formatter + TTS/ASR 落盘服务），见
-> [docs/框架层规划.md](scope/docs/框架层规划.md) 第三节-B/三-C。
+> `llm/`、`media/`、`rag/` 已实现，见
+> [docs/框架层规划.md](scope/docs/框架层规划.md) 第三节-B/三-C/三-D。
 
 框架层缺口、目标结构、审批与 RAG 的详细设计见
 [docs/框架层规划.md](scope/docs/框架层规划.md)。
@@ -99,7 +100,14 @@ agent_scope/
     │   ├── asr.py               # 音频 → 文本（可选落盘）
     │   ├── fs.py                # 读/写文件闸门
     │   └── __init__.py
+    ├── rag/                     # RAG 知识库
+    │   ├── common.py            # 解析 / 切片 / embedding
+    │   ├── sqlite_db.py         # 本地 SQLite 向量库
+    │   ├── registry.py          # 向量模型标注注册表
+    │   ├── rag_main.py          # 后端分发
+    │   └── __init__.py
     ├── tools/
+    │   ├── rag/                 # RAG 工具入口 async_rag_tools
     │   ├── db/                  # 数据库工具（四层结构：_helper → executors → dialect → 方言入口）
     │   ├── net/                 # 网络工具（基础请求 + 浏览器渲染/截图/PDF）
     │   ├── mail/                # 邮件工具（IMAP / SMTP）
