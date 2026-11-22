@@ -20,6 +20,15 @@
               <span class="muted">{{ member.enabled_count }}/{{ member.total_count }} 个工具可用</span>
             </div>
           </div>
+          <el-button
+            v-if="member.mode === 'all'"
+            size="small"
+            plain
+            :loading="tighteningId === member.id"
+            @click="tighten(member)"
+          >
+            收紧为清单
+          </el-button>
           <el-button type="danger" plain size="small" @click="openAdjust(member)">收窄工具</el-button>
         </div>
       </div>
@@ -34,9 +43,17 @@
         <div v-for="group in target.groups" :key="group.name" class="tool-group">
           <div class="tool-group-head">
             <b>{{ group.label }}</b>
-            <span class="muted">
-              {{ group.tools.filter((t) => t.enabled).length }}/{{ group.tools.length }}
-            </span>
+            <div class="group-actions">
+              <span class="muted">
+                {{ group.tools.filter((t) => t.enabled).length }}/{{ group.tools.length }}
+              </span>
+              <el-switch
+                :model-value="group.tools.some((t) => t.enabled)"
+                :disabled="savingKey === `${group.name}:__group__`"
+                size="small"
+                @change="(checked) => toggleGroup(group, checked)"
+              />
+            </div>
           </div>
           <div class="tool-list">
             <div v-for="tool in group.tools" :key="tool.name" class="tool-item">
@@ -74,6 +91,7 @@ const members = ref([])
 const dialogVisible = ref(false)
 const target = ref(null)
 const savingKey = ref('')
+const tighteningId = ref('')
 
 const roleLabels = { super_admin: '超级管理员', admin: '管理员', user: '普通用户' }
 function roleLabel(role) {
@@ -94,6 +112,46 @@ async function load() {
 function openAdjust(member) {
   target.value = member
   dialogVisible.value = true
+}
+
+async function tighten(member) {
+  tighteningId.value = member.id
+  try {
+    const view = await api.post(`/tools/team/${member.id}/tighten`)
+    Object.assign(member, {
+      mode: view.mode,
+      enabled_count: view.enabled_count,
+      total_count: view.total_count,
+      groups: view.groups
+    })
+    ElMessage.success('已切换为按清单授权')
+  } catch {
+    /* ignore */
+  } finally {
+    tighteningId.value = ''
+  }
+}
+
+async function toggleGroup(group, checked) {
+  savingKey.value = `${group.name}:__group__`
+  try {
+    const view = await api.post(`/tools/team/${target.value.id}/narrow`, {
+      group: group.name,
+      tool: '',
+      enabled: checked
+    })
+    target.value.mode = view.mode
+    target.value.enabled_count = view.enabled_count
+    target.value.total_count = view.total_count
+    target.value.groups = view.groups
+    const index = members.value.findIndex((item) => item.id === target.value.id)
+    if (index >= 0) members.value[index] = target.value
+    ElMessage.success(checked ? '已开启该工具组' : '已关闭该工具组')
+  } catch {
+    /* ignore */
+  } finally {
+    savingKey.value = ''
+  }
 }
 
 async function toggleTool(group, tool, checked) {
@@ -212,6 +270,12 @@ onMounted(load)
 }
 
 .tool-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.group-actions {
   display: flex;
   align-items: center;
   gap: 8px;

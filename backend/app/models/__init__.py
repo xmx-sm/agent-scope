@@ -3,13 +3,20 @@
 from app.models.common import new_id, utc_now
 from app.models.menu import Menu, UserMenuPref
 from app.models.system import RolePermission, SystemConfig
-from app.models.user import User, UserPermissionState, UserToolMode, UserToolPermission
+from app.models.user import (
+    ToolPermissionAudit,
+    User,
+    UserPermissionState,
+    UserToolMode,
+    UserToolPermission,
+)
 
 __all__ = [
     "User",
     "UserPermissionState",
     "UserToolMode",
     "UserToolPermission",
+    "ToolPermissionAudit",
     "SystemConfig",
     "RolePermission",
     "Menu",

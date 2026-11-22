@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import ApiError
 from app.core.tools import GROUP_MAP, is_valid
 from app.models import User, UserToolMode, UserToolPermission
+from app.services.tools.audit import add_audit, snapshot
 from app.services.tools.evaluate import async_tool_view
 from app.services.user.tree import async_is_descendant
 
@@ -33,6 +34,13 @@ async def async_set_tools(params: dict) -> dict:
         delete(UserToolPermission).where(UserToolPermission.user_id == target.id)
     )
     await _async_set_mode(session, target.id, mode)
+    await add_audit(
+        session,
+        user_id=target.id,
+        actor_id=params.get("operator_id") or target.id,
+        action="set_mode",
+        after=mode,
+    )
     if mode == "custom":
         items = data.get("items") or []
         seen: set[tuple[str, str]] = set()
@@ -68,6 +76,13 @@ async def async_reset_tools(params: dict) -> dict:
         delete(UserToolPermission).where(UserToolPermission.user_id == target.id)
     )
     await _async_set_mode(session, target.id, "all")
+    await add_audit(
+        session,
+        user_id=target.id,
+        actor_id=params.get("operator_id") or target.id,
+        action="reset",
+        after="all",
+    )
     await session.commit()
     return await async_tool_view({"session": session, "user": target})
 
@@ -104,6 +119,8 @@ async def async_narrow_tool(params: dict) -> dict:
         )
     ).scalar_one_or_none()
 
+    before = snapshot(existing.enabled if existing else None,
+                      existing.granted_by if existing else None)
     if enabled:
         # 恢复=删除本人收窄行；其他上级的收窄行仍然生效
         if existing is not None and existing.granted_by == actor.id:
@@ -124,6 +141,16 @@ async def async_narrow_tool(params: dict) -> dict:
         else:
             existing.enabled = False
             existing.granted_by = actor.id
+    await add_audit(
+        session,
+        user_id=target_id,
+        actor_id=actor.id,
+        action="grant_tool" if enabled else "narrow_tool",
+        tool_group=group,
+        tool_name=tool,
+        before=before,
+        after=snapshot(enabled, actor.id),
+    )
     await session.commit()
     return await async_tool_view({"session": session, "user": target})
 
@@ -151,3 +178,61 @@ async def async_team_tools(params: dict) -> list[dict]:
             }
         )
     return result
+
+
+async def async_tighten_mode(params: dict) -> dict:
+    """上级把下属从「全部工具」收紧为「按清单授权」，先快照当前可用工具，功能不中断。
+    参数：session / actor / target_id
+    """
+    session: AsyncSession = params["session"]
+    actor: User = params["actor"]
+    target_id: str = params["target_id"]
+    if target_id != actor.id:
+        if actor.role != "super_admin" and not await async_is_descendant(
+            {"session": session, "ancestor_id": actor.id, "target_id": target_id}
+        ):
+            raise ApiError("只能管理自己的下属", code=403)
+    target = await session.get(User, target_id)
+    if target is None:
+        raise ApiError("用户不存在", code=404)
+
+    view = await async_tool_view({"session": session, "user": target})
+    if view["mode"] == "custom":
+        return view
+
+    items = []
+    for group in view["groups"]:
+        enabled_tools = [tool for tool in group["tools"] if tool["enabled"]]
+        if not enabled_tools:
+            continue
+        if len(enabled_tools) == len(group["tools"]):
+            items.append({"group": group["name"], "tool": ""})
+        else:
+            items.extend(
+                {"group": group["name"], "tool": tool["name"]} for tool in enabled_tools
+            )
+
+    await session.execute(
+        delete(UserToolPermission).where(UserToolPermission.user_id == target.id)
+    )
+    await _async_set_mode(session, target.id, "custom")
+    for item in items:
+        session.add(
+            UserToolPermission(
+                user_id=target.id,
+                tool_group=item["group"],
+                tool_name=item["tool"],
+                enabled=True,
+                granted_by=None,
+            )
+        )
+    await add_audit(
+        session,
+        user_id=target.id,
+        actor_id=actor.id,
+        action="tighten_mode",
+        before="all",
+        after=f"custom:{len(items)}",
+    )
+    await session.commit()
+    return await async_tool_view({"session": session, "user": target})

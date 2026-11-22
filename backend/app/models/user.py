@@ -97,3 +97,19 @@ class UserToolPermission(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
+
+
+class ToolPermissionAudit(Base):
+    """AI 工具权限变更留痕。"""
+
+    __tablename__ = "tool_permission_audits"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    actor_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(40), nullable=False)
+    tool_group: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    tool_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    prev_state: Mapped[str | None] = mapped_column(Text, nullable=True)
+    new_state: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
