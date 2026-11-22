@@ -4,6 +4,10 @@
 
 当前维护版本：`v0.25.x`
 
+## 联系方式
+
+一般问题请联系：mingxin0108@139.com
+
 ## 报告安全问题
 
 请优先使用 GitHub 的 **Private vulnerability reporting / Security advisory**，不要在公开 Issue 中粘贴：
