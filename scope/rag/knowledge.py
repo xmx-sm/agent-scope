@@ -43,9 +43,9 @@ except ImportError:  # scope.rag 包导入
     from scope.config import get as _cfg_get
 
 try:
-    from ..llm.agent_model import async_get_embedding_model
+    from ..llm.agent_model import async_get_embedding_model, async_get_llm_model
 except ImportError:
-    from llm.agent_model import async_get_embedding_model
+    from llm.agent_model import async_get_embedding_model, async_get_llm_model
 
 from .sqlite_vector_store import SQLiteVectorStore
 from ._utils import as_bool, as_dict
@@ -169,7 +169,7 @@ async def async_create_rag_middleware(data: dict = None) -> Dict[str, Any]:
         embedding(dict, 可选)          全局 embedding 配置
         embedding_model(对象, 可选)    全局注入的 embedding 模型
         search_config(dict, 可选)      RAGMiddleware.Parameters 字段
-        rerank_model(对象, 可选)       可选的 rerank ChatModel
+        rerank_model(对象或 dict, 可选) 可选的 rerank ChatModel；dict 走模型工厂
     """
     fn = "async_create_rag_middleware"
     try:
@@ -203,10 +203,20 @@ async def async_create_rag_middleware(data: dict = None) -> Dict[str, Any]:
         except Exception as e:
             return _err(f"search_config 非法：{e}", fn)
 
+        rerank_model = data.get("rerank_model")
+        if isinstance(rerank_model, dict):
+            cfg = rerank_model.get("llm") if isinstance(
+                rerank_model.get("llm"), dict) else rerank_model
+            rr = await async_get_llm_model({"llm": cfg})
+            if rr.get("code") != 200:
+                return _err(
+                    f"rerank_model 初始化失败：{rr.get('message')}", fn)
+            rerank_model = rr["data"]
+
         middleware = RAGMiddleware(
             knowledge_bases=kbs,
             parameters=parameters,
-            rerank_model=data.get("rerank_model"),
+            rerank_model=rerank_model,
         )
         return _ok({"middleware": middleware, "knowledge_bases": kbs,
                     "vector_stores": stores}, "RAGMiddleware 创建成功")

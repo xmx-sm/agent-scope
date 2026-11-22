@@ -50,9 +50,9 @@ except ImportError:
     from permission.bundle import async_build_permission_bundle
 
 try:
-    from ..middleware import async_get_middlewares
+    from ..middleware import async_get_middlewares, collect_middleware_tools
 except ImportError:
-    from middleware import async_get_middlewares
+    from middleware import async_get_middlewares, collect_middleware_tools
 
 from .subagents import async_get_subagents, build_subagent_toolkit
 
@@ -241,6 +241,19 @@ async def _build_subagent(spec: dict, data: dict) -> Dict[str, Any]:
         if middlewares_r.get("code") != 200:
             raise ValueError(middlewares_r.get("message") or "中间件构建失败")
         middlewares = middlewares_r["data"]
+
+        mw_tools_cfg = spec.get("middleware_tools")
+        if mw_tools_cfg is None:
+            mw_tools_cfg = data.get("middleware_tools")
+        mw_tools_enabled = False
+        if isinstance(mw_tools_cfg, dict):
+            mw_tools_enabled = bool(mw_tools_cfg.get("enabled", False))
+        elif mw_tools_cfg is not None:
+            mw_tools_enabled = bool(mw_tools_cfg)
+        if mw_tools_enabled and middlewares:
+            mw_tools = await collect_middleware_tools(middlewares)
+            if mw_tools:
+                await toolkit.add_tool(mw_tools)
 
         context_config = _coerce(
             data.get("context_config") or spec.get("context_config"),

@@ -53,9 +53,9 @@ except ImportError:
     from permission.bundle import async_build_permission_bundle
 
 try:
-    from ..middleware import async_get_middlewares
+    from ..middleware import async_get_middlewares, collect_middleware_tools
 except ImportError:
-    from middleware import async_get_middlewares
+    from middleware import async_get_middlewares, collect_middleware_tools
 
 try:
     from config import get as _cfg_get
@@ -290,6 +290,22 @@ async def async_get_agent(data: dict = None) -> Dict[str, Any]:
         if middlewares_r.get("code") != 200:
             return middlewares_r
         middlewares = middlewares_r["data"]
+
+        mw_tools_cfg = agent_cfg.get("middleware_tools")
+        if mw_tools_cfg is None:
+            mw_tools_cfg = data.get("middleware_tools")
+        mw_tools_enabled = False
+        if isinstance(mw_tools_cfg, dict):
+            mw_tools_enabled = _as_bool(mw_tools_cfg.get("enabled"), False)
+        elif mw_tools_cfg is not None:
+            mw_tools_enabled = _as_bool(mw_tools_cfg, False)
+        if mw_tools_enabled and middlewares:
+            try:
+                mw_tools = await collect_middleware_tools(middlewares)
+            except ValueError as e:
+                return _err(str(e), fn)
+            if mw_tools:
+                await toolkit.add_tool(mw_tools)
 
         agent = Agent(
             name=str(agent_cfg.get("name") or "assistant"),

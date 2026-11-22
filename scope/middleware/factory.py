@@ -360,4 +360,45 @@ async def async_get_middlewares(data: Any = None) -> Dict[str, Any]:
         return _err(f"中间件创建失败：{type(e).__name__}: {e}", fn, 500)
 
 
-__all__ = ["async_get_middlewares"]
+async def collect_middleware_tools(middlewares: List[MiddlewareBase]) -> List[Any]:
+    """收集中间件 ``list_tools()`` 贡献的工具。
+
+    Agent 不会自动调用该 hook；需要时可显式把结果加入 Toolkit。
+    """
+    tools: List[Any] = []
+    for middleware in middlewares or []:
+        hook = getattr(middleware, "list_tools", None)
+        if not callable(hook):
+            continue
+        try:
+            value = hook()
+            if inspect.isawaitable(value):
+                value = await value
+            if value:
+                tools.extend(list(value))
+        except Exception as e:
+            raise ValueError(
+                f"中间件 {type(middleware).__name__} 的 list_tools 失败：{e}") from e
+    return tools
+
+
+async def async_collect_middleware_tools(data: Any = None) -> Dict[str, Any]:
+    """字典入口 + 统一信封，返回中间件贡献的工具列表。"""
+    fn = "async_collect_middleware_tools"
+    try:
+        built = await async_get_middlewares(data)
+        if built.get("code") != 200:
+            return built
+        tools = await collect_middleware_tools(built["data"])
+        return _ok(tools, f"共收集 {len(tools)} 个中间件工具")
+    except (TypeError, ValueError) as e:
+        return _err(str(e), fn)
+    except Exception as e:
+        return _err(f"中间件工具收集失败：{type(e).__name__}: {e}", fn, 500)
+
+
+__all__ = [
+    "async_get_middlewares",
+    "async_collect_middleware_tools",
+    "collect_middleware_tools",
+]
