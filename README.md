@@ -1,433 +1,239 @@
-# agent_scope
+# Agent Scope
 
-基于 [AgentScope](https://github.com/agentscope-ai/agentscope) 的 Agent 框架封装项目。
+基于 [AgentScope](https://github.com/agentscope-ai/agentscope) 的完整 Agent 平台：
+底层是可复用的 `scope/` 框架，上层是 FastAPI 后端与 Vue 3 移动端适配前端。
 
-> **版本：`v0.1.0`**
-> **状态：AgentScope 框架层搭建完成。**
+> **当前版本：`v0.21.0`**
 >
-> 本版本完成工具、配置、模型、媒体、RAG、Agent、权限、中间件、工作区、
-> 长期记忆、实时语音与统一 `async_dispatch` 入口。
-> HTTP / SSE / WebSocket、会话持久化和业务 session registry 按设计交由业务后端实现。
-
-目标是把「模型、Agent 运行循环、工具、权限审批、记忆、RAG、存储」收敛成一套可复用的框架层，
-业务侧只负责配置和编排，而不是每个项目重写一遍 Agent 底座。
-
-当前进度：**框架层搭建完成；服务化传输层由业务后端承接。**
-
-- AgentScope：`2.0.12`
-- Python：`3.14.8`
-- 当前仓库只包含 `scope/`（框架与工具源码）与配套文档
+> 已从“框架层 + 基础账号”升级为可运行的 Agent 平台：
+> 对话、知识库、工具权限、超级智能体、A2A、定时任务、语音合成、会话分支、断线续传。
+> 钉钉未接入；TTS 为可选项。
 
 ---
 
-## 一、当前进展
+## 一、能力总览
 
-### 已完成
+### 平台基础
 
-| 层 | 内容 | 规模 |
-|---|---|---|
-| 工具层 | 5 个通用域：db / net / mail / mcp / system + `tools/rag` | 40 文件 |
-| 配置层 | `scope/config/`：SQLite 配置中心，110 项默认配置 | 4 文件 / 619 行 |
-| 模型层 | `scope/llm/`：多厂商 Chat / Embedding / TTS / ASR 工厂，视频 formatter | 3 文件 |
-| 媒体层 | `scope/media/`：TTS 落盘 / base64 / URL、ASR 转写、文件闸门 | 4 文件 |
-| RAG 层 | `scope/rag/`：文档解析/切片/embedding、SQLite / Qdrant / Milvus / MongoDB / Elasticsearch / Zvec / OceanBase 向量库、KnowledgeBase/RAGMiddleware；`tools/rag/` 工具入口 | 14 文件 |
-| 子智能体 | `scope/agent/`：主 Agent builder/runtime、上下文管理、子智能体、委派、审批、取消、Plan、Pipeline、SOP | 9 文件 |
-| 权限层 | `scope/permission/`：官方 `PermissionContext` 字典构建；`sqlite/audit/pending/function_rules` 字典开关；SQLite 规则/审计/pending；函数级工具适配 | 5 文件 |
-| 中间件层 | `scope/middleware/`：Tracing / Budget / TTS / ModelRouter / RAG / 长期记忆（Agentic/ReMe/Mem0）/ Steering / 自定义中间件字典工厂 | 2 文件 |
-| 工作区层 | `scope/workspace/`：Local / Bubblewrap / Docker / E2B / Daytona / K8s / OpenSandbox / AppleContainer 字典工厂 | 2 文件 |
-| 实时语音层 | `scope/realtime/`：DashScope / OpenAI / Gemini / xAI 实时模型、RealtimeAgent、本地音频传输 | 2 文件 |
-| 后端入口 | `scope/main.py`：统一 `async_dispatch` 路由，覆盖 tool/rag/llm/media/agent/permission/middleware/workspace/realtime/config/system | 1 文件 |
-| Skills | `scope/skills/`：用户自定义目录加载（`LocalSkillLoader`） | 2 文件 |
+- 注册 / 登录 / JWT / 刷新令牌
+- 用户管理：角色、直属上级、启停、重置密码
+- 权限分级：
+  - 角色权限
+  - 超管单独授权
+  - 上级逐级收窄
+  - 本人只能收紧
+  - 超管临时越级授权
+- 菜单：两级分组、折叠、图标、排序、权限点、用户个性化
+- 系统设置 / 默认配置 / 角色权限 / 菜单配置
+- 运行状态：CPU / 内存 / 磁盘 / GPU / 网络 / Redis / PostgreSQL
+- Redis 滑动窗口限流，不可用自动降级进程内限流
 
-工具域能力：
+### AI / Agent
 
-| 域 | 能力 |
-|---|---|
-| `db` | PostgreSQL / MySQL / MongoDB / SQLite；列库、列表、表结构、分页取数、count、只读 SQL、写操作；库级/表级白名单、写影响行数上限 |
-| `net` | HTTP 请求、天气、城市、下载、crawl / crawl_many / deep_crawl、截图、PDF 提取 |
-| `mail` | 发信、收信、按条件查找、附件、分页 |
-| `mcp` | MCP 客户端与配置解析（stdio / http） |
-| `system` | Shell 命令执行 |
-| `rag` | 知识库写入 / 检索 / 删除 / 文档列表；默认 SQLite 后端；文件读取过闸门 |
+- SSE 流式对话，会话持久化、重命名、删除
+- 消息分支（从任意历史消息复制上下文创建分支会话）
+- 断线续传（同进程内生成任务托管与事件重放）
+- 对话附件：图片、文本、视频（视频需开启并配置）
+- 上下文压缩配置
+- 用户级 Agent 配置：
+  - 跟随系统默认 / 自定义
+  - 模型、API 地址、Key
+  - 温度、最大 tokens、上下文窗口
+  - 思考模式、思考预算、思考强度
+  - 系统提示词、长期记忆
+- 模型厂商预设与在线获取模型列表
+- 模型统计：按天 / 模型 / 用户 / 来源
+- 工具审批与工具权限审计页面
 
-配置层的约定：
+### 工具与权限
 
-```
-调用传入 data  >  config.db（SQLite）  >  报错 / None
-```
+- AI 工具目录：基础文件、数据库、网络、邮件、MCP、Shell、计划、RAG、A2A
+- 默认全部可用；支持按组 / 工具单独授权
+- 上级可对下级收窄；本人只能收紧
+- 需审批工具可在审批页通过 / 拒绝
+- 安全默认值：
+  - 安全提示词
+  - 服务端身份锁定
+  - 数据库库 / 表白名单、黑名单
+  - 数据库写权限默认关闭
+  - Shell 默认关闭
+- 用户级工具连接：邮箱、数据库
 
-- 连接/身份类参数（`db.type`、`db.port.*`、`db.database`、mail 的 smtp/imap host+port）
-  没有源码兜底：调用与 SQLite 都没有值时返回 400「缺少参数 xxx」。
-- 10 个钳制项只收紧不放宽（`clamp_get`，如查询行数上限、写影响行数上限）。
-- 6 个敏感项出厂为 `None`，仅支持部署方写入 `config.db`。
-- `config.db`、`.venv`、MCP 配置、向量库数据等已加入 `.gitignore`，不入库。
+### 知识库
 
-### 近期修复
+- 多向量库配置：SQLite / Zvec / Qdrant / Milvus / FAISS / Chroma / pgvector / OceanBase / MongoDB / Elasticsearch
+- Embedding 可跟随系统或库级覆盖
+- 文档上传、解析队列、切片预览、源文件下载
+- 解析并发 1~8、FIFO / LIFO、扫描间隔可配置
+- 自动解析：库级开关 + 扫描间隔
+- 知识库共享：只读 / 可写
+- 多库检索与结果来源标记
+- 聊天自动检索 Top 4 知识片段注入系统提示词
+- 操作日志
 
-| 项 | 内容 |
-|---|---|
-| A17 | IMAP 搜索表达式注入：`keyword/subject/sender` 统一转义 `\` 与 `"` |
-| C2 | SQLite 文件夹模式下 `list_databases` 白名单与黑名单统一走 `_db_same` |
-| A21 | `download` 与 `screenshot` 统一走 `net/_fs.py` 文件闸门 |
-| 连接参数 | 去掉 `postgresql` / `5432` / `smtp.qq.com` 等硬编码兜底 |
-| 文件闸门 | `net/_fs.py` 的读写闸门合并为内部 `_check_fs`，对外契约不变 |
+### 超级智能体与 A2A
 
-### 待实现
+- 超级智能体 = 主智能体 + 多个可长期对话的子智能体
+- 每个成员独立模型、提示词、启停
+- 主智能体可通过工具创建子会话、派活、读取结果
+- A2A Lite：
+  - 伙伴管理、方向、Endpoint、API Key、额度、超时
+  - `X-Api-Key` 入站鉴权
+  - 出站调用与连通测试
+  - 会话上下文记忆
+  - 每个伙伴自动生成独立工具 `a2a_<伙伴名>`
+  - 协作记忆查看与清除
+  - 调用留痕
 
-```
-scope/
-├── agent/          # 主 Agent builder/runtime + 上下文管理 + 子智能体已实现；Toolkit 装配待完善
-├── middleware/     # 已实现：Tracing / Budget / TTS / ModelRouter / RAG / Memory / Steering
-├── permission/     # 已实现：PermissionContext、SQLite 规则/审计/pending、函数级规则
-├── skills/         # 已实现：用户自定义 Skills 目录加载
-├── storage/        # 空：会话 / 消息 / 工作区
-└── main.py         # 已实现：统一 async_dispatch 后端入口；HTTP/SSE 服务待做
-```
+### 自动化与媒体
 
-> `llm/`、`media/`、`rag/`、`permission/` 已实现；`agent/` 的子智能体与主 Agent runtime 已实现。
-> 详见 [docs/框架层规划.md](scope/docs/框架层规划.md) 第三节-B/三-C/三-D/三-E。
-
-框架层缺口、目标结构、审批与 RAG 的详细设计见
-[docs/框架层规划.md](scope/docs/框架层规划.md)。
+- 定时任务：
+  - 固定间隔
+  - 日历规则：每周 / 每月日号 / 日期范围 + 每日多个时刻
+  - 新建会话或固定会话追加
+  - 立即执行、执行状态、结果跳转
+- TTS 语音合成：系统配置 + 聊天消息朗读
+- Skills：ZIP 上传、启停、删除
+- MCP：HTTP / stdio 配置
+- 子智能体：CRUD + 委派工具
+- 长期记忆开关
 
 ---
 
-## 二、目录结构
+## 二、项目结构
 
 ```text
 agent_scope/
-├── README.md                    # 本文件
-├── .gitignore
-└── scope/
-    ├── main.py                  # 统一 async_dispatch 后端入口
-    ├── config/                  # SQLite 配置中心
-    │   ├── schema.py            # 110 项配置的单一真相源
-    │   ├── store.py             # 读写 + 进程级缓存 + 生命周期 API
-    │   ├── merge.py             # pick / pick_str / pick_int
-    │   └── __init__.py
-    ├── common/                  # 跨层文件闸门
-    │   ├── fs.py                # check_read/check_write
-    │   └── __init__.py
-    ├── agent/                   # 主 Agent 与子智能体
-    │   ├── builder.py           # 主 Agent 装配（模型/Toolkit/上下文）
-    │   ├── context.py           # 上下文压缩 / 运行时注入 / 卸载
-    │   ├── runtime.py           # 主 Agent 事件流 / 审批 / 中断
-    │   ├── plan.py              # 计划模式 TaskCreate/Get/List/Update
-    │   ├── pipeline.py          # GoalPipeline / TeamPipeline 构建
-    │   ├── sop.py               # SOP / SOPEngine 构建与状态持久化
-    │   ├── subagents.py         # spec 校验 / 工具解析 / 工具组权限
-    │   ├── delegate.py          # 独立 AgentState 执行 / 委派工具
-    │   └── __init__.py
-    ├── permission/              # 权限系统（官方 PermissionContext）
-    │   ├── context.py           # 字典 → PermissionContext / 模式切换
-    │   ├── bundle.py            # 统一权限字典与开关
-    │   ├── tool.py              # 按 data["function"] 细分的 FunctionTool
-    │   ├── store.py             # SQLite 规则 / 审计 / pending
-    │   └── __init__.py
-    ├── middleware/              # 官方 Agent 中间件
-    │   ├── factory.py           # 字典 → Tracing/Budget/TTS/ModelRouter/RAG/长期记忆
-    │   └── __init__.py
-    ├── workspace/               # 官方工作区
-    │   ├── factory.py           # Local/Docker/Bubblewrap/E2B/K8s/... 字典工厂
-    │   └── __init__.py
-    ├── realtime/                # 实时语音
-    │   ├── factory.py           # RealtimeModel / RealtimeAgent / Transport
-    │   └── __init__.py
-    ├── llm/                     # 模型工厂（Chat / Embedding / TTS / ASR）
-    │   ├── agent_model.py       # 对外入口
-    │   ├── _factory.py          # 内部注册表与构造器
-    │   ├── formatters.py        # 视频输入 formatter
-    │   └── __init__.py
-    ├── media/                   # 生成类模型的 I/O 服务
-    │   ├── tts.py               # 文本 → 音频 → 文件/base64/URL
-    │   ├── asr.py               # 音频 → 文本（可选落盘）
-    │   ├── fs.py                # 读/写文件闸门
-    │   └── __init__.py
-    ├── rag/                     # RAG 知识库
-    │   ├── common.py            # 解析 / 切片 / embedding
-    │   ├── sqlite_db.py         # 本地 SQLite 向量库（工具后端）
-    │   ├── sqlite_vector_store.py # 官方 VectorStoreBase 适配
-    │   ├── vector_store_factory.py # Qdrant/Milvus/Mongo/ES/Zvec/OceanBase
-    │   ├── zvec_store.py        # Zvec BM25 / embedding / hybrid
-    │   ├── oceanbase_store.py   # OceanBase / pyobvector 适配
-    │   ├── kb_db.py             # 通用 KnowledgeBase 直连后端
-    │   ├── knowledge.py         # KnowledgeBase / RAGMiddleware 工厂
-    │   ├── registry.py          # 向量模型标注注册表
-    │   ├── config.py            # data > config.db > 默认/400
-    │   ├── rag_main.py          # 后端分发
-    │   └── __init__.py
-    ├── skills/                  # 用户自定义 Skills
-    │   ├── loader.py
-    │   └── __init__.py
-    ├── tools/
-    │   ├── rag/                 # RAG 工具入口 async_rag_tools
-    │   ├── db/                  # 数据库工具（四层结构：_helper → executors → dialect → 方言入口）
-    │   ├── net/                 # 网络工具（基础请求 + 浏览器渲染/截图/PDF）
-    │   ├── mail/                # 邮件工具（IMAP / SMTP）
-    │   ├── mcp/                 # MCP 客户端
-    │   └── system/              # Shell 命令
-    └── docs/
-        ├── README.md            # 文档导航
-        ├── 参数说明.md          # 各工具入口签名、入参、返回契约
-        ├── CODE_INDEX.md        # 文件 / 符号 / 依赖图
-        ├── 工具拆分规范.md      # 组织规则与验证方法
-        ├── 踩坑记录.md          # 使用侧坑、集成坑、误诊纠正
-        ├── 配置说明.md          # 110 项配置与生命周期
-        └── 框架层规划.md        # 框架层缺口、审批/RAG 设计、路线图
+├── README.md
+├── scope/                      # AgentScope 框架层
+│   ├── main.py                 # 统一 async_dispatch
+│   ├── agent/                  # Agent 构建、运行时、子智能体、委派、Plan
+│   ├── llm/                    # Chat / Embedding / TTS / ASR 工厂
+│   ├── media/                  # TTS / ASR
+│   ├── rag/                    # 解析、切片、Embedding、多向量库
+│   ├── permission/             # PermissionContext、规则、审计
+│   ├── middleware/             # Tracing / Budget / RAG / Memory / Steering
+│   ├── workspace/              # Local / Docker / Bubblewrap / E2B / K8s
+│   ├── realtime/              # 实时语音
+│   ├── tools/                  # db / net / mail / mcp / system / rag
+│   └── docs/                   # 框架层文档
+├── backend/                    # FastAPI + SQLAlchemy async + PostgreSQL
+│   ├── app/
+│   │   ├── core/               # 配置、数据库、安全、依赖、种子、权限点
+│   │   ├── models/
+│   │   │   ├── account/        # 用户、用户权限状态
+│   │   │   ├── access/         # 工具权限、审批、审计、工具连接
+│   │   │   ├── system/         # 系统配置、角色权限、菜单
+│   │   │   └── agent/          # 会话、知识库、协作、自动化、资源
+│   │   ├── schemas/
+│   │   │   ├── account/
+│   │   │   ├── access/
+│   │   │   ├── system/
+│   │   │   ├── integrations/
+│   │   │   └── agent/
+│   │   ├── routers/
+│   │   │   ├── account/        # auth / user
+│   │   │   ├── access/         # permissions / tools
+│   │   │   ├── system/         # system / config / menu
+│   │   │   └── agent/          # chat / knowledge / collaboration / ...
+│   │   ├── services/
+│   │   │   ├── account/        # auth / user
+│   │   │   ├── access/         # permissions / tools / security
+│   │   │   ├── system/
+│   │   │   ├── config/
+│   │   │   ├── menu/
+│   │   │   ├── llm/
+│   │   │   ├── integrations/
+│   │   │   └── agent/          # runtime / conversation / knowledge / ...
+│   │   └── utils/
+│   ├── .env.example
+│   ├── run.py
+│   └── doc/
+├── frontend/                   # Vue 3 + Vite + Element Plus
+│   ├── src/
+│   ├── .env.example
+│   └── doc/
+└── .venv/                      # 本地虚拟环境（不入库）
 ```
+
+后端完整目录、领域对应表和新增功能落位规则见
+[backend/doc/项目结构.md](backend/doc/项目结构.md)。
 
 ---
 
 ## 三、快速开始
 
-```bash
-cd <path-to>/agent_scope
+### 1. 环境
 
-# 虚拟环境由 uv 创建（仓库根的 .venv）
-uv venv .venv
-uv pip install --python .venv/bin/python \
-    agentscope httpx aiosmtplib aioimaplib beautifulsoup4 \
-    asyncpg aiomysql pymongo sqlglot
+- Python `3.14.8`（仓库根 `.venv`）
+- PostgreSQL 17
+- Redis（可选，不可用时限流降级）
+- Node.js / npm
 
-# 运行（从仓库根；不要用 scope/../.venv/bin/python 这种相对路径，
-# uv 会因 sys.prefix 解析不一致打印 RuntimeWarning）
-uv run --no-project python your_script.py
-```
-
-也可以直接使用绝对路径解释器：
+### 2. 安装依赖
 
 ```bash
-/mnt/sda2/qoder/qoder/agent_scope/.venv/bin/python your_script.py
-```
+cd /path/to/agent_scope
 
-工具层要求 `scope/` 在 `sys.path`（当前工具文件使用顶层 `from config import ...`）：
-
-```python
-import asyncio
-import sys
-
-sys.path.insert(0, "<path-to>/agent_scope/scope")
-
-import config
-from tools.db.main_db import async_db_tools
-
-
-async def main():
-    await config.aload()   # 可选：装配期预载 config.db；不调用会在首次 get 时惰性建库
-
-    r = await async_db_tools({
-        "function": "run_query",
-        "db_config": {
-            "db_type": "sqlite",
-            "path": "/path/to/demo.db",
-            "database": "demo",
-        },
-        "sql": "SELECT 1",
-    })
-    print(r["code"], r["message"], r["data"])
-
-
-asyncio.run(main())
-```
-
-返回统一信封：
-
-```python
-{"code": 200 | 400 | 500, "data": ..., "message": "..."}
-```
-
-### 后端统一入口
-
-业务后端只需要调用 `scope/main.py`：
-
-```python
-from scope.main import async_dispatch
-
-r = await async_dispatch({
-    "domain": "rag",
-    "action": "tools",
-    "data": {
-        "function": "read",
-        "rag_config": {"type": "zvec", "zvec_config": {...}},
-        "search_config": {"query": "如何部署", "top_k": 5},
-    },
-})
-```
-
-```python
-r = await async_dispatch({
-    "domain": "agent",
-    "action": "create",
-    "data": {
-        "agent": {"name": "assistant", "system_prompt": "..."},
-        "llm": {...},
-    },
-})
-```
-
-支持 domain：
-
-```text
-tool / rag / llm / media / agent / permission / middleware
-workspace / realtime / config / system
-```
-
-注意：
-
-- dispatch 返回统一信封
-- `agent/model/workspace/middleware` 创建结果是进程内对象
-- 如果走 HTTP，需要上层加 session registry，把对象换成 ID
-- HTTP/SSE 服务入口尚未实现；当前 `create_app` 也还没加
-
-注意：
-
-- 业务参数平铺在 `data` 顶层，不嵌进 `arguments`。
-- 经 AgentScope `FunctionTool` 调用时需要包一层 `{"data": {...}}`。
-- 写操作使用独立入口 `async_db_write_tools`。
-
----
-
-## 四、下一步路线
-
-| 优先级 | 内容 |
-|---|---|
-| P0 | 框架骨架：`agent/builder.py`、`agent/runtime.py`、`agent/context.py`、Toolkit 装配、skills、`main.py`、`pyproject.toml` |
-| P1 | `permission/`：已实现 PermissionContext、SQLite 规则/审计/pending、函数级工具适配；剩余前端审批 UI 与 Redis/Postgres pending |
-| P1 | `rag/`：官方 `KnowledgeBase` + `RAGMiddleware`，文件解析/切片/embedding/注册表，多租户隔离 |
-| P2 | 子智能体与委派、A2A、Mem0/文件记忆、storage、agentscope.app 服务化 |
-| P3 | 钉钉工具、多模态（视频/TTS/STT）、多向量库后端 |
-
-实施顺序与验收标准见 [docs/框架层规划.md](scope/docs/框架层规划.md)。
-
----
-
-## 五、验证状态
-
-已执行：
-
-- `compileall` 全量编译通过；
-- 5 个工具域入口与 12 个核心模块 import 通过；
-- 7 个工具入口 × 8 种坏入参（`None` / `str` / `list` / `int` / 空 function / 非字符串 / 未知 function）
-  无崩溃，均返回统一信封；
-- 每个 function 空参数调用均返回 400，无异常；
-- SQLite 实际查询、A17 转义、C2 白名单、`_fs` 读写闸门均已冒烟验证。
-
-目前还没有正式测试目录；P0 阶段会补工具契约、审批状态机、RAG 租户隔离三组测试。
-
----
-
-## 六、安全约定
-
-- 任何真实 API Key、邮箱授权码、数据库密码都不进代码、不进 Git。
-- 敏感配置写入 `scope/config/config.db`（已在 `.gitignore`）。
-- `scope/tools/mcp/mcp_servers.json` 可能含 token，不入库；模板见 `mcp_servers.example.json`。
-- 提交前建议执行：
-
-```bash
-git status
-git diff --cached
-```
-
-确认没有 `.env`、`config.db`、`mcp_servers.json`、日志或密钥。
-
----
-
-## 七、文档
-
-先从 [scope/docs/README.md](scope/docs/README.md) 开始，按用途查，不必通读。
-
----
-
-## 八、发布到 GitHub（维护者）
-
-GitHub 已不支持用账户密码做 Git 认证，请使用 **PAT（Personal Access Token）** 或 **SSH Key**。
-不要把 GitHub 密码、PAT 写进代码、README 或命令历史。
-
-### 方式 A：SSH Key（推荐）
-
-```bash
-# 1. 生成密钥（已有可跳过）
-ssh-keygen -t ed25519 -C "your-email@example.com"
-
-# 2. 把 ~/.ssh/id_ed25519.pub 的内容添加到 GitHub → Settings → SSH and GPG keys
-
-# 3. 在 GitHub 网页创建空仓库（不要勾选 README / .gitignore / License）
-
-# 4. 添加远端并推送（远端名用 github，避免覆盖已有 origin）
-git remote add github git@github.com:<your-name>/agent-scope.git
-git branch -M main
-git push -u github main
-```
-
-### 方式 B：HTTPS + PAT
-
-```bash
-# GitHub → Settings → Developer settings → Personal access tokens
-# 创建 fine-grained token，至少授予目标仓库 Contents: Read and write
-
-git remote add github https://github.com/<your-name>/agent-scope.git
-git push -u github main
-# 用户名填 GitHub 用户名，密码填 PAT（不是账户密码）
-```
-
-推荐用 `gh auth login` 或系统凭据管理器保存 PAT，不要用
-`git config credential.helper store` 明文落盘。
-
-> 当前仓库的 `origin` 指向本地 Gitea，不要直接覆盖；新增 `github` 远端即可同时保留两边。
-
-
----
-
-## 九、平台前后端（v0.3.0）
-
-在框架层之上新增了一套精简的业务平台，当前只做基础账号与权限配置：
-
-- 登录 / 注册 / JWT 鉴权、头像 URL
-- 用户管理（角色、直属上级、启停、重置密码）
-- 默认设置（站点、账号、安全、界面共 15 项，可恢复默认）
-- 权限分级：角色权限 → 超管单独授权 → 上级/本人逐级收缩 → 超管临时越级授权
-- 运行状态：CPU / 内存 / 磁盘 / GPU / 网络与 IP / Redis / PostgreSQL
-- Redis 滑动窗口限流，不可用时自动降级进程内
-- 菜单可配置：两级分组、分组折叠、用户自定义顺序/隐藏、自定义图标/排序/权限点
-- 系统 / 默认配置独立菜单：用户管理、运行信息、系统设置、角色权限、菜单配置、Agent 配置
-- 普通用户 / 上级 / 超管三种菜单视角，超管额外「管理后台」入口
-- AI/Scope 与系统配置分离：Agent 配置页支持对话模型、Embedding、厂商预设与在线获取模型
-- AI 工具权限：默认全部工具，可单独授权，上级可逐级收窄
-- AI 安全默认值：安全提示词、身份锁定、数据库库/表白黑名单、写权限开关
-- AI 对话：会话持久化、SSE 流式、按用户工具权限装配 Agent
-- 用户级 Agent 配置：跟随系统默认或自定义模型/Key/提示词
-- 用户级工具配置：邮箱 / 数据库连接，可使用系统默认或自定义
-- 工具审批、模型统计（按天/模型/用户）、会话重命名
-- 对话附件（图片/文本）与上下文压缩配置
-- Skills 上传、MCP 服务配置、知识库上传与检索、子智能体、长期记忆
-- 邮箱默认配置，敏感项脱敏；默认角色含 `ai.use` 权限
-- 邮件发送工具（SMTP 默认配置 + 测试接口）
-- 侧栏可收缩、移动端适配界面
-
-```text
-agent_scope/
-├── backend/          # FastAPI + SQLAlchemy async + PostgreSQL
-│   ├── app/          # api / services / models / security / seed
-│   ├── .env.example  # 数据库、JWT、端口等启动参数
-│   └── doc/          # 开发记录、接口说明、数据库说明
-└── frontend/         # Vue 3 + Vite + Element Plus
-    ├── src/          # views / router / stores / utils / styles
-    ├── .env.example  # 端口、代理目标、API 前缀
-    └── doc/          # 开发记录、页面说明
-```
-
-启动：
-
-```bash
-# 后端
 uv pip install --python .venv/bin/python -r backend/requirements.txt
-cd backend && cp .env.example .env && ../.venv/bin/python run.py
 
-# 前端（另开终端）
-cd frontend && cp .env.example .env && npm install && npm run dev
+cd frontend
+npm install
 ```
 
-默认数据库 `agent_scope`，首次启动自动写入内置账号：
+### 3. 创建数据库
+
+```bash
+PGPASSWORD=990108 psql -h 127.0.0.1 -U mx -d postgres \
+  -c "CREATE DATABASE agent_scope OWNER mx"
+```
+
+### 4. 配置环境变量
+
+```bash
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+```
+
+后端关键项：
+
+```env
+DATABASE_URL=postgresql+asyncpg://mx:990108@127.0.0.1:5432/agent_scope
+JWT_SECRET=替换为随机长字符串
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+```
+
+前端默认：
+
+```env
+VITE_PORT=5182
+VITE_PROXY_TARGET=http://127.0.0.1:8000
+VITE_API_BASE=/api
+```
+
+### 5. 启动
+
+后端：
+
+```bash
+cd backend
+../.venv/bin/python run.py
+# http://127.0.0.1:8000
+# Swagger: http://127.0.0.1:8000/docs
+```
+
+前端：
+
+```bash
+cd frontend
+npm run dev
+# http://127.0.0.1:5182
+```
+
+### 6. 内置账号
+
+首次启动自动建表并写入种子数据：
 
 | 账号 | 密码 | 角色 |
 |---|---|---|
@@ -435,9 +241,206 @@ cd frontend && cp .env.example .env && npm install && npm run dev
 | `张三` | `990108` | 管理员（领导） |
 | `李四` | `990108` | 普通用户（上级：张三） |
 
-文档导航：
+---
 
-| 端 | 文档 |
+## 四、首次使用配置
+
+进入：
+
+```text
+默认配置 → Agent 配置
+```
+
+至少需要填写：
+
+### 对话模型
+
+```text
+服务商：openai-compatible
+API 地址：厂商兼容接口，例如 https://<host>/compatible-mode/v1
+模型：具体模型 ID
+API Key：厂商密钥
+```
+
+### Embedding（知识库必需）
+
+```text
+服务商：openai-compatible
+API 地址：通常与对话模型相同
+模型：如 text-embedding-v4
+API Key：厂商密钥
+维度：0 表示由模型决定
+```
+
+### 知识库解析
+
+```text
+Agent 配置 → 知识库
+- 解析并发：1~8
+- 排队顺序：FIFO / LIFO
+- 扫描间隔：2~60 秒
+```
+
+也可以由超级管理员在知识库页面「解析配置」中修改。
+
+### 工具连接
+
+```text
+Agent → 工具配置
+- 邮箱：SMTP / IMAP
+- 数据库：PostgreSQL / MySQL / MongoDB / SQLite
+```
+
+### A2A
+
+```text
+Agent → A2A 协作
+```
+
+- 出站伙伴：填对方站点根地址 + 对方提供的 API Key
+- 入站伙伴：生成 Key 给对方
+- 注意本平台数据面路径为 `/api/a2a/*`，Endpoint 示例：
+  `http://192.168.1.20:8000/api`
+
+---
+
+## 五、页面入口
+
+| 菜单 | 路径 | 说明 |
+|---|---|---|
+| 工作台 | `/dashboard` | 概览 |
+| Agent 对话 | `/chat` | SSE 对话、附件、分支、续传、朗读 |
+| 我的工具 | `/my-tools` | 工具权限 |
+| Agent 设置 | `/agent-settings` | 个人模型、提示词、记忆 |
+| 知识库 | `/agent-knowledge` | 向量库、文档、检索、共享、日志 |
+| 工具配置 | `/tool-settings` | 邮箱、数据库连接 |
+| Skills | `/agent-skills` | 技能上传与启停 |
+| MCP | `/agent-mcp` | MCP 服务 |
+| 子智能体 | `/agent-subagents` | 委派型子智能体 |
+| 超级智能体 | `/agent-super` | 主/子成员编排 |
+| A2A 协作 | `/agent-a2a` | 伙伴、记忆、留痕 |
+| 管理下级 | `/team/permissions` | 上级权限收窄 |
+| 工具审批 | `/tool-approvals` | 审批申请 |
+| 定时任务 | `/agent-scheduled` | 周期/日历任务 |
+| Agent 统计 | `/agent-stats` | 模型用量 |
+| 工具权限审计 | `/admin/tool-audits` | 超管审计 |
+
+---
+
+## 六、验证状态
+
+已实际验证：
+
+- 数据库建表、种子账号、登录、菜单
+- 真实模型对话（OpenAI 兼容接口 + 流式）
+- 知识库真实 Embedding：上传 → 队列解析 → 切片 → 检索
+- 解析并发配置生效
+- 超级智能体创建子会话并返回结果
+- A2A 入站鉴权、出站调用、上下文记忆
+- 每个 A2A 伙伴的独立工具
+- 定时任务立即执行
+- 消息分支
+- SSE 断线续传
+- 前端 `npm run build`
+- 后端 `import app.main` 与 OpenAPI 112 条路径
+
+---
+
+## 七、已知边界
+
+- A2A 当前为 **A2A Lite**，标准 Agent Card / JSON-RPC 任务协议未接入
+- SSE 断线续传为单进程内存态，进程重启后不保留正在生成的任务
+- 多向量库实际可用性取决于对应 Python 依赖与服务
+- TTS 需要配置真实服务商 Key 才能合成
+- 钉钉未接入
+- 知识库召回率 / MRR / NDCG 评测未实现
+- 超级智能体编排依赖真实模型工具调用能力
+
+---
+
+## 八、安全约定
+
+- 不提交 `.env`、API Key、邮箱授权码、数据库密码、日志、向量库数据
+- 敏感配置只写入运行数据库或本地 `.env`
+- 后端所有 AI 工具参数中的身份、数据库连接、文件路径等敏感字段由服务端注入
+- 模型传入的保留字段会被丢弃
+- 数据库默认只读、默认无表白名单
+- Shell 默认关闭
+- 提交前建议：
+
+```bash
+git status
+git diff --cached
+```
+
+确认没有密钥、`.env`、`config.db`、`mcp_servers.json`、日志。
+
+---
+
+## 九、文档导航
+
+| 范围 | 文档 |
 |---|---|
-| 后端 | [README](backend/doc/README.md) / [接口说明](backend/doc/接口说明.md) / [参数说明](backend/doc/参数说明.md) / [CODE_INDEX](backend/doc/CODE_INDEX.md) / [配置说明](backend/doc/配置说明.md) / [数据库说明](backend/doc/数据库说明.md) / [踩坑记录](backend/doc/踩坑记录.md) / [开发记录](backend/doc/开发记录.md) |
-| 前端 | [README](frontend/doc/README.md) / [页面说明](frontend/doc/页面说明.md) / [CODE_INDEX](frontend/doc/CODE_INDEX.md) / [配置说明](frontend/doc/配置说明.md) / [踩坑记录](frontend/doc/踩坑记录.md) / [开发记录](frontend/doc/开发记录.md) |
+| 后端总入口 | [backend/doc/README.md](backend/doc/README.md) |
+| 后端目录 | [项目结构.md](backend/doc/项目结构.md) |
+| 后端接口 | [接口说明.md](backend/doc/接口说明.md) |
+| 服务参数 | [参数说明.md](backend/doc/参数说明.md) |
+| 数据库 | [数据库说明.md](backend/doc/数据库说明.md) |
+| Agent 实现 | [智能体对话.md](backend/doc/智能体对话.md) |
+| 配置 | [配置说明.md](backend/doc/配置说明.md) |
+| 踩坑 | [踩坑记录.md](backend/doc/踩坑记录.md) |
+| 开发记录 | [开发记录.md](backend/doc/开发记录.md) |
+| 前端 | [frontend/doc/README.md](frontend/doc/README.md) / [页面说明](frontend/doc/页面说明.md) |
+| 框架层 | [scope/docs/README.md](scope/docs/README.md) / [框架层规划](scope/docs/框架层规划.md) |
+
+---
+
+## 十、框架层说明
+
+`scope/` 是平台底座，业务后端通过：
+
+```python
+from scope.main import async_dispatch
+
+result = await async_dispatch({
+    "domain": "rag",
+    "action": "tools",
+    "data": {...},
+})
+```
+
+支持域：
+
+```text
+tool / rag / llm / media / agent / permission / middleware
+workspace / realtime / config / system
+```
+
+统一返回：
+
+```python
+{"code": 200, "data": ..., "message": "..."}
+```
+
+框架层细节、工具契约、配置项与设计文档见
+[scope/docs/README.md](scope/docs/README.md)。
+
+---
+
+## 十一、Git 远端
+
+当前仓库同时维护：
+
+```bash
+git remote -v
+```
+
+- `origin`：本地 Gitea
+- `github`：GitHub 镜像
+
+不要覆盖已有远端，推送时分别执行：
+
+```bash
+git push origin master
+git push github master
+```
