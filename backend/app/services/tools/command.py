@@ -236,3 +236,184 @@ async def async_tighten_mode(params: dict) -> dict:
     )
     await session.commit()
     return await async_tool_view({"session": session, "user": target})
+
+
+async def async_request_approval(params: dict) -> dict:
+    """用户为已授权但需审批的工具提交申请。参数：session / user / group / tool / reason"""
+    session: AsyncSession = params["session"]
+    user: User = params["user"]
+    group: str = str(params.get("group") or "")
+    tool: str = str(params.get("tool") or "")
+    if not is_valid(group, tool):
+        raise ApiError("未知工具或工具组")
+    view = await async_tool_view({"session": session, "user": user})
+    target = None
+    for g in view["groups"]:
+        if g["name"] != group:
+            continue
+        for item in g["tools"]:
+            if item["name"] == tool:
+                target = item
+                break
+    if target is None:
+        raise ApiError("未知工具")
+    if not target["granted"]:
+        raise ApiError("该工具不在当前授权范围内，请联系管理员")
+
+    from app.models import ToolApprovalRequest
+    existing = (
+        await session.execute(
+            select(ToolApprovalRequest).where(
+                ToolApprovalRequest.user_id == user.id,
+                ToolApprovalRequest.tool_group == group,
+                ToolApprovalRequest.tool_name == tool,
+                ToolApprovalRequest.status == "pending",
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is None:
+        session.add(
+            ToolApprovalRequest(
+                user_id=user.id,
+                tool_group=group,
+                tool_name=tool,
+                reason=str(params.get("reason") or ""),
+                status="pending",
+            )
+        )
+
+    row = (
+        await session.execute(
+            select(UserToolPermission).where(
+                UserToolPermission.user_id == user.id,
+                UserToolPermission.tool_group == group,
+                UserToolPermission.tool_name == tool,
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        session.add(
+            UserToolPermission(
+                user_id=user.id,
+                tool_group=group,
+                tool_name=tool,
+                enabled=True,
+                require_approval=True,
+                approval_status="pending",
+                granted_by=None,
+            )
+        )
+    else:
+        row.require_approval = True
+        row.approval_status = "pending"
+    await session.commit()
+    return await async_tool_view({"session": session, "user": user})
+
+
+async def async_list_approvals(params: dict) -> list[dict]:
+    """参数：session / actor"""
+    from app.models import ToolApprovalRequest
+    from app.services.user.tree import async_descendants
+
+    session: AsyncSession = params["session"]
+    actor: User = params["actor"]
+    stmt = select(ToolApprovalRequest).where(ToolApprovalRequest.status == "pending")
+    if actor.role != "super_admin":
+        users = await async_descendants({"session": session, "user_id": actor.id})
+        ids = [u.id for u in users]
+        if not ids:
+            return []
+        stmt = stmt.where(ToolApprovalRequest.user_id.in_(ids))
+    rows = (await session.execute(stmt.order_by(ToolApprovalRequest.created_at.desc()))).scalars().all()
+    names = {}
+    if rows:
+        users = (
+            await session.execute(select(User).where(User.id.in_([r.user_id for r in rows])))
+        ).scalars().all()
+        names = {u.id: (u.nickname or u.username) for u in users}
+    return [
+        {
+            "id": r.id,
+            "user_id": r.user_id,
+            "user_name": names.get(r.user_id, r.user_id),
+            "tool_group": r.tool_group,
+            "tool_name": r.tool_name,
+            "reason": r.reason,
+            "status": r.status,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
+
+
+async def async_decide_approval(params: dict) -> dict:
+    """参数：session / actor / request_id / approve"""
+    from app.models import ToolApprovalRequest
+
+    session: AsyncSession = params["session"]
+    actor: User = params["actor"]
+    request = await session.get(ToolApprovalRequest, params["request_id"])
+    if request is None:
+        raise ApiError("审批请求不存在", code=404)
+    if request.status != "pending":
+        raise ApiError("该申请已处理")
+    if actor.role != "super_admin" and not await async_is_descendant(
+        {"session": session, "ancestor_id": actor.id, "target_id": request.user_id}
+    ):
+        raise ApiError("该申请不在您的管辖范围内", code=403)
+    approve = bool(params.get("approve"))
+    request.status = "approved" if approve else "denied"
+    request.approved_by = actor.id
+    request.decided_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+
+    row = (
+        await session.execute(
+            select(UserToolPermission).where(
+                UserToolPermission.user_id == request.user_id,
+                UserToolPermission.tool_group == request.tool_group,
+                UserToolPermission.tool_name == request.tool_name,
+            )
+        )
+    ).scalar_one_or_none()
+    if row is not None:
+        row.require_approval = True
+        row.approval_status = "approved" if approve else "denied"
+    await session.commit()
+    return {"request_id": request.id, "status": request.status}
+
+
+async def async_set_tool_approval(params: dict) -> dict:
+    """超管设置某工具是否需要审批。参数：session / target / group / tool / require_approval"""
+    session: AsyncSession = params["session"]
+    target: User = params["target"]
+    group: str = str(params.get("group") or "")
+    tool: str = str(params.get("tool") or "")
+    required = bool(params.get("require_approval"))
+    if not is_valid(group, tool):
+        raise ApiError("未知工具或工具组")
+    row = (
+        await session.execute(
+            select(UserToolPermission).where(
+                UserToolPermission.user_id == target.id,
+                UserToolPermission.tool_group == group,
+                UserToolPermission.tool_name == tool,
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        session.add(
+            UserToolPermission(
+                user_id=target.id,
+                tool_group=group,
+                tool_name=tool,
+                enabled=True,
+                require_approval=required,
+                approval_status="pending" if required else "approved",
+                granted_by=None,
+            )
+        )
+    else:
+        row.require_approval = required
+        row.approval_status = "pending" if required else "approved"
+    await session.commit()
+    return await async_tool_view({"session": session, "user": target})

@@ -122,6 +122,7 @@ async def async_stream_chat(user_id: str, conversation_id: str, content: str) ->
     tool_names: dict[str, str] = {}
     tool_args: dict[str, str] = {}
     tool_outputs: dict[str, str] = {}
+    usage = {"input_tokens": 0, "output_tokens": 0}
 
     try:
         async for evt in runtime.reply_stream(UserMsg("user", content)):
@@ -158,7 +159,8 @@ async def async_stream_chat(user_id: str, conversation_id: str, content: str) ->
                 # default_approval=allow：runtime 已自动放行，这里不重复处理
                 continue
             elif isinstance(evt, ModelCallEndEvent):
-                continue
+                usage["input_tokens"] += getattr(evt, "input_tokens", 0) or 0
+                usage["output_tokens"] += getattr(evt, "output_tokens", 0) or 0
     except Exception as exc:  # noqa: BLE001
         yield _sse("error", {"error": f"生成失败：{exc}"})
         return
@@ -172,6 +174,8 @@ async def async_stream_chat(user_id: str, conversation_id: str, content: str) ->
             content=final_text,
             reasoning="".join(reasoning_parts),
             tool_events=json.dumps(tool_events, ensure_ascii=False),
+            input_tokens=usage["input_tokens"],
+            output_tokens=usage["output_tokens"],
         )
     yield _sse("done", {
         "conversation_id": conversation_id,

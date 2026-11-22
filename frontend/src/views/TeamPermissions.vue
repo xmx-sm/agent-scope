@@ -3,6 +3,21 @@
     <h2 class="page-title">管理下级</h2>
     <p class="page-desc">AI 工具权限：上级只能在超管授予的范围内收窄，不能给下级新增工具</p>
 
+    <div v-if="approvals.length" class="panel approval-panel">
+      <h3 class="approval-title">待审批的工具申请</h3>
+      <div v-for="item in approvals" :key="item.id" class="approval-item">
+        <div>
+          <b>{{ item.user_name }}</b>
+          <span class="muted"> 申请使用 {{ item.tool_name || item.tool_group }}</span>
+          <span v-if="item.reason" class="muted"> · {{ item.reason }}</span>
+        </div>
+        <div class="approval-actions">
+          <el-button size="small" type="success" @click="decide(item, true)">通过</el-button>
+          <el-button size="small" type="danger" plain @click="decide(item, false)">拒绝</el-button>
+        </div>
+      </div>
+    </div>
+
     <div class="panel" v-loading="loading">
       <div v-for="member in members" :key="member.id" class="member-card">
         <div class="member-head">
@@ -88,6 +103,7 @@ import api from '../utils/api'
 const isMobile = ref(window.innerWidth < 768)
 const loading = ref(false)
 const members = ref([])
+const approvals = ref([])
 const dialogVisible = ref(false)
 const target = ref(null)
 const savingKey = ref('')
@@ -101,7 +117,12 @@ function roleLabel(role) {
 async function load() {
   loading.value = true
   try {
-    members.value = await api.get('/tools/team')
+    const [team, pending] = await Promise.all([
+      api.get('/tools/team'),
+      api.get('/tools/approvals').catch(() => [])
+    ])
+    members.value = team
+    approvals.value = pending
   } catch {
     /* ignore */
   } finally {
@@ -112,6 +133,16 @@ async function load() {
 function openAdjust(member) {
   target.value = member
   dialogVisible.value = true
+}
+
+async function decide(item, approve) {
+  try {
+    await api.post(`/tools/approvals/${item.id}/decide`, { approve })
+    ElMessage.success(approve ? '已通过' : '已拒绝')
+    await load()
+  } catch {
+    /* ignore */
+  }
 }
 
 async function tighten(member) {
@@ -184,6 +215,34 @@ onMounted(load)
 </script>
 
 <style scoped>
+.approval-panel {
+  margin-bottom: 16px;
+}
+
+.approval-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
+.approval-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--app-border);
+  flex-wrap: wrap;
+}
+
+.approval-item:last-child {
+  border-bottom: none;
+}
+
+.approval-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .member-card {
   border-bottom: 1px dashed var(--app-border);
   padding: 14px 0;

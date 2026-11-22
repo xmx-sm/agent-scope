@@ -5,6 +5,7 @@ from app.models.common import new_id, utc_now
 from app.models.menu import Menu, UserMenuPref
 from app.models.system import RolePermission, SystemConfig
 from app.models.user import (
+    ToolApprovalRequest,
     ToolPermissionAudit,
     ToolPolicy,
     User,
@@ -24,6 +25,7 @@ __all__ = [
     "UserToolPermission",
     "UserToolConfig",
     "ToolPermissionAudit",
+    "ToolApprovalRequest",
     "ToolPolicy",
     "SystemConfig",
     "RolePermission",

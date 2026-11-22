@@ -39,6 +39,18 @@ async def init_db() -> None:
                     "leader_only BOOLEAN NOT NULL DEFAULT FALSE"
                 )
             )
+            await conn.execute(
+                text(
+                    "ALTER TABLE user_tool_permissions ADD COLUMN IF NOT EXISTS "
+                    "require_approval BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            )
+            await conn.execute(
+                text(
+                    "ALTER TABLE user_tool_permissions ADD COLUMN IF NOT EXISTS "
+                    "approval_status VARCHAR(20) NOT NULL DEFAULT 'approved'"
+                )
+            )
 
 
 async def close_db() -> None:

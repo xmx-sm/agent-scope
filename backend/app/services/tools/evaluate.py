@@ -30,6 +30,11 @@ async def async_tool_view(params: dict) -> dict[str, Any]:
     grant_keys = {(r.tool_group, r.tool_name) for r in rows if r.enabled}
     disabled_group = {r.tool_group for r in rows if not r.enabled and not r.tool_name}
     disabled_tool = {(r.tool_group, r.tool_name) for r in rows if not r.enabled and r.tool_name}
+    approval_rows = {
+        (r.tool_group, r.tool_name): r
+        for r in rows
+        if r.require_approval
+    }
 
     groups = []
     enabled_count = 0
@@ -40,10 +45,17 @@ async def async_tool_view(params: dict) -> dict[str, Any]:
         for tool in group["tools"]:
             total_count += 1
             granted = group_granted or (group["name"], tool["name"]) in grant_keys
+            approval = (
+                approval_rows.get((group["name"], tool["name"]))
+                or approval_rows.get((group["name"], ""))
+            )
+            approval_status = approval.approval_status if approval else "approved"
+            require_approval = bool(approval)
             enabled = (
                 granted
                 and group["name"] not in disabled_group
                 and (group["name"], tool["name"]) not in disabled_tool
+                and (not require_approval or approval_status == "approved")
             )
             if enabled:
                 enabled_count += 1
@@ -54,6 +66,8 @@ async def async_tool_view(params: dict) -> dict[str, Any]:
                     "description": tool["description"],
                     "granted": granted,
                     "enabled": enabled,
+                    "require_approval": require_approval,
+                    "approval_status": approval_status,
                 }
             )
         groups.append(

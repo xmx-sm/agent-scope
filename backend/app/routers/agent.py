@@ -7,7 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import ApiError, CurrentUser, ok, require_permission
 from app.models import User
-from app.schemas import ChatStreamIn, ConversationCreateIn, ModelFetchIn, ToolConfigIn, UserAgentConfigIn
+from app.schemas import (
+    ChatStreamIn,
+    ConversationCreateIn,
+    ConversationRenameIn,
+    ModelFetchIn,
+    ToolConfigIn,
+    UserAgentConfigIn,
+)
 from app.services.agent import conversations as conv_service
 from app.services.agent import user_config as user_config_service
 from app.services.tools import tool_config as tool_config_service
@@ -127,6 +134,11 @@ async def fetch_user_models(
     )
 
 
+@router.get("/stats")
+async def agent_stats(user: CurrentUser, db: AsyncSession = Depends(get_db)):
+    return ok(await conv_service.async_usage_stats({"session": db, "user_id": user.id}))
+
+
 @router.get("/conversations")
 async def list_conversations(user: CurrentUser, db: AsyncSession = Depends(get_db)):
     return ok(await conv_service.async_list_conversations({"session": db, "user_id": user.id}))
@@ -141,6 +153,22 @@ async def create_conversation(
             {"session": db, "user_id": user.id, "title": body.title}
         ),
         "会话已创建",
+    )
+
+
+@router.patch("/conversations/{conversation_id}")
+async def rename_conversation(
+    conversation_id: str,
+    body: ConversationRenameIn,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    return ok(
+        await conv_service.async_rename_conversation(
+            {"session": db, "user_id": user.id, "conversation_id": conversation_id,
+             "title": body.title}
+        ),
+        "会话已重命名",
     )
 
 

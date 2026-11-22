@@ -94,6 +94,8 @@ async def async_save_message(
     content: str,
     reasoning: str = "",
     tool_events: str = "[]",
+    input_tokens: int = 0,
+    output_tokens: int = 0,
 ) -> AgentMessage:
     row = AgentMessage(
         conversation_id=conversation_id,
@@ -101,6 +103,8 @@ async def async_save_message(
         content=content,
         reasoning=reasoning,
         tool_events=tool_events,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
     )
     session.add(row)
     conv = await session.get(AgentConversation, conversation_id)
@@ -109,3 +113,46 @@ async def async_save_message(
     await session.commit()
     await session.refresh(row)
     return row
+
+
+async def async_rename_conversation(params: dict) -> dict:
+    session: AsyncSession = params["session"]
+    conv = await async_get_owned(params)
+    title = str(params.get("title") or "").strip()
+    if not title:
+        raise ApiError("标题不能为空")
+    conv.title = title[:200]
+    await session.commit()
+    return {"id": conv.id, "title": conv.title}
+
+
+async def async_usage_stats(params: dict) -> dict:
+    from sqlalchemy import func
+
+    session: AsyncSession = params["session"]
+    user_id: str = params["user_id"]
+    conv_count = (
+        await session.execute(
+            select(func.count()).select_from(AgentConversation).where(
+                AgentConversation.user_id == user_id
+            )
+        )
+    ).scalar_one()
+    msg_count, input_tokens, output_tokens = (
+        await session.execute(
+            select(
+                func.count(AgentMessage.id),
+                func.coalesce(func.sum(AgentMessage.input_tokens), 0),
+                func.coalesce(func.sum(AgentMessage.output_tokens), 0),
+            )
+            .join(AgentConversation, AgentConversation.id == AgentMessage.conversation_id)
+            .where(AgentConversation.user_id == user_id)
+        )
+    ).one()
+    return {
+        "conversations": conv_count,
+        "messages": msg_count,
+        "input_tokens": int(input_tokens),
+        "output_tokens": int(output_tokens),
+        "total_tokens": int(input_tokens) + int(output_tokens),
+    }

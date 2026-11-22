@@ -18,9 +18,25 @@
             </div>
             <div class="tool-actions">
               <el-tag v-if="!tool.granted" size="small" type="info" effect="plain">未授权</el-tag>
+              <el-tag v-else-if="tool.require_approval && tool.approval_status === 'pending'" size="small" type="warning" effect="plain">
+                待审批
+              </el-tag>
+              <el-tag v-else-if="tool.require_approval && tool.approval_status === 'denied'" size="small" type="danger" effect="plain">
+                已拒绝
+              </el-tag>
+              <el-button
+                v-if="tool.granted && tool.require_approval && tool.approval_status !== 'approved'"
+                size="small"
+                type="primary"
+                plain
+                :loading="requestingKey === `${group.name}:${tool.name}`"
+                @click="requestTool(group, tool)"
+              >
+                申请使用
+              </el-button>
               <el-switch
                 :model-value="tool.enabled"
-                :disabled="!tool.granted || savingKey === `${group.name}:${tool.name}`"
+                :disabled="!tool.granted || (tool.require_approval && tool.approval_status !== 'approved') || savingKey === `${group.name}:${tool.name}`"
                 @change="(checked) => toggleTool(group, tool, checked)"
               />
             </div>
@@ -38,6 +54,7 @@ import api from '../utils/api'
 
 const loading = ref(false)
 const savingKey = ref('')
+const requestingKey = ref('')
 const groups = ref([])
 
 async function load() {
@@ -49,6 +66,23 @@ async function load() {
     /* ignore */
   } finally {
     loading.value = false
+  }
+}
+
+async function requestTool(group, tool) {
+  requestingKey.value = `${group.name}:${tool.name}`
+  try {
+    const data = await api.post('/tools/mine/request', {
+      group: group.name,
+      tool: tool.name,
+      reason: ''
+    })
+    groups.value = data.groups || []
+    ElMessage.success('申请已提交，等待审批')
+  } catch {
+    /* ignore */
+  } finally {
+    requestingKey.value = ''
   }
 }
 

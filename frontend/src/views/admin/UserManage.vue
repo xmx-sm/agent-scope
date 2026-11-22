@@ -180,9 +180,20 @@
                   {{ tool.label }}
                   <span class="muted tool-desc">{{ tool.description }}</span>
                 </el-checkbox>
-                <el-tag v-if="!tool.enabled" size="small" type="warning" effect="plain">
-                  已被收窄
-                </el-tag>
+                <div class="tool-switches">
+                  <el-switch
+                    :model-value="tool.require_approval"
+                    size="small"
+                    inline-prompt
+                    active-text="审批"
+                    inactive-text="直用"
+                    :loading="approvalKey === `${group.name}:${tool.name}`"
+                    @change="(checked) => setToolApproval(group, tool, checked)"
+                  />
+                  <el-tag v-if="!tool.enabled" size="small" type="warning" effect="plain">
+                    已被收窄
+                  </el-tag>
+                </div>
               </div>
             </div>
           </div>
@@ -246,6 +257,7 @@ const toolMode = ref('all')
 const selectedTools = ref(new Set())
 const permSaving = ref(false)
 const permResetting = ref(false)
+const approvalKey = ref('')
 
 const resetVisible = ref(false)
 const resetTarget = ref(null)
@@ -441,6 +453,22 @@ async function openPermission(row) {
     else readToolSelection(data)
   } catch {
     permissionVisible.value = false
+  }
+}
+
+async function setToolApproval(group, tool, checked) {
+  approvalKey.value = `${group.name}:${tool.name}`
+  try {
+    const data = await api.post(
+      `/admin/users/${permissionTarget.value.id}/tools/approval-required`,
+      { group: group.name, tool: tool.name, require_approval: checked }
+    )
+    toolDetail.value = data
+    ElMessage.success(checked ? '已设为需审批' : '已改为直接使用')
+  } catch {
+    /* ignore */
+  } finally {
+    approvalKey.value = ''
   }
 }
 
@@ -691,6 +719,13 @@ onMounted(() => {
   gap: 8px;
 }
 
+.tool-switches {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
 .tool-desc {
   font-size: 11px;
   margin-left: 6px;
@@ -794,6 +829,13 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.tool-switches {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
 }
 
 .tool-desc {

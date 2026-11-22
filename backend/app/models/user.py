@@ -92,6 +92,8 @@ class UserToolPermission(Base):
     tool_group: Mapped[str] = mapped_column(String(60), nullable=False)
     tool_name: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    require_approval: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    approval_status: Mapped[str] = mapped_column(String(20), nullable=False, default="approved")
     granted_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
@@ -146,3 +148,19 @@ class UserToolConfig(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
+
+
+class ToolApprovalRequest(Base):
+    """AI 工具使用审批请求。"""
+
+    __tablename__ = "tool_approval_requests"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    tool_group: Mapped[str] = mapped_column(String(60), nullable=False)
+    tool_name: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    approved_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

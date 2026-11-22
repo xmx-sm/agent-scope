@@ -14,13 +14,10 @@
           @click="selectConversation(conv)"
         >
           <div class="conv-title">{{ conv.title || '新会话' }}</div>
-          <el-button
-            text
-            size="small"
-            :icon="Delete"
-            class="conv-delete"
-            @click.stop="removeConversation(conv)"
-          />
+          <div class="conv-actions">
+            <el-button text size="small" :icon="Edit" @click.stop="renameConversation(conv)" />
+            <el-button text size="small" :icon="Delete" @click.stop="removeConversation(conv)" />
+          </div>
         </div>
         <el-empty v-if="!conversations.length" description="暂无会话" :image-size="60" />
       </div>
@@ -30,6 +27,7 @@
       <header class="chat-head">
         <el-button v-if="isMobile" text circle :icon="Menu" @click="convOpen = !convOpen" />
         <div class="chat-title">{{ currentConversation?.title || 'AI 对话' }}</div>
+        <el-tag v-if="stats" size="small" effect="plain">Tokens {{ stats.total_tokens }}</el-tag>
         <el-tag size="small" effect="plain">{{ modelLabel }}</el-tag>
       </header>
 
@@ -92,6 +90,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ChatDotRound,
   Delete,
+  Edit,
   Menu,
   Plus,
   Promotion,
@@ -104,6 +103,7 @@ const convOpen = ref(false)
 const conversations = ref([])
 const currentId = ref('')
 const messages = ref([])
+const stats = ref(null)
 const input = ref('')
 const streaming = ref(false)
 const streamText = ref('')
@@ -125,6 +125,28 @@ const toolList = (msg) => {
 function onResize() {
   isMobile.value = window.innerWidth < 768
   if (!isMobile.value) convOpen.value = false
+}
+
+async function loadStats() {
+  try {
+    stats.value = await api.get('/agent/stats')
+  } catch {
+    /* ignore */
+  }
+}
+
+async function renameConversation(conv) {
+  try {
+    const { value } = await ElMessageBox.prompt('新的会话标题', '重命名', {
+      inputValue: conv.title || '',
+      inputValidator: (value) => Boolean(value && value.trim()) || '标题不能为空'
+    })
+    const data = await api.patch(`/agent/conversations/${conv.id}`, { title: value.trim() })
+    conv.title = data.title
+    await loadConversations()
+  } catch {
+    /* ignore */
+  }
 }
 
 async function loadConversations() {
@@ -297,6 +319,7 @@ async function send() {
       last.streaming = false
     }
     await loadConversations()
+    await loadStats()
     await selectConversation({ id: currentId.value })
   } catch (error) {
     if (error.name !== 'AbortError') ElMessage.error(error.message || '发送失败')
@@ -316,6 +339,7 @@ function stop() {
 onMounted(() => {
   window.addEventListener('resize', onResize)
   loadConversations()
+  loadStats()
 })
 onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 </script>
@@ -375,14 +399,15 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
   padding-right: 22px;
 }
 
-.conv-delete {
+.conv-actions {
   position: absolute;
   right: 4px;
-  top: 6px;
+  top: 4px;
   opacity: 0;
+  display: flex;
 }
 
-.conv-item:hover .conv-delete {
+.conv-item:hover .conv-actions {
   opacity: 1;
 }
 

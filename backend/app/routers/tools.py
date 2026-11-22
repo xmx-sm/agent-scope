@@ -7,7 +7,14 @@ from app.core.database import get_db
 from app.core.deps import CurrentUser, SuperAdmin, ok, require_permission
 from app.core.tools import TOOL_GROUPS
 from app.models import User
-from app.schemas import ToolNarrowIn, ToolPolicyIn, ToolSetIn
+from app.schemas import (
+    ToolApprovalDecisionIn,
+    ToolApprovalRequestIn,
+    ToolApprovalRequiredIn,
+    ToolNarrowIn,
+    ToolPolicyIn,
+    ToolSetIn,
+)
 from app.services.tools import audit as tool_audit
 from app.services.tools import policy as tool_policy
 from app.services.tools import command as tool_command
@@ -42,6 +49,68 @@ async def narrow_mine(
         }
     )
     return ok(data, "工具权限已更新")
+
+
+@router.post("/tools/mine/request")
+async def request_tool_approval(
+    body: ToolApprovalRequestIn, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    data = await tool_command.async_request_approval(
+        {
+            "session": db,
+            "user": user,
+            "group": body.group,
+            "tool": body.tool,
+            "reason": body.reason,
+        }
+    )
+    return ok(data, "申请已提交")
+
+
+@router.get("/tools/approvals")
+async def list_tool_approvals(
+    user: User = Depends(require_permission("permissions.team")),
+    db: AsyncSession = Depends(get_db),
+):
+    return ok(await tool_command.async_list_approvals({"session": db, "actor": user}))
+
+
+@router.post("/tools/approvals/{request_id}/decide")
+async def decide_tool_approval(
+    request_id: str,
+    body: ToolApprovalDecisionIn,
+    user: User = Depends(require_permission("permissions.team")),
+    db: AsyncSession = Depends(get_db),
+):
+    data = await tool_command.async_decide_approval(
+        {
+            "session": db,
+            "actor": user,
+            "request_id": request_id,
+            "approve": body.approve,
+        }
+    )
+    return ok(data, "已通过" if body.approve else "已拒绝")
+
+
+@router.post("/admin/users/{user_id}/tools/approval-required")
+async def set_tool_approval_required(
+    user_id: str,
+    body: ToolApprovalRequiredIn,
+    _: SuperAdmin,
+    db: AsyncSession = Depends(get_db),
+):
+    target = await async_get_user_or_404({"session": db, "user_id": user_id})
+    data = await tool_command.async_set_tool_approval(
+        {
+            "session": db,
+            "target": target,
+            "group": body.group,
+            "tool": body.tool,
+            "require_approval": body.require_approval,
+        }
+    )
+    return ok(data, "审批设置已保存")
 
 
 @router.get("/tools/team")
