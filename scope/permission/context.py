@@ -409,51 +409,11 @@ def merge_permission_context(
 
 
 async def async_build_permission_context(data: Any = None) -> PermissionContext:
-    """异步构建权限上下文；可选从 SQLite 合并持久化规则。
+    """异步构建权限上下文；规则与开关由 ``permission`` 字典统一控制。"""
+    from .bundle import async_build_permission_bundle
 
-    字典中带 ``sqlite`` 时::
-
-        {
-            "mode": "default",
-            "allow": {"Bash": ["git status:*"]},   # 内联规则
-            "sqlite": {
-                "path": "/data/permission.db",
-                "create_dir": True,
-                "tenant_id": "u1",
-                "agent_id": "a1",
-            },
-        }
-
-    数据库中的规则会合并到内联规则之后，工作目录只取内联配置。
-    """
-    if not isinstance(data, dict):
-        return build_permission_context(data)
-
-    store_cfg = data.get("sqlite") or data.get("store")
-    if store_cfg is None:
-        return build_permission_context(data)
-
-    if isinstance(store_cfg, str):
-        store_cfg = {"path": store_cfg}
-    if not isinstance(store_cfg, dict):
-        raise ValueError("permission_context.sqlite 必须是字典或路径")
-
-    from .store import PermissionStore
-
-    store = PermissionStore(
-        store_cfg.get("path"),
-        create_dir=bool(store_cfg.get("create_dir", False)),
-    )
-    await store.initialize()
-    base = build_permission_context({
-        key: value for key, value in data.items()
-        if key not in ("sqlite", "store")
-    })
-    return await store.load_context(
-        str(store_cfg.get("tenant_id") or data.get("tenant_id") or ""),
-        str(store_cfg.get("agent_id") or data.get("agent_id") or ""),
-        base,
-    )
+    bundle = await async_build_permission_bundle(data)
+    return bundle["permission_context"]
 
 
 async def async_get_permission_context(data: dict = None) -> Dict[str, Any]:
@@ -464,11 +424,15 @@ async def async_get_permission_context(data: dict = None) -> Dict[str, Any]:
             data = {}
         if not isinstance(data, dict):
             return _err(f"data 必须是字典对象，收到 {type(data).__name__}", fn)
-        raw = data.get("permission_context", data)
-        context = await async_build_permission_context(raw)
+        raw = data.get("permission", data.get("permission_context", data))
+        from .bundle import async_build_permission_bundle
+
+        bundle = await async_build_permission_bundle(raw)
+        context = bundle["permission_context"]
         return _ok({
             "permission_context": context,
-            "config": permission_context_to_dict(context),
+            "config": bundle["config"],
+            "bundle": bundle,
         }, "PermissionContext 创建成功")
     except (TypeError, ValueError) as e:
         return _err(str(e), fn)

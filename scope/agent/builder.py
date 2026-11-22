@@ -48,9 +48,9 @@ except ImportError:
     from skills.loader import build_skills
 
 try:
-    from ..permission import async_build_permission_context
+    from ..permission.bundle import async_build_permission_bundle
 except ImportError:
-    from permission import async_build_permission_context
+    from permission.bundle import async_build_permission_bundle
 
 try:
     from config import get as _cfg_get
@@ -248,23 +248,22 @@ async def async_get_agent(data: dict = None) -> Dict[str, Any]:
         model_config = _coerce(
             agent_cfg.get("model_config") or data.get("model_config"),
             ModelConfig, "model_config")
-        raw_permission = agent_cfg.get("permission_context")
+        raw_permission = agent_cfg.get("permission")
+        if raw_permission is None:
+            raw_permission = agent_cfg.get("permission_context")
+        if raw_permission is None:
+            raw_permission = data.get("permission")
         if raw_permission is None:
             raw_permission = data.get("permission_context")
-        permission_context = (
-            await async_build_permission_context(raw_permission)
-            if raw_permission is not None else None
-        )
+        permission_bundle = await async_build_permission_bundle(raw_permission)
 
         state_cfg = agent_cfg.get("state") or data.get("state")
         if state_cfg is None:
             state = AgentState(
-                permission_context=permission_context
-                or await async_build_permission_context())
+                permission_context=permission_bundle["permission_context"])
         else:
             state = _coerce(state_cfg, AgentState, "state")
-            if permission_context is not None:
-                state.permission_context = permission_context
+            state.permission_context = permission_bundle["permission_context"]
 
         tasks = plan_cfg.get("tasks") or agent_cfg.get("tasks") or data.get("tasks")
         if tasks is not None:
@@ -292,6 +291,7 @@ async def async_get_agent(data: dict = None) -> Dict[str, Any]:
             react_config=react_config,
             injection_config=injection_config,
         )
+        agent._scope_permission = permission_bundle
         return _ok({
             "agent": agent,
             "context_config": context_config,
@@ -299,6 +299,7 @@ async def async_get_agent(data: dict = None) -> Dict[str, Any]:
             "offloader": offloader,
             "mcps": mcp_clients,
             "skills": skills,
+            "permission": permission_bundle,
         }, "Agent 初始化成功")
     except (TypeError, ValueError) as e:
         return _err(str(e), fn)

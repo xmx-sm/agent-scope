@@ -209,13 +209,15 @@ async def async_get_subagents(data: dict = None) -> Dict[str, Any]:
         return _err(f"子智能体解析失败：{type(e).__name__}: {e}", fn)
 
 
-def normalize_tools(tools: List[Any], defaults: Optional[Dict[str, dict]] = None) -> List[Any]:
-    """函数统一包成 PermissionedFunctionTool，支持按 data["function"] 细分权限；ToolBase 原样保留。
+def normalize_tools(
+    tools: List[Any],
+    defaults: Optional[Dict[str, dict]] = None,
+    wrap_permissioned: bool = True,
+) -> List[Any]:
+    """函数统一包成 FunctionTool；可按 data["function"] 细分权限。
 
-    ``defaults`` 按工具名给默认参数：
-    - 单参 ``data`` 的工具：默认值合并进 ``data`` 字典
-    - 其它函数：作为顶层 kwargs 默认值
-    - ToolBase 不支持注入默认参数（明确报错，避免静默失效）
+    ``wrap_permissioned=True`` 时使用 ``PermissionedFunctionTool``，
+    否则退回官方 ``FunctionTool``。
     """
     defaults = defaults or {}
     out = []
@@ -225,7 +227,8 @@ def normalize_tools(tools: List[Any], defaults: Optional[Dict[str, dict]] = None
             if name in defaults:
                 raise ValueError(f"工具 {name} 是 ToolBase，不支持 tool_defaults")
             if isinstance(t, FunctionTool) \
-                    and not isinstance(t, PermissionedFunctionTool):
+                    and not isinstance(t, PermissionedFunctionTool) \
+                    and wrap_permissioned:
                 out.append(wrap_permissioned_tool(t))
             else:
                 out.append(t)
@@ -234,8 +237,9 @@ def normalize_tools(tools: List[Any], defaults: Optional[Dict[str, dict]] = None
             raise ValueError(f"无效工具: {type(t).__name__}")
         name = getattr(t, "__name__", "")
         tool_defaults = defaults.get(name)
+        tool_cls = PermissionedFunctionTool if wrap_permissioned else FunctionTool
         if tool_defaults is None:
-            out.append(PermissionedFunctionTool(t))
+            out.append(tool_cls(t))
             continue
         if not isinstance(tool_defaults, dict):
             raise ValueError(f"tool_defaults.{name} 必须是字典")
@@ -268,7 +272,7 @@ def normalize_tools(tools: List[Any], defaults: Optional[Dict[str, dict]] = None
             return res
 
         _wrapped.__signature__ = sig
-        out.append(PermissionedFunctionTool(_wrapped, name=name or None))
+        out.append(tool_cls(_wrapped, name=name or None))
     return out
 
 
@@ -315,6 +319,24 @@ def _group_defs(raw: Any) -> List[dict]:
     return items
 
 
+def _function_rules_enabled(spec: dict) -> bool:
+    raw = spec.get("permission")
+    if raw is None:
+        raw = spec.get("permission_context")
+    if raw is None:
+        return True
+    if not isinstance(raw, dict):
+        return True
+    if raw.get("enabled") is False:
+        return False
+    fr = raw.get("function_rules")
+    if isinstance(fr, dict) and "enabled" in fr:
+        return bool(fr.get("enabled"))
+    if isinstance(fr, bool):
+        return fr
+    return True
+
+
 def build_subagent_toolkit(
     spec: dict,
     parent_toolkit: Optional[Toolkit] = None,
@@ -334,6 +356,7 @@ def build_subagent_toolkit(
         [{"name":"rag","tools":[...]}]       # 完整定义
     """
     defaults = spec.get("tool_defaults") or {}
+    wrap_permissioned = _function_rules_enabled(spec)
     allow = spec.get("allow_tools", spec.get("allowed_tools"))
     deny = spec.get("deny_tools", spec.get("denied_tools"))
     allow_set = set(str(x) for x in allow) if isinstance(allow, list) else None
@@ -353,7 +376,8 @@ def build_subagent_toolkit(
         return Toolkit()
 
     basic_tools = normalize_tools(
-        resolve_tools(tools_cfg) if tools_cfg else [], defaults)
+        resolve_tools(tools_cfg) if tools_cfg else [], defaults,
+        wrap_permissioned=wrap_permissioned)
     basic_tools = _filter_tools(basic_tools, allow_set, deny_set)
 
     groups: List[ToolGroup] = []
@@ -369,12 +393,16 @@ def build_subagent_toolkit(
                     list(parent_map[name].tools), allow_set, deny_set))
             if item.get("tools"):
                 basic_tools.extend(_filter_tools(
-                    normalize_tools(resolve_tools(item["tools"]), defaults),
+                    normalize_tools(
+                        resolve_tools(item["tools"]), defaults,
+                        wrap_permissioned=wrap_permissioned),
                     allow_set, deny_set))
             continue
 
         if "tools" in item:
-            group_tools = normalize_tools(resolve_tools(item.get("tools")), defaults)
+            group_tools = normalize_tools(
+                resolve_tools(item.get("tools")), defaults,
+                wrap_permissioned=wrap_permissioned)
         elif name in parent_map:
             group_tools = list(parent_map[name].tools)
         else:

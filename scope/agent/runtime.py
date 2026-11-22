@@ -65,7 +65,8 @@ class AgentRuntime:
         pending_store: Any = None,
         tenant_id: str = "",
         agent_id: str = "",
-        pending_ttl: int = 300,
+        pending_ttl: Optional[int] = None,
+        permission: Optional[Dict[str, Any]] = None,
     ) -> None:
         if not hasattr(agent, "reply_stream"):
             raise ValueError("agent 必须提供 reply_stream")
@@ -76,11 +77,33 @@ class AgentRuntime:
         if self.default_approval not in ("allow", "deny", "ask"):
             raise ValueError("default_approval 必须是 allow/deny/ask")
 
-        self.audit_store = audit_store
-        self.pending_store = pending_store
-        self.tenant_id = str(tenant_id or "")
-        self.agent_id = str(agent_id or "")
-        self.pending_ttl = max(1, int(pending_ttl))
+        bundle = permission
+        if not isinstance(bundle, dict):
+            bundle = getattr(agent, "_scope_permission", None)
+        if not isinstance(bundle, dict):
+            bundle = {}
+        self.permission = bundle
+        config = bundle.get("config") if isinstance(bundle.get("config"), dict) else {}
+        sqlite_cfg = config.get("sqlite") if isinstance(config.get("sqlite"), dict) else {}
+        pending_cfg = config.get("pending") if isinstance(config.get("pending"), dict) else {}
+
+        store = bundle.get("store")
+        self.audit_store = (
+            audit_store if audit_store is not None
+            else (store if bundle.get("audit") else None)
+        )
+        self.pending_store = (
+            pending_store if pending_store is not None
+            else (store if bundle.get("pending") else None)
+        )
+        self.tenant_id = str(
+            tenant_id or sqlite_cfg.get("tenant_id") or "")
+        self.agent_id = str(
+            agent_id or sqlite_cfg.get("agent_id") or "")
+        ttl = pending_ttl
+        if ttl is None:
+            ttl = bundle.get("pending_ttl") or pending_cfg.get("ttl_seconds") or 300
+        self.pending_ttl = max(1, int(ttl))
         self._pending: Dict[str, dict] = {}
         self._active_task: Optional[asyncio.Task] = None
         self._interrupted = False

@@ -45,9 +45,9 @@ except ImportError:
     from llm.agent_model import async_get_llm_model
 
 try:
-    from ..permission import async_build_permission_context
+    from ..permission.bundle import async_build_permission_bundle
 except ImportError:
-    from permission import async_build_permission_context
+    from permission.bundle import async_build_permission_bundle
 
 from .subagents import async_get_subagents, build_subagent_toolkit
 
@@ -241,23 +241,22 @@ async def _build_subagent(spec: dict, data: dict) -> Dict[str, Any]:
         injection_config = _coerce(
             data.get("injection_config") or spec.get("injection_config"),
             InjectionConfig, "injection_config")
-        raw_permission = spec.get("permission_context")
+        raw_permission = spec.get("permission")
+        if raw_permission is None:
+            raw_permission = spec.get("permission_context")
+        if raw_permission is None:
+            raw_permission = data.get("permission")
         if raw_permission is None:
             raw_permission = data.get("permission_context")
-        permission_context = (
-            await async_build_permission_context(raw_permission)
-            if raw_permission is not None else None
-        )
+        permission_bundle = await async_build_permission_bundle(raw_permission)
 
         state_cfg = spec.get("state") or data.get("state")
         if state_cfg is None:
             state = AgentState(
-                permission_context=permission_context
-                or await async_build_permission_context())
+                permission_context=permission_bundle["permission_context"])
         else:
             state = _coerce(state_cfg, AgentState, "state")
-            if permission_context is not None:
-                state.permission_context = permission_context
+            state.permission_context = permission_bundle["permission_context"]
 
         agent = Agent(
             name=spec.get("name"),
@@ -271,7 +270,9 @@ async def _build_subagent(spec: dict, data: dict) -> Dict[str, Any]:
             context_config=context_config,
             injection_config=injection_config,
         )
+        agent._scope_permission = permission_bundle
         return _ok({"agent": agent, "toolkit": toolkit,
+                    "permission": permission_bundle,
                     "tool_group_map": {
                         getattr(t, "name", type(t).__name__): g.name
                         for g in toolkit.tool_groups

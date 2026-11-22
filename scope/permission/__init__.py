@@ -29,10 +29,16 @@ from .tool import (
     wrap_permissioned_tools,
 )
 from .store import PermissionStore, make_pending_key
+from .bundle import (
+    async_build_permission_bundle,
+    async_get_permission_bundle,
+)
 
 __all__ = [
     "add_permission_rule",
+    "async_build_permission_bundle",
     "async_build_permission_context",
+    "async_get_permission_bundle",
     "async_get_permission_context",
     "build_permission_context",
     "merge_permission_context",
