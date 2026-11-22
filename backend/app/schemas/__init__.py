@@ -15,6 +15,7 @@ from app.schemas.tool_approval import (
     ToolApprovalRequestIn,
     ToolApprovalRequiredIn,
 )
+from app.schemas.skill import McpSaveIn, ToggleIn
 from app.schemas.tool_config import ToolConfigIn
 from app.schemas.user import ProfileUpdateIn, ResetPasswordIn, UserCreateIn, UserUpdateIn
 
@@ -45,6 +46,8 @@ __all__ = [
     "ToolSetIn",
     "ToolNarrowIn",
     "ToolConfigIn",
+    "ToggleIn",
+    "McpSaveIn",
     "ToolApprovalRequestIn",
     "ToolApprovalDecisionIn",
     "ToolApprovalRequiredIn",

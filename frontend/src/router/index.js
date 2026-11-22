@@ -58,6 +58,18 @@ const routes = [
         meta: { title: '工具配置', permission: 'ai.use' }
       },
       {
+        path: 'agent-skills',
+        name: 'AgentSkills',
+        component: () => import('../views/Skills.vue'),
+        meta: { title: 'Skills', permission: 'ai.use' }
+      },
+      {
+        path: 'agent-mcp',
+        name: 'AgentMcp',
+        component: () => import('../views/McpSettings.vue'),
+        meta: { title: 'MCP', permission: 'ai.use' }
+      },
+      {
         path: 'agent-stats',
         name: 'AgentStats',
         component: () => import('../views/AgentStats.vue'),

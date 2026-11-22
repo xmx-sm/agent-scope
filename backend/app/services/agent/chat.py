@@ -12,6 +12,8 @@ from app.models import AgentConversation, AgentMessage, User
 from app.services.agent.attachments import async_load_for_model
 from app.services.agent.conversations import async_get_owned, async_save_message
 from app.services.agent.scope_bridge import ROOT  # noqa: F401 确保 scope 路径已注入
+from app.services.agent.mcps import async_active_servers
+from app.services.agent.skills import async_active_dirs
 from app.services.agent.toolkit import async_build_toolkit
 from app.services.config.service import async_get_config
 from app.services.agent.user_config import async_effective
@@ -106,6 +108,8 @@ async def async_stream_chat(
             security_prompt = await async_build_security_prompt({"session": session})
             system_prompt = user_prompt or "你是一个企业智能助手。"
             toolkit = await async_build_toolkit({"session": session, "user": user})
+            skill_dirs = await async_active_dirs({"session": session, "user": user})
+            mcp_servers = await async_active_servers({"session": session, "user": user})
         except Exception as exc:  # noqa: BLE001
             yield _sse("error", {"error": str(exc)})
             return
@@ -141,17 +145,21 @@ async def async_stream_chat(
                 or 0.2
             ),
         }
-    result = await async_get_agent(
-        {
-            "llm": llm,
-            "agent": {
-                "name": "assistant",
-                "system_prompt": full_prompt,
-                "toolkit": toolkit,
-                "context_config": context_config,
-            },
+    agent_cfg = {
+        "name": "assistant",
+        "system_prompt": full_prompt,
+        "toolkit": toolkit,
+        "context_config": context_config,
+    }
+    if skill_dirs:
+        agent_cfg["skills"] = {
+            "enabled": True,
+            "dirs": skill_dirs,
+            "ignore_missing": True,
         }
-    )
+    if mcp_servers:
+        agent_cfg["mcp"] = {"mcpServers": mcp_servers}
+    result = await async_get_agent({"llm": llm, "agent": agent_cfg})
     if result.get("code") != 200:
         yield _sse("error", {"error": result.get("message") or "Agent 初始化失败"})
         return

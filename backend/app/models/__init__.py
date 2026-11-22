@@ -9,6 +9,7 @@ from app.models.agent import (
 )
 from app.models.common import new_id, utc_now
 from app.models.menu import Menu, UserMenuPref
+from app.models.skill import UserMcp, UserSkill
 from app.models.system import RolePermission, SystemConfig
 from app.models.user import (
     ToolApprovalRequest,
@@ -27,6 +28,8 @@ __all__ = [
     "AgentModelCall",
     "AgentAttachment",
     "UserAgentConfig",
+    "UserSkill",
+    "UserMcp",
     "User",
     "UserPermissionState",
     "UserToolMode",
