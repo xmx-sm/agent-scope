@@ -21,11 +21,13 @@ from .delegate import (
 )
 from .runtime import AgentRuntime
 from .plan import build_plan_group, attach_plan, seed_tasks
+from .pipeline import async_get_pipeline
 from .subagents import async_get_subagents, normalize_tools, resolve_tools
 
 __all__ = [
     "AgentRuntime",
     "async_get_agent",
+    "async_get_pipeline",
     "build_plan_group",
     "attach_plan",
     "seed_tasks",

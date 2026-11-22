@@ -24,7 +24,7 @@
 | 模型层 | `scope/llm/`：多厂商 Chat / Embedding / TTS / ASR 工厂，视频 formatter | 3 文件 |
 | 媒体层 | `scope/media/`：TTS 落盘 / base64 / URL、ASR 转写、文件闸门 | 4 文件 |
 | RAG 层 | `scope/rag/`：文档解析/切片/embedding、SQLite 向量库、注册表、KnowledgeBase/RAGMiddleware；`tools/rag/` 工具入口 | 8 文件 |
-| 子智能体 | `scope/agent/`：主 Agent builder/runtime、上下文管理、子智能体、委派、审批、取消、Plan | 7 文件 |
+| 子智能体 | `scope/agent/`：主 Agent builder/runtime、上下文管理、子智能体、委派、审批、取消、Plan、Pipeline | 8 文件 |
 | Skills | `scope/skills/`：用户自定义目录加载（`LocalSkillLoader`） | 2 文件 |
 
 工具域能力：
@@ -100,6 +100,7 @@ agent_scope/
     │   ├── context.py           # 上下文压缩 / 运行时注入 / 卸载
     │   ├── runtime.py           # 主 Agent 事件流 / 审批 / 中断
     │   ├── plan.py              # 计划模式 TaskCreate/Get/List/Update
+    │   ├── pipeline.py          # GoalPipeline / TeamPipeline 构建
     │   ├── subagents.py         # spec 校验 / 工具解析 / 工具组权限
     │   ├── delegate.py          # 独立 AgentState 执行 / 委派工具
     │   └── __init__.py
