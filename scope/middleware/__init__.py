@@ -13,12 +13,14 @@
 
 from .factory import (
     async_collect_middleware_tools,
+    async_get_memory,
     async_get_middlewares,
     collect_middleware_tools,
 )
 
 __all__ = [
     "async_get_middlewares",
+    "async_get_memory",
     "async_collect_middleware_tools",
     "collect_middleware_tools",
 ]

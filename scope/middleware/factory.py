@@ -62,6 +62,7 @@ from agentscope.middleware import (
     TTSMiddleware,
     TracingMiddleware,
 )
+from agentscope.tool import Edit, Read, Write
 
 try:
     from ..llm.agent_model import (
@@ -360,6 +361,143 @@ async def async_get_middlewares(data: Any = None) -> Dict[str, Any]:
         return _err(f"中间件创建失败：{type(e).__name__}: {e}", fn, 500)
 
 
+async def async_get_memory(data: Any = None) -> Dict[str, Any]:
+    """构建一个长期记忆中间件，并返回它需要的工具。
+
+    支持三种实现：
+
+    - ``agentic`` / ``local`` / ``file``：本地 Markdown 文件记忆
+    - ``reme``：ReMe 文件型记忆
+    - ``mem0``：mem0 记忆
+
+    本地文件记忆的存放目录必须由字典传入（绝对路径）::
+
+        {
+            "type": "agentic",
+            "enabled": True,
+            "path": "/data/tenants/u1/memory",
+            "create_dir": True,
+            "memory_dir": "Memory",
+            "tools": {"enabled": True},
+        }
+
+    返回::
+
+        {
+            "type": "agentic",
+            "middleware": AgenticMemoryMiddleware,
+            "tools": [Read, Write, Edit],
+            "closable": False,
+        }
+    """
+    fn = "async_get_memory"
+    try:
+        if data is None:
+            return _ok({
+                "type": None,
+                "middleware": None,
+                "tools": [],
+                "closable": False,
+            }, "未启用长期记忆")
+        if not isinstance(data, dict):
+            raise ValueError("memory 必须是字典")
+        if not _as_bool(data.get("enabled"), True):
+            return _ok({
+                "type": None,
+                "middleware": None,
+                "tools": [],
+                "closable": False,
+            }, "长期记忆已关闭")
+
+        mw_type = str(
+            data.get("type") or data.get("kind") or data.get("backend_type")
+            or "agentic"
+        ).strip().lower()
+        spec = dict(data)
+        tools_cfg = spec.get("tools", True)
+        if isinstance(tools_cfg, dict):
+            tools_enabled = _as_bool(tools_cfg.get("enabled"), True)
+        else:
+            tools_enabled = _as_bool(tools_cfg, True)
+
+        if mw_type in ("agentic", "agentic_memory", "local", "file", "markdown"):
+            path = (
+                data.get("path") or data.get("folder") or data.get("dir")
+                or data.get("workdir") or data.get("base_dir")
+            )
+            if not path:
+                raise ValueError(
+                    "本地文件记忆缺少存放目录：memory.path / workdir / folder")
+            path = str(path)
+            if not os.path.isabs(os.path.expanduser(path)):
+                raise ValueError(f"memory.path 必须是绝对路径: {path}")
+            path = os.path.abspath(os.path.expanduser(path))
+            if not os.path.isdir(path):
+                if _as_bool(data.get("create_dir"), False):
+                    os.makedirs(path, exist_ok=True)
+                else:
+                    raise ValueError(
+                        f"memory.path 目录不存在: {path}（可传 create_dir=True）")
+            spec["type"] = "agentic_memory"
+            spec["workdir"] = path
+            spec.pop("path", None)
+            spec.pop("folder", None)
+            spec.pop("dir", None)
+            spec.pop("base_dir", None)
+            mw = await _build_one(spec)
+            backend = data.get("backend")
+            tools = []
+            if tools_enabled:
+                kwargs = {"backend": backend} if backend is not None else {}
+                tools = [Read(**kwargs), Write(**kwargs), Edit(**kwargs)]
+            return _ok({
+                "type": "agentic",
+                "middleware": mw,
+                "tools": tools,
+                "closable": False,
+            }, "本地文件长期记忆创建成功")
+
+        if mw_type == "reme":
+            path = (
+                data.get("path") or data.get("workspace_dir")
+                or data.get("folder") or data.get("dir")
+            )
+            spec["type"] = "reme"
+            if path:
+                raw_path = os.path.expanduser(str(path))
+                if not os.path.isabs(raw_path):
+                    raise ValueError(f"memory.path 必须是绝对路径: {path}")
+                spec["workspace_dir"] = os.path.abspath(raw_path)
+            mw = await _build_one(spec)
+            tools = await collect_middleware_tools([mw]) if tools_enabled else []
+            return _ok({
+                "type": "reme",
+                "middleware": mw,
+                "tools": tools,
+                "closable": hasattr(mw, "close"),
+            }, "ReMe 长期记忆创建成功")
+
+        if mw_type == "mem0":
+            spec["type"] = "mem0"
+            for key in ("tools", "create_dir", "path", "folder", "dir"):
+                spec.pop(key, None)
+            mw = await _build_one(spec)
+            tools = await collect_middleware_tools([mw]) if tools_enabled else []
+            return _ok({
+                "type": "mem0",
+                "middleware": mw,
+                "tools": tools,
+                "closable": hasattr(mw, "close"),
+            }, "Mem0 长期记忆创建成功")
+
+        raise ValueError(
+            f"不支持的 memory.type: {mw_type}（agentic/reme/mem0）")
+    except (TypeError, ValueError) as e:
+        return _err(str(e), fn)
+    except Exception as e:
+        return _err(f"长期记忆创建失败：{type(e).__name__}: {e}", fn, 500)
+
+
 async def collect_middleware_tools(middlewares: List[MiddlewareBase]) -> List[Any]:
     """收集中间件 ``list_tools()`` 贡献的工具。
 
@@ -399,6 +537,7 @@ async def async_collect_middleware_tools(data: Any = None) -> Dict[str, Any]:
 
 __all__ = [
     "async_get_middlewares",
+    "async_get_memory",
     "async_collect_middleware_tools",
     "collect_middleware_tools",
 ]

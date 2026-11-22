@@ -26,7 +26,7 @@
 | RAG 层 | `scope/rag/`：文档解析/切片/embedding、SQLite 向量库、注册表、KnowledgeBase/RAGMiddleware；`tools/rag/` 工具入口 | 8 文件 |
 | 子智能体 | `scope/agent/`：主 Agent builder/runtime、上下文管理、子智能体、委派、审批、取消、Plan、Pipeline、SOP | 9 文件 |
 | 权限层 | `scope/permission/`：官方 `PermissionContext` 字典构建；`sqlite/audit/pending/function_rules` 字典开关；SQLite 规则/审计/pending；函数级工具适配 | 5 文件 |
-| 中间件层 | `scope/middleware/`：Tracing / Budget / TTS / ModelRouter / RAG / Memory / Steering / 自定义中间件字典工厂 | 2 文件 |
+| 中间件层 | `scope/middleware/`：Tracing / Budget / TTS / ModelRouter / RAG / 长期记忆（Agentic/ReMe/Mem0）/ Steering / 自定义中间件字典工厂 | 2 文件 |
 | Skills | `scope/skills/`：用户自定义目录加载（`LocalSkillLoader`） | 2 文件 |
 
 工具域能力：
@@ -114,7 +114,7 @@ agent_scope/
     │   ├── store.py             # SQLite 规则 / 审计 / pending
     │   └── __init__.py
     ├── middleware/              # 官方 Agent 中间件
-    │   ├── factory.py           # 字典 → Tracing/Budget/TTS/ModelRouter/RAG/Memory
+    │   ├── factory.py           # 字典 → Tracing/Budget/TTS/ModelRouter/RAG/长期记忆
     │   └── __init__.py
     ├── llm/                     # 模型工厂（Chat / Embedding / TTS / ASR）
     │   ├── agent_model.py       # 对外入口

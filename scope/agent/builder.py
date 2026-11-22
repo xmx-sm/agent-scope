@@ -53,9 +53,17 @@ except ImportError:
     from permission.bundle import async_build_permission_bundle
 
 try:
-    from ..middleware import async_get_middlewares, collect_middleware_tools
+    from ..middleware import (
+        async_get_memory,
+        async_get_middlewares,
+        collect_middleware_tools,
+    )
 except ImportError:
-    from middleware import async_get_middlewares, collect_middleware_tools
+    from middleware import (
+        async_get_memory,
+        async_get_middlewares,
+        collect_middleware_tools,
+    )
 
 try:
     from config import get as _cfg_get
@@ -307,6 +315,20 @@ async def async_get_agent(data: dict = None) -> Dict[str, Any]:
             if mw_tools:
                 await toolkit.add_tool(mw_tools)
 
+        memory_cfg = agent_cfg.get("memory")
+        if memory_cfg is None:
+            memory_cfg = data.get("memory")
+        memory_data = None
+        if memory_cfg is not None:
+            memory_r = await async_get_memory(memory_cfg)
+            if memory_r.get("code") != 200:
+                return memory_r
+            memory_data = memory_r["data"]
+            if memory_data.get("middleware") is not None:
+                middlewares.append(memory_data["middleware"])
+            if memory_data.get("tools"):
+                await toolkit.add_tool(memory_data["tools"])
+
         agent = Agent(
             name=str(agent_cfg.get("name") or "assistant"),
             system_prompt=str(agent_cfg.get("system_prompt") or "你是一个智能助手。"),
@@ -329,6 +351,7 @@ async def async_get_agent(data: dict = None) -> Dict[str, Any]:
             "mcps": mcp_clients,
             "skills": skills,
             "permission": permission_bundle,
+            "memory": memory_data,
         }, "Agent 初始化成功")
     except (TypeError, ValueError) as e:
         return _err(str(e), fn)

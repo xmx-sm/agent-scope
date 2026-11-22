@@ -50,9 +50,17 @@ except ImportError:
     from permission.bundle import async_build_permission_bundle
 
 try:
-    from ..middleware import async_get_middlewares, collect_middleware_tools
+    from ..middleware import (
+        async_get_memory,
+        async_get_middlewares,
+        collect_middleware_tools,
+    )
 except ImportError:
-    from middleware import async_get_middlewares, collect_middleware_tools
+    from middleware import (
+        async_get_memory,
+        async_get_middlewares,
+        collect_middleware_tools,
+    )
 
 from .subagents import async_get_subagents, build_subagent_toolkit
 
@@ -255,6 +263,20 @@ async def _build_subagent(spec: dict, data: dict) -> Dict[str, Any]:
             if mw_tools:
                 await toolkit.add_tool(mw_tools)
 
+        memory_cfg = spec.get("memory")
+        if memory_cfg is None:
+            memory_cfg = data.get("memory")
+        memory_data = None
+        if memory_cfg is not None:
+            memory_r = await async_get_memory(memory_cfg)
+            if memory_r.get("code") != 200:
+                raise ValueError(memory_r.get("message") or "长期记忆构建失败")
+            memory_data = memory_r["data"]
+            if memory_data.get("middleware") is not None:
+                middlewares.append(memory_data["middleware"])
+            if memory_data.get("tools"):
+                await toolkit.add_tool(memory_data["tools"])
+
         context_config = _coerce(
             data.get("context_config") or spec.get("context_config"),
             ContextConfig, "context_config")
@@ -299,6 +321,7 @@ async def _build_subagent(spec: dict, data: dict) -> Dict[str, Any]:
         agent._scope_permission = permission_bundle
         return _ok({"agent": agent, "toolkit": toolkit,
                     "permission": permission_bundle,
+                    "memory": memory_data,
                     "tool_group_map": {
                         getattr(t, "name", type(t).__name__): g.name
                         for g in toolkit.tool_groups
