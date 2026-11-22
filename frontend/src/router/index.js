@@ -76,6 +76,12 @@ const routes = [
         meta: { title: 'MCP', permission: 'ai.use' }
       },
       {
+        path: 'agent-subagents',
+        name: 'AgentSubagents',
+        component: () => import('../views/Subagents.vue'),
+        meta: { title: '子智能体', permission: 'ai.use' }
+      },
+      {
         path: 'agent-stats',
         name: 'AgentStats',
         component: () => import('../views/AgentStats.vue'),

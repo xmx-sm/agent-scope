@@ -21,6 +21,7 @@ FIELDS = (
     "think",
     "thinking_budget",
     "reasoning_effort",
+    "memory_enabled",
     "system_prompt",
 )
 
@@ -41,6 +42,7 @@ async def async_system_defaults(session: AsyncSession) -> dict[str, Any]:
         "think": await get("ai.think", False),
         "thinking_budget": await get("ai.thinking_budget", 0),
         "reasoning_effort": await get("ai.reasoning_effort", "medium"),
+        "memory_enabled": await get("agent.memory.enabled", False),
         "system_prompt": await get("ai.system_prompt", ""),
     }
 
@@ -65,6 +67,7 @@ async def async_effective(params: dict) -> dict[str, Any]:
         "think": row.think,
         "thinking_budget": row.thinking_budget,
         "reasoning_effort": row.reasoning_effort,
+        "memory_enabled": row.memory_enabled,
         "system_prompt": row.system_prompt or system["system_prompt"],
         "source": "user",
     }
@@ -89,6 +92,7 @@ async def async_view(params: dict) -> dict[str, Any]:
         "think": row.think if row else system["think"],
         "thinking_budget": row.thinking_budget if row else system["thinking_budget"],
         "reasoning_effort": row.reasoning_effort if row else system["reasoning_effort"],
+        "memory_enabled": row.memory_enabled if row else system["memory_enabled"],
         "system_prompt": row.system_prompt if row else "",
     }
     return {
@@ -133,6 +137,7 @@ async def async_save(params: dict) -> dict[str, Any]:
         row.think = bool(data.get("think", False))
         row.thinking_budget = int(data.get("thinking_budget", 0) or 0)
         row.reasoning_effort = str(data.get("reasoning_effort") or "medium")
+        row.memory_enabled = bool(data.get("memory_enabled", False))
         row.system_prompt = str(data.get("system_prompt") or "")
     await session.commit()
     return await async_view({"session": session, "user": user})

@@ -79,6 +79,13 @@
           </div>
         </el-collapse-item>
 
+        <el-collapse-item title="长期记忆" name="memory">
+          <el-form-item label="启用本地文件记忆">
+            <el-switch v-model="form.memory_enabled" />
+          </el-form-item>
+          <p class="muted">记忆保存在用户 Agent 目录下的 memory 文件夹，跨会话生效。</p>
+        </el-collapse-item>
+
         <el-collapse-item title="系统提示词" name="prompt">
           <el-input v-model="form.system_prompt" type="textarea" :rows="6" placeholder="留空使用系统默认提示词" />
         </el-collapse-item>
@@ -118,6 +125,7 @@ const form = reactive({
   think: false,
   thinking_budget: 0,
   reasoning_effort: 'medium',
+  memory_enabled: false,
   system_prompt: ''
 })
 
@@ -142,6 +150,7 @@ async function load() {
       think: config.user.think ?? config.system.think ?? false,
       thinking_budget: config.user.thinking_budget ?? config.system.thinking_budget ?? 0,
       reasoning_effort: config.user.reasoning_effort || config.system.reasoning_effort || 'medium',
+      memory_enabled: config.user.memory_enabled ?? config.system.memory_enabled ?? false,
       system_prompt: config.user.system_prompt || ''
     })
     providers.value = providerList || []

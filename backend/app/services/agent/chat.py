@@ -14,6 +14,7 @@ from app.services.agent.conversations import async_get_owned, async_save_message
 from app.services.agent.scope_bridge import ROOT  # noqa: F401 确保 scope 路径已注入
 from app.services.agent.mcps import async_active_servers
 from app.services.agent.skills import async_active_dirs
+from app.services.agent.subagents import async_specs as async_subagent_specs
 from app.services.agent.toolkit import async_build_toolkit
 from app.services.config.service import async_get_config
 from app.services.agent.user_config import async_effective
@@ -24,7 +25,7 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-async def _load_llm(session, user: User) -> tuple[dict, str]:
+async def _load_llm(session, user: User) -> tuple[dict, str, bool]:
     cfg = await async_effective({"session": session, "user": user})
     model = str(cfg.get("model") or "")
     base_url = str(cfg.get("base_url") or "")
@@ -44,7 +45,7 @@ async def _load_llm(session, user: User) -> tuple[dict, str]:
         "temperature": float(cfg.get("temperature", 0.7) or 0.7),
         "max_tokens": int(cfg.get("max_tokens", 4096) or 4096),
         "context_size": int(cfg.get("context_window", 131072) or 131072),
-    }, str(cfg.get("system_prompt") or "")
+    }, str(cfg.get("system_prompt") or ""), bool(cfg.get("memory_enabled", False))
 
 
 async def _history_text(session, conversation_id: str, limit: int = 20) -> str:
@@ -104,10 +105,23 @@ async def async_stream_chat(
             attachments=json.dumps(meta, ensure_ascii=False),
         )
         try:
-            llm, user_prompt = await _load_llm(session, user)
+            llm, user_prompt, memory_enabled = await _load_llm(session, user)
             security_prompt = await async_build_security_prompt({"session": session})
             system_prompt = user_prompt or "你是一个企业智能助手。"
             toolkit = await async_build_toolkit({"session": session, "user": user})
+            subagent_specs = await async_subagent_specs(
+                {"session": session, "user": user}
+            )
+            if subagent_specs:
+                from scope.agent.delegate import register_delegate_tool
+
+                await register_delegate_tool(
+                    toolkit,
+                    default_llm=llm,
+                    subagents=subagent_specs,
+                    owner=user.id,
+                    register_task_tool=True,
+                )
             skill_dirs = await async_active_dirs({"session": session, "user": user})
             mcp_servers = await async_active_servers({"session": session, "user": user})
         except Exception as exc:  # noqa: BLE001
@@ -159,6 +173,17 @@ async def async_stream_chat(
         }
     if mcp_servers:
         agent_cfg["mcp"] = {"mcpServers": mcp_servers}
+    if memory_enabled:
+        memory_dir = str(
+            ROOT / "backend" / "uploads" / "agents" / f"user_{user_id}" / "memory"
+        )
+        agent_cfg["memory"] = {
+            "enabled": True,
+            "type": "file",
+            "path": memory_dir,
+            "create_dir": True,
+            "tools": {"enabled": True},
+        }
     result = await async_get_agent({"llm": llm, "agent": agent_cfg})
     if result.get("code") != 200:
         yield _sse("error", {"error": result.get("message") or "Agent 初始化失败"})

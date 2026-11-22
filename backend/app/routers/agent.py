@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.core.deps import ApiError, CurrentUser, SuperAdmin, ok, require_permission
 from app.models import User
 from app.schemas import (
+    SubagentSaveIn,
     RagSearchIn,
     McpSaveIn,
     ToggleIn,
@@ -22,6 +23,7 @@ from app.services.agent import conversations as conv_service
 from app.services.agent import mcps as mcp_service
 from app.services.agent import rag as rag_service
 from app.services.agent import skills as skill_service
+from app.services.agent import subagents as subagent_service
 from app.services.agent import stats as stats_service
 from app.services.agent import attachments as attachment_service
 from app.services.agent import user_config as user_config_service
@@ -152,6 +154,33 @@ async def toggle_skill(
 async def delete_skill(skill_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)):
     await skill_service.async_delete({"session": db, "user": user, "skill_id": skill_id})
     return ok(None, "技能已删除")
+
+
+@router.get("/subagents")
+async def list_subagents(user: CurrentUser, db: AsyncSession = Depends(get_db)):
+    return ok(await subagent_service.async_list({"session": db, "user": user}))
+
+
+@router.post("/subagents")
+async def save_subagent(
+    body: SubagentSaveIn, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await subagent_service.async_save(
+            {"session": db, "user": user, "data": body.model_dump()}
+        ),
+        "子智能体已保存",
+    )
+
+
+@router.delete("/subagents/{subagent_id}")
+async def delete_subagent(
+    subagent_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    await subagent_service.async_delete(
+        {"session": db, "user": user, "subagent_id": subagent_id}
+    )
+    return ok(None, "子智能体已删除")
 
 
 @router.get("/mcps")

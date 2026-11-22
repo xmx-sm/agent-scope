@@ -81,6 +81,12 @@ async def init_db() -> None:
                     "attachments TEXT NOT NULL DEFAULT '[]'"
                 )
             )
+            await conn.execute(
+                text(
+                    "ALTER TABLE user_agent_configs ADD COLUMN IF NOT EXISTS "
+                    "memory_enabled BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            )
 
 
 async def close_db() -> None:

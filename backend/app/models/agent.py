@@ -63,6 +63,7 @@ class UserAgentConfig(Base):
     thinking_budget: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     reasoning_effort: Mapped[str] = mapped_column(String(20), nullable=False, default="medium")
     system_prompt: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    memory_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )

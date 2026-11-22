@@ -23,4 +23,5 @@ class UserAgentConfigIn(BaseModel):
     think: bool = False
     thinking_budget: int = 0
     reasoning_effort: str = "medium"
+    memory_enabled: bool = False
     system_prompt: str = ""

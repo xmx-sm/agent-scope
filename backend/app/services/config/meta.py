@@ -144,6 +144,8 @@ CONFIG_DEFINITIONS: list[dict[str, Any]] = [
      "group": "Scope", "description": "scope 默认关闭"},
     {"key": "agent.mcp.enabled", "value": True, "label": "启用 MCP", "type": "bool",
      "group": "Scope", "description": "scope 默认开启"},
+    {"key": "agent.memory.enabled", "value": False, "label": "启用长期记忆", "type": "bool",
+     "group": "Scope", "description": "本地 Markdown 文件记忆"},
     {"key": "rag.type", "value": "", "label": "默认向量库", "type": "string",
      "group": "Scope", "description": "scope 出厂不预置，可按部署填写"},
     {"key": "rag.vector_type", "value": "dense", "label": "向量类型", "type": "string",
