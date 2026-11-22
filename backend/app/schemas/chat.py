@@ -10,3 +10,4 @@ class ConversationCreateIn(BaseModel):
 class ChatStreamIn(BaseModel):
     conversation_id: str
     content: str = Field(min_length=1, max_length=100000)
+    attachment_ids: list[str] = Field(default_factory=list)

@@ -1,6 +1,6 @@
 """Agent 对话路由。"""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +17,7 @@ from app.schemas import (
 )
 from app.services.agent import conversations as conv_service
 from app.services.agent import stats as stats_service
+from app.services.agent import attachments as attachment_service
 from app.services.agent import user_config as user_config_service
 from app.services.tools import tool_config as tool_config_service
 from app.services.agent.chat import async_stream_chat
@@ -90,6 +91,16 @@ async def admin_agent_stats(
 ):
     return ok(
         await stats_service.async_stats({"session": db, "user_id": None, "days": days})
+    )
+
+
+@router.post("/attachments")
+async def upload_attachment(
+    user: CurrentUser, file: UploadFile = File(...), db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await attachment_service.async_upload({"session": db, "user": user, "file": file}),
+        "附件已上传",
     )
 
 
@@ -216,7 +227,9 @@ async def chat_stream(
     user: User = Depends(require_permission("ai.use")),
 ):
     return StreamingResponse(
-        async_stream_chat(user.id, body.conversation_id, body.content),
+        async_stream_chat(
+            user.id, body.conversation_id, body.content, body.attachment_ids
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

@@ -3,6 +3,7 @@
 from app.models.agent import (
     AgentConversation,
     AgentMessage,
+    AgentAttachment,
     AgentModelCall,
     UserAgentConfig,
 )
@@ -24,6 +25,7 @@ __all__ = [
     "AgentConversation",
     "AgentMessage",
     "AgentModelCall",
+    "AgentAttachment",
     "UserAgentConfig",
     "User",
     "UserPermissionState",

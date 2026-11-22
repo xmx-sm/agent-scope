@@ -46,6 +46,11 @@
               </el-collapse>
             </div>
             <pre class="content">{{ msg.content }}</pre>
+            <div v-if="msg.attachments?.length" class="msg-attachments">
+              <el-tag v-for="file in msg.attachments" :key="file.id" size="small" effect="plain">
+                {{ file.filename }}
+              </el-tag>
+            </div>
             <div v-if="toolList(msg).length" class="tool-events">
               <el-collapse>
                 <el-collapse-item :title="`工具调用（${toolList(msg).length}）`" name="t">
@@ -65,7 +70,20 @@
         </div>
       </div>
 
+      <div v-if="pendingAttachments.length" class="pending-attachments">
+        <el-tag
+          v-for="file in pendingAttachments"
+          :key="file.id"
+          closable
+          size="small"
+          @close="removePending(file.id)"
+        >
+          {{ file.filename }}
+        </el-tag>
+      </div>
       <div class="composer">
+        <input ref="fileInput" type="file" multiple hidden @change="onFiles" />
+        <el-button :icon="Paperclip" circle :loading="uploading" @click="fileInput.click()" />
         <el-input
           v-model="input"
           type="textarea"
@@ -93,6 +111,7 @@ import {
   Edit,
   Menu,
   Plus,
+  Paperclip,
   Promotion,
   VideoPause
 } from '@element-plus/icons-vue'
@@ -105,6 +124,9 @@ const currentId = ref('')
 const messages = ref([])
 const stats = ref(null)
 const input = ref('')
+const fileInput = ref(null)
+const uploading = ref(false)
+const pendingAttachments = ref([])
 const streaming = ref(false)
 const streamText = ref('')
 const listRef = ref(null)
@@ -208,6 +230,33 @@ function scrollToBottom() {
   })
 }
 
+async function onFiles(event) {
+  const files = Array.from(event.target.files || [])
+  event.target.value = ''
+  if (!files.length) return
+  uploading.value = true
+  try {
+    for (const file of files) {
+      if (file.size > 20 * 1024 * 1024) {
+        ElMessage.warning(`${file.name} 超过 20MB`)
+        continue
+      }
+      const form = new FormData()
+      form.append('file', file)
+      const data = await api.post('/agent/attachments', form)
+      pendingAttachments.value.push(data)
+    }
+  } catch {
+    /* ignore */
+  } finally {
+    uploading.value = false
+  }
+}
+
+function removePending(id) {
+  pendingAttachments.value = pendingAttachments.value.filter((file) => file.id !== id)
+}
+
 function appendDelta(text) {
   streamText.value += text
   const last = messages.value[messages.value.length - 1]
@@ -253,6 +302,7 @@ async function send() {
   if (!currentId.value) await newConversation()
   if (!currentId.value) return
   input.value = ''
+  pendingAttachments.value = []
   streaming.value = true
   streamText.value = ''
   messages.value.push({
@@ -260,7 +310,8 @@ async function send() {
     role: 'user',
     content: text,
     reasoning: '',
-    tool_events: '[]'
+    tool_events: '[]',
+    attachments: [...pendingAttachments.value]
   })
   const streamingMsg = {
     id: `stream-${Date.now()}`,
@@ -281,7 +332,11 @@ async function send() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${localStorage.getItem('access_token') || ''}`
       },
-      body: JSON.stringify({ conversation_id: currentId.value, content: text }),
+      body: JSON.stringify({
+        conversation_id: currentId.value,
+        content: text,
+        attachment_ids: pendingAttachments.value.map((file) => file.id)
+      }),
       signal: controller.signal
     })
     if (!response.ok || !response.body) {
@@ -508,6 +563,21 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 
 .typing {
   color: var(--app-muted);
+}
+
+.pending-attachments {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 16px 0;
+  background: #fff;
+}
+
+.msg-attachments {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
 }
 
 .composer {

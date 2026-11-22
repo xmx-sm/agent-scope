@@ -75,6 +75,12 @@ async def init_db() -> None:
                     "cache_input_tokens INTEGER NOT NULL DEFAULT 0"
                 )
             )
+            await conn.execute(
+                text(
+                    "ALTER TABLE agent_messages ADD COLUMN IF NOT EXISTS "
+                    "attachments TEXT NOT NULL DEFAULT '[]'"
+                )
+            )
 
 
 async def close_db() -> None:

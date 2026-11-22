@@ -9,9 +9,11 @@ from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
 from app.models import AgentConversation, AgentMessage, User
+from app.services.agent.attachments import async_load_for_model
 from app.services.agent.conversations import async_get_owned, async_save_message
 from app.services.agent.scope_bridge import ROOT  # noqa: F401 确保 scope 路径已注入
 from app.services.agent.toolkit import async_build_toolkit
+from app.services.config.service import async_get_config
 from app.services.agent.user_config import async_effective
 from app.services.security.prompt import async_build_security_prompt
 
@@ -60,9 +62,11 @@ async def _history_text(session, conversation_id: str, limit: int = 20) -> str:
     )
 
 
-async def async_stream_chat(user_id: str, conversation_id: str, content: str) -> AsyncGenerator[str, None]:
+async def async_stream_chat(
+    user_id: str, conversation_id: str, content: str, attachment_ids: list[str] | None = None
+) -> AsyncGenerator[str, None]:
     """SSE 生成器：自己管理数据库会话，避免依赖释放导致流中断。"""
-    from agentscope.message import UserMsg
+    from agentscope.message import Base64Source, DataBlock, TextBlock, UserMsg
     from agentscope.event import (
         ModelCallEndEvent,
         ModelCallStartEvent,
@@ -87,8 +91,15 @@ async def async_stream_chat(user_id: str, conversation_id: str, content: str) ->
             yield _sse("error", {"error": "会话不存在"})
             return
         history = await _history_text(session, conversation_id)
+        meta, attachment_text, images = await async_load_for_model(
+            {"session": session, "user_id": user_id, "ids": attachment_ids or []}
+        )
         await async_save_message(
-            session, conversation_id=conversation_id, role="user", content=content
+            session,
+            conversation_id=conversation_id,
+            role="user",
+            content=content,
+            attachments=json.dumps(meta, ensure_ascii=False),
         )
         try:
             llm, user_prompt = await _load_llm(session, user)
@@ -105,6 +116,31 @@ async def async_stream_chat(user_id: str, conversation_id: str, content: str) ->
     if history:
         full_prompt += "\n\n[最近对话]\n" + history
 
+    async with AsyncSessionLocal() as session:
+        context_config = {
+            "trigger_ratio": float(
+                await async_get_config(
+                    {"session": session, "key": "agent.context.trigger_ratio", "default": 0.8}
+                )
+                or 0.8
+            ),
+            "reserve_ratio": float(
+                await async_get_config(
+                    {"session": session, "key": "agent.context.reserve_ratio", "default": 0.1}
+                )
+                or 0.1
+            ),
+            "context_buffer_ratio": float(
+                await async_get_config(
+                    {
+                        "session": session,
+                        "key": "agent.context.context_buffer_ratio",
+                        "default": 0.2,
+                    }
+                )
+                or 0.2
+            ),
+        }
     result = await async_get_agent(
         {
             "llm": llm,
@@ -112,6 +148,7 @@ async def async_stream_chat(user_id: str, conversation_id: str, content: str) ->
                 "name": "assistant",
                 "system_prompt": full_prompt,
                 "toolkit": toolkit,
+                "context_config": context_config,
             },
         }
     )
@@ -120,6 +157,21 @@ async def async_stream_chat(user_id: str, conversation_id: str, content: str) ->
         return
 
     runtime = AgentRuntime(result["data"]["agent"], default_approval="allow")
+    user_text = content
+    if attachment_text and not images:
+        user_text = f"{content}\n\n{attachment_text}"
+    if images:
+        blocks = [TextBlock(type="text", text=user_text)]
+        for image in images:
+            blocks.append(
+                DataBlock(
+                    source=Base64Source(data=image["data"], media_type=image["media_type"]),
+                    name=image["name"],
+                )
+            )
+        user_msg = UserMsg("user", blocks)
+    else:
+        user_msg = UserMsg("user", user_text)
     text_parts: list[str] = []
     reasoning_parts: list[str] = []
     tool_events: list[dict] = []
@@ -131,7 +183,7 @@ async def async_stream_chat(user_id: str, conversation_id: str, content: str) ->
     current_model = "unknown"
 
     try:
-        async for evt in runtime.reply_stream(UserMsg("user", content)):
+        async for evt in runtime.reply_stream(user_msg):
             if isinstance(evt, TextBlockDeltaEvent):
                 if evt.delta:
                     text_parts.append(evt.delta)

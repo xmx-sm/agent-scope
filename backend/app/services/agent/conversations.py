@@ -4,7 +4,17 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import ApiError
+import json
+
 from app.models import AgentConversation, AgentMessage
+
+
+def _load_json(raw: str | None) -> list:
+    try:
+        data = json.loads(raw or "[]")
+        return data if isinstance(data, list) else []
+    except (ValueError, TypeError):
+        return []
 
 
 async def async_list_conversations(params: dict) -> list[dict]:
@@ -80,6 +90,7 @@ async def async_list_messages(params: dict) -> list[dict]:
             "content": row.content,
             "reasoning": row.reasoning,
             "tool_events": row.tool_events,
+            "attachments": _load_json(row.attachments),
             "created_at": row.created_at.isoformat() if row.created_at else None,
         }
         for row in rows
@@ -94,6 +105,7 @@ async def async_save_message(
     content: str,
     reasoning: str = "",
     tool_events: str = "[]",
+    attachments: str = "[]",
     input_tokens: int = 0,
     output_tokens: int = 0,
     cache_input_tokens: int = 0,
@@ -104,6 +116,7 @@ async def async_save_message(
         content=content,
         reasoning=reasoning,
         tool_events=tool_events,
+        attachments=attachments,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         cache_input_tokens=cache_input_tokens,
