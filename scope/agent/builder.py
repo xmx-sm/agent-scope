@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from typing import Any, Dict
 
 from agentscope.agent import (
@@ -28,9 +29,14 @@ from agentscope.agent import (
     ModelConfig,
     ReActConfig,
 )
+from agentscope.mcp import MCPClient
 from agentscope.permission import PermissionContext
 from agentscope.state import AgentState
 from agentscope.tool import Toolkit
+
+_SCOPE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _SCOPE_DIR not in sys.path:
+    sys.path.insert(0, _SCOPE_DIR)
 
 try:
     from ..llm.agent_model import async_get_llm_model
@@ -60,6 +66,37 @@ def _coerce(value: Any, cls: Any, name: str) -> Any:
         except Exception as e:
             raise ValueError(f"{name} 配置非法：{e}") from e
     raise ValueError(f"{name} 必须是 {cls.__name__} 或字典，收到 {type(value).__name__}")
+
+
+def _attach_mcps(toolkit: Toolkit, clients: list) -> Toolkit:
+    if not clients:
+        return toolkit
+    basic = toolkit.tool_groups[0]
+    groups = toolkit.tool_groups[1:]
+    return Toolkit(
+        tools=list(basic.tools),
+        skills_or_loaders=list(basic.skills_or_loaders),
+        mcps=list(basic.mcps) + list(clients),
+        tool_groups=groups,
+    )
+
+
+async def _build_mcps(cfg: Any) -> Dict[str, Any]:
+    """把字典配置转成 MCPClient 列表；支持 True / dict / list[MCPClient]。"""
+    if cfg is None or cfg is False or cfg == "":
+        return _ok([])
+    if isinstance(cfg, list):
+        if not all(isinstance(c, MCPClient) for c in cfg):
+            return _err("mcps 列表元素必须是 MCPClient", "async_get_agent")
+        return _ok(list(cfg))
+    try:
+        from tools.mcp.client import async_mcp_client
+    except ImportError as e:
+        return _err(f"MCP 模块加载失败：{e}", "async_get_agent")
+    r = await async_mcp_client({"mcp": cfg})
+    if r.get("code") != 200:
+        return r
+    return _ok(r.get("data") or [])
 
 
 async def async_get_agent(data: dict = None) -> Dict[str, Any]:
@@ -99,6 +136,20 @@ async def async_get_agent(data: dict = None) -> Dict[str, Any]:
             toolkit = Toolkit()
         if not isinstance(toolkit, Toolkit):
             return _err("toolkit 必须是 Toolkit 实例", fn)
+
+        tools_cfg = agent_cfg.get("tools") if isinstance(agent_cfg.get("tools"), dict) else {}
+        mcp_cfg = (
+            agent_cfg.get("mcp")
+            or agent_cfg.get("mcps")
+            or tools_cfg.get("mcp")
+            or data.get("mcp")
+            or data.get("mcps")
+        )
+        mcp_r = await _build_mcps(mcp_cfg)
+        if mcp_r.get("code") != 200:
+            return mcp_r
+        mcp_clients = mcp_r.get("data") or []
+        toolkit = _attach_mcps(toolkit, mcp_clients)
 
         bundle = await build_context_bundle(data)
         context_config = bundle["context_config"] or ContextConfig()
@@ -143,6 +194,7 @@ async def async_get_agent(data: dict = None) -> Dict[str, Any]:
             "context_config": context_config,
             "injection_config": injection_config,
             "offloader": offloader,
+            "mcps": mcp_clients,
         }, "Agent 初始化成功")
     except (TypeError, ValueError) as e:
         return _err(str(e), fn)

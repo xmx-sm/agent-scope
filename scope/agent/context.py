@@ -134,12 +134,19 @@ async def build_offloader(data: dict = None) -> Any:
         return None
     if not workdir:
         raise ValueError("启用上下文卸载时必须提供 offload.workdir")
+    if not os.path.isabs(str(workdir)):
+        raise ValueError(f"offload.workdir 必须是绝对路径: {workdir}")
     offload_type = str(cfg.get("type") or _cfg_get("agent.offload.type", "local")).lower()
     if offload_type != "local":
         raise ValueError(f"暂不支持的 offload.type: {offload_type}（当前仅 local）")
 
     from agentscope.workspace import LocalWorkspace
-    workspace = LocalWorkspace(workdir=os.path.abspath(str(workdir)))
+    kwargs: Dict[str, Any] = {"workdir": os.path.abspath(str(workdir))}
+    for key in ("workspace_id", "instructions", "skill_paths",
+                "default_mcps", "max_live_stateful_mcps"):
+        if cfg.get(key) is not None:
+            kwargs[key] = cfg[key]
+    workspace = LocalWorkspace(**kwargs)
     await workspace.initialize()
     return workspace
 
