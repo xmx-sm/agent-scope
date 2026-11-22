@@ -12,12 +12,16 @@
       <nav class="menu">
         <template v-for="item in auth.menus" :key="item.key">
           <div v-if="item.children && item.children.length" class="menu-group">
-            <div class="menu-group-title">
+            <div class="menu-group-title" @click="toggleGroup(item.key)">
               <el-icon><component :is="item.icon || 'Menu'" /></el-icon>
-              <span>{{ item.title }}</span>
+              <span class="grow">{{ item.title }}</span>
+              <el-icon class="group-arrow" :class="{ folded: isGroupCollapsed(item.key) }">
+                <ArrowDown />
+              </el-icon>
             </div>
             <router-link
               v-for="child in item.children"
+              v-show="!isGroupCollapsed(item.key)"
               :key="child.key"
               :to="child.path"
               class="menu-item menu-item-child"
@@ -40,7 +44,7 @@
           </router-link>
         </template>
       </nav>
-      <div v-if="!collapsed" class="sidebar-footer">v0.3.0</div>
+      <div v-if="!collapsed" class="sidebar-footer">v0.3.1</div>
     </el-aside>
 
     <!-- 移动端抽屉 -->
@@ -120,7 +124,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import {
@@ -144,6 +148,7 @@ const auth = useAuthStore()
 const isMobile = ref(window.innerWidth < 768)
 const drawerVisible = ref(false)
 const collapsed = ref(localStorage.getItem('sidebar_collapsed') === '1')
+const collapsedGroups = ref(new Set(readCollapsedGroups()))
 const siteName = ref(import.meta.env.VITE_APP_TITLE || 'Agent Scope')
 
 const roleLabels = { super_admin: '超级管理员', admin: '管理员', user: '普通用户' }
@@ -157,9 +162,46 @@ const flatMenus = computed(() =>
   )
 )
 
+function readCollapsedGroups() {
+  try {
+    return JSON.parse(localStorage.getItem('menu_groups_collapsed') || '[]')
+  } catch {
+    return []
+  }
+}
+
+function persistCollapsedGroups() {
+  localStorage.setItem('menu_groups_collapsed', JSON.stringify([...collapsedGroups.value]))
+}
+
 function toggleCollapse() {
   collapsed.value = !collapsed.value
   localStorage.setItem('sidebar_collapsed', collapsed.value ? '1' : '0')
+}
+
+function toggleGroup(key) {
+  const next = new Set(collapsedGroups.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  collapsedGroups.value = next
+  persistCollapsedGroups()
+}
+
+function isGroupCollapsed(key) {
+  return collapsedGroups.value.has(key)
+}
+
+function expandActiveGroup() {
+  const parent = auth.menus.find((item) =>
+    item.children?.some((child) => child.path === route.path)
+  )
+  if (!parent) return
+  if (collapsedGroups.value.has(parent.key)) {
+    const next = new Set(collapsedGroups.value)
+    next.delete(parent.key)
+    collapsedGroups.value = next
+    persistCollapsedGroups()
+  }
 }
 
 function onResize() {
@@ -167,10 +209,16 @@ function onResize() {
   if (!isMobile.value) drawerVisible.value = false
 }
 
+watch(
+  () => route.path,
+  () => expandActiveGroup()
+)
+
 onMounted(() => {
   window.addEventListener('resize', onResize)
   if (!auth.user) auth.fetchMe().catch(() => {})
   else if (!auth.menus.length) auth.fetchMenus().catch(() => {})
+  expandActiveGroup()
 })
 onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 
@@ -297,10 +345,27 @@ async function onCommand(command) {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px 4px;
-  color: #64748b;
-  font-size: 11px;
-  letter-spacing: 0.04em;
+  padding: 9px 12px 5px;
+  color: #94a3b8;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  border-radius: 8px;
+  user-select: none;
+}
+
+.menu-group-title:hover {
+  color: #e5e7eb;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.group-arrow {
+  font-size: 12px;
+  transition: transform 0.18s ease;
+}
+
+.group-arrow.folded {
+  transform: rotate(-90deg);
 }
 
 .menu-item-child {

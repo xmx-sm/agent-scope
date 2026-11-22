@@ -6,54 +6,65 @@
     <el-tabs v-model="activeTab" class="tabs">
       <el-tab-pane label="默认设置" name="configs">
         <div v-loading="loadingConfigs">
-          <div v-for="group in configGroups" :key="group.name" class="panel group-panel">
-            <h3 class="group-title">{{ group.name }}</h3>
-            <div v-for="item in group.items" :key="item.key" class="config-row">
-              <div class="config-info">
-                <div class="config-label">{{ item.label || item.key }}</div>
-                <div class="muted">{{ item.description }}</div>
-                <code class="config-key">{{ item.key }} = {{ item.default }}</code>
-              </div>
-              <div class="config-control">
-                <el-switch v-if="item.value_type === 'bool'" v-model="item.value" />
-                <el-input-number
-                  v-else-if="item.value_type === 'int' || item.value_type === 'float'"
-                  v-model="item.value"
-                  :min="0"
-                  :step="item.value_type === 'float' ? 0.1 : 1"
-                  :precision="item.value_type === 'float' ? 2 : 0"
-                  controls-position="right"
-                  style="width: 150px"
-                />
-                <el-select
-                  v-else-if="item.key === 'default_role'"
-                  v-model="item.value"
-                  style="width: 150px"
-                >
-                  <el-option label="普通用户" value="user" />
-                  <el-option label="管理员" value="admin" />
-                </el-select>
-                <el-input
-                  v-else-if="item.secret"
-                  v-model="item.value"
-                  type="password"
-                  show-password
-                  style="width: 220px"
-                />
-                <el-input v-else v-model="item.value" style="width: 220px" />
-                <el-button type="primary" :loading="savingKey === item.key" @click="saveConfig(item)">
-                  保存
-                </el-button>
-                <el-button
-                  :loading="resettingKey === item.key"
-                  :disabled="item.value === item.default"
-                  @click="resetConfig(item)"
-                >
-                  恢复默认
-                </el-button>
-              </div>
-            </div>
+          <div class="config-toolbar">
+            <span class="muted">共 {{ configs.length }} 项，按分组折叠展示</span>
+            <div class="grow"></div>
+            <el-button size="small" @click="expandAllConfigs">全部展开</el-button>
+            <el-button size="small" @click="collapseAllConfigs">全部收起</el-button>
           </div>
+          <el-collapse v-model="openGroups" class="config-collapse">
+            <el-collapse-item v-for="group in configGroups" :key="group.name" :name="group.name">
+              <template #title>
+                <span class="collapse-title">{{ group.name }}</span>
+                <span class="muted collapse-count">{{ group.items.length }} 项</span>
+              </template>
+              <div v-for="item in group.items" :key="item.key" class="config-row">
+                <div class="config-info">
+                  <div class="config-label">{{ item.label || item.key }}</div>
+                  <div class="muted">{{ item.description }}</div>
+                  <code class="config-key">{{ item.key }} = {{ item.default }}</code>
+                </div>
+                <div class="config-control">
+                  <el-switch v-if="item.value_type === 'bool'" v-model="item.value" />
+                  <el-input-number
+                    v-else-if="item.value_type === 'int' || item.value_type === 'float'"
+                    v-model="item.value"
+                    :min="0"
+                    :step="item.value_type === 'float' ? 0.1 : 1"
+                    :precision="item.value_type === 'float' ? 2 : 0"
+                    controls-position="right"
+                    style="width: 150px"
+                  />
+                  <el-select
+                    v-else-if="item.key === 'default_role'"
+                    v-model="item.value"
+                    style="width: 150px"
+                  >
+                    <el-option label="普通用户" value="user" />
+                    <el-option label="管理员" value="admin" />
+                  </el-select>
+                  <el-input
+                    v-else-if="item.secret"
+                    v-model="item.value"
+                    type="password"
+                    show-password
+                    style="width: 220px"
+                  />
+                  <el-input v-else v-model="item.value" style="width: 220px" />
+                  <el-button type="primary" :loading="savingKey === item.key" @click="saveConfig(item)">
+                    保存
+                  </el-button>
+                  <el-button
+                    :loading="resettingKey === item.key"
+                    :disabled="item.value === item.default"
+                    @click="resetConfig(item)"
+                  >
+                    恢复默认
+                  </el-button>
+                </div>
+              </div>
+            </el-collapse-item>
+          </el-collapse>
         </div>
       </el-tab-pane>
 
@@ -124,6 +135,7 @@ const loadingPermissions = ref(false)
 const savingKey = ref('')
 const resettingKey = ref('')
 const savingRole = ref('')
+const openGroups = ref([])
 const configGroups = computed(() => {
   const groups = new Map()
   for (const item of configs.value) {
@@ -146,6 +158,9 @@ async function loadConfigs() {
   loadingConfigs.value = true
   try {
     configs.value = await api.get('/admin/configs')
+    if (!openGroups.value.length) {
+      openGroups.value = ['站点', '账号']
+    }
   } catch {
     /* ignore */
   } finally {
@@ -164,6 +179,14 @@ async function loadPermissions() {
   } finally {
     loadingPermissions.value = false
   }
+}
+
+function expandAllConfigs() {
+  openGroups.value = configGroups.value.map((group) => group.name)
+}
+
+function collapseAllConfigs() {
+  openGroups.value = []
 }
 
 async function saveConfig(item) {
@@ -249,15 +272,38 @@ onMounted(() => {
   flex: none;
 }
 
-.group-panel + .group-panel {
-  margin-top: 16px;
+.config-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
 }
 
-.group-title {
-  margin: 0 0 10px;
-  font-size: 15px;
-  padding-left: 8px;
-  border-left: 3px solid var(--app-primary);
+.config-collapse {
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.config-collapse :deep(.el-collapse-item__header) {
+  padding: 0 16px;
+  background: #fafbfc;
+}
+
+.config-collapse :deep(.el-collapse-item__content) {
+  padding: 0 16px 12px;
+}
+
+.collapse-title {
+  font-weight: 700;
+  font-size: 14px;
+  margin-right: 8px;
+}
+
+.collapse-count {
+  font-size: 12px;
 }
 
 .perm-note {

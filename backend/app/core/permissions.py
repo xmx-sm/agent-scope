@@ -9,6 +9,8 @@ PERMISSIONS: list[dict] = [
     {"key": "profile", "name": "个人中心", "group": "基础"},
     {"key": "permissions.self", "name": "我的权限", "group": "权限"},
     {"key": "permissions.team", "name": "团队权限", "group": "权限"},
+    {"key": "ai.use", "name": "使用 AI", "group": "AI"},
+    {"key": "ai.config", "name": "AI 配置管理", "group": "AI", "super_only": True},
     {"key": "admin.users", "name": "用户管理", "group": "管理", "super_only": True},
     {"key": "admin.settings", "name": "默认设置", "group": "管理", "super_only": True},
     {"key": "admin.permissions", "name": "权限配置", "group": "管理", "super_only": True},
@@ -22,8 +24,8 @@ ASSIGNABLE_PERMISSION_KEYS = [item["key"] for item in PERMISSIONS if not item.ge
 
 DEFAULT_ROLE_PERMISSIONS: dict[str, list[str]] = {
     "super_admin": ALL_PERMISSION_KEYS,
-    "admin": ["dashboard", "profile", "permissions.self", "permissions.team"],
-    "user": ["dashboard", "profile", "permissions.self"],
+    "admin": ["dashboard", "profile", "permissions.self", "permissions.team", "ai.use"],
+    "user": ["dashboard", "profile", "permissions.self", "ai.use"],
 }
 
 ROLE_LABELS: dict[str, str] = {

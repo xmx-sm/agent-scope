@@ -79,6 +79,8 @@ const greeting = computed(() => {
 const permissionNames = {
   dashboard: '工作台',
   profile: '个人中心',
+  'ai.use': '使用 AI',
+  'ai.config': 'AI 配置管理',
   'admin.users': '用户管理',
   'admin.settings': '默认配置',
   'admin.permissions': '权限配置'

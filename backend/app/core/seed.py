@@ -149,6 +149,9 @@ async def async_seed(params: dict) -> None:
         if role == "admin" and "permissions.team" not in current:
             current.append("permissions.team")
             changed = True
+        if "ai.use" not in current:
+            current.append("ai.use")
+            changed = True
         filtered = sorted(item for item in current if item in assignable)
         if filtered != sorted(json.loads(row.permissions or "[]")):
             changed = True
