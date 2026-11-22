@@ -24,6 +24,7 @@
 | 模型层 | `scope/llm/`：多厂商 Chat / Embedding / TTS / ASR 工厂，视频 formatter | 3 文件 |
 | 媒体层 | `scope/media/`：TTS 落盘 / base64 / URL、ASR 转写、文件闸门 | 4 文件 |
 | RAG 层 | `scope/rag/`：文档解析/切片/embedding、SQLite 向量库、注册表、KnowledgeBase/RAGMiddleware；`tools/rag/` 工具入口 | 8 文件 |
+| 子智能体 | `scope/agent/`：spec 校验、独立 AgentState 执行、委派工具、后台任务 | 3 文件 |
 
 工具域能力：
 
@@ -62,7 +63,7 @@
 
 ```
 scope/
-├── agent/          # 空：Agent 工厂、运行循环、Toolkit 装配、子智能体
+├── agent/          # 子智能体已实现；Agent builder / runtime / toolkit 待实现
 ├── middleware/     # 空：记忆、预算、Tracing、ModelRouter
 ├── permission/     # 空：工具审批（下一步）
 ├── skills/         # 空：Skill 加载
@@ -70,8 +71,8 @@ scope/
 └── main.py         # 0 字节：装配入口 / 服务入口
 ```
 
-> `llm/`、`media/`、`rag/` 已实现，见
-> [docs/框架层规划.md](scope/docs/框架层规划.md) 第三节-B/三-C/三-D。
+> `llm/`、`media/`、`rag/` 已实现；`agent/` 的子智能体部分已实现。
+> 详见 [docs/框架层规划.md](scope/docs/框架层规划.md) 第三节-B/三-C/三-D/三-E。
 
 框架层缺口、目标结构、审批与 RAG 的详细设计见
 [docs/框架层规划.md](scope/docs/框架层规划.md)。
@@ -92,6 +93,10 @@ agent_scope/
     │   └── __init__.py
     ├── common/                  # 跨层文件闸门
     │   ├── fs.py                # check_read/check_write
+    │   └── __init__.py
+    ├── agent/                   # 子智能体
+    │   ├── subagents.py         # spec 校验 / 工具解析
+    │   ├── delegate.py          # 独立 AgentState 执行 / 委派工具
     │   └── __init__.py
     ├── llm/                     # 模型工厂（Chat / Embedding / TTS / ASR）
     │   ├── agent_model.py       # 对外入口
