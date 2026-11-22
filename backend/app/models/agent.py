@@ -37,6 +37,7 @@ class AgentMessage(Base):
     tool_events: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cache_input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
@@ -63,4 +64,24 @@ class UserAgentConfig(Base):
     system_prompt: Mapped[str] = mapped_column(Text, nullable=False, default="")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+
+class AgentModelCall(Base):
+    """按轮次 × 模型的用量记录。"""
+
+    __tablename__ = "agent_model_calls"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    conversation_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    message_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="web")
+    model_name: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    calls: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cache_input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, index=True
     )

@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
     await close_db()
 
 
-app = FastAPI(title=settings.app_name, version="0.12.0", lifespan=lifespan)
+app = FastAPI(title=settings.app_name, version="0.13.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -97,5 +97,6 @@ for router in (
     permissions.router,
     tools.router,
     agent.router,
+    agent.admin_router,
 ):
     app.include_router(router, prefix=settings.api_prefix)

@@ -69,6 +69,12 @@ async def init_db() -> None:
                     "reasoning_effort VARCHAR(20) NOT NULL DEFAULT 'medium'"
                 )
             )
+            await conn.execute(
+                text(
+                    "ALTER TABLE agent_messages ADD COLUMN IF NOT EXISTS "
+                    "cache_input_tokens INTEGER NOT NULL DEFAULT 0"
+                )
+            )
 
 
 async def close_db() -> None:

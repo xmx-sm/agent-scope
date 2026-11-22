@@ -5,7 +5,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import ApiError, CurrentUser, ok, require_permission
+from app.core.deps import ApiError, CurrentUser, SuperAdmin, ok, require_permission
 from app.models import User
 from app.schemas import (
     ChatStreamIn,
@@ -16,6 +16,7 @@ from app.schemas import (
     UserAgentConfigIn,
 )
 from app.services.agent import conversations as conv_service
+from app.services.agent import stats as stats_service
 from app.services.agent import user_config as user_config_service
 from app.services.tools import tool_config as tool_config_service
 from app.services.agent.chat import async_stream_chat
@@ -23,6 +24,7 @@ from app.services.config import agent as agent_config_service
 from app.utils.mask import SENTINEL
 
 router = APIRouter(prefix="/agent", tags=["Agent 对话"])
+admin_router = APIRouter(prefix="/admin/agent", tags=["Agent 管理"])
 
 
 @router.get("/tool-config/{category}")
@@ -82,6 +84,15 @@ async def test_tool_config(
     return ok(data, "连接成功")
 
 
+@admin_router.get("/stats")
+async def admin_agent_stats(
+    _: SuperAdmin, days: int = 7, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await stats_service.async_stats({"session": db, "user_id": None, "days": days})
+    )
+
+
 @router.get("/providers")
 async def user_providers(_: CurrentUser):
     return ok(agent_config_service.PROVIDERS)
@@ -135,8 +146,14 @@ async def fetch_user_models(
 
 
 @router.get("/stats")
-async def agent_stats(user: CurrentUser, db: AsyncSession = Depends(get_db)):
-    return ok(await conv_service.async_usage_stats({"session": db, "user_id": user.id}))
+async def agent_stats(
+    user: CurrentUser, days: int = 7, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await stats_service.async_stats(
+            {"session": db, "user_id": user.id, "days": days}
+        )
+    )
 
 
 @router.get("/conversations")

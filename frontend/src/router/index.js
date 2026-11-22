@@ -58,6 +58,12 @@ const routes = [
         meta: { title: '工具配置', permission: 'ai.use' }
       },
       {
+        path: 'agent-stats',
+        name: 'AgentStats',
+        component: () => import('../views/AgentStats.vue'),
+        meta: { title: 'Agent 统计', permission: 'ai.use' }
+      },
+      {
         path: 'agent-settings',
         name: 'AgentSelfConfig',
         component: () => import('../views/AgentSelfConfig.vue'),

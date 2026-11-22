@@ -65,6 +65,7 @@ async def async_stream_chat(user_id: str, conversation_id: str, content: str) ->
     from agentscope.message import UserMsg
     from agentscope.event import (
         ModelCallEndEvent,
+        ModelCallStartEvent,
         RequireUserConfirmEvent,
         TextBlockDeltaEvent,
         ThinkingBlockDeltaEvent,
@@ -125,7 +126,9 @@ async def async_stream_chat(user_id: str, conversation_id: str, content: str) ->
     tool_names: dict[str, str] = {}
     tool_args: dict[str, str] = {}
     tool_outputs: dict[str, str] = {}
-    usage = {"input_tokens": 0, "output_tokens": 0}
+    usage = {"input_tokens": 0, "output_tokens": 0, "cache_input_tokens": 0}
+    model_usage: dict[str, dict] = {}
+    current_model = "unknown"
 
     try:
         async for evt in runtime.reply_stream(UserMsg("user", content)):
@@ -161,9 +164,23 @@ async def async_stream_chat(user_id: str, conversation_id: str, content: str) ->
             elif isinstance(evt, RequireUserConfirmEvent):
                 # default_approval=allow：runtime 已自动放行，这里不重复处理
                 continue
+            elif isinstance(evt, ModelCallStartEvent):
+                current_model = getattr(evt, "model_name", None) or "unknown"
             elif isinstance(evt, ModelCallEndEvent):
-                usage["input_tokens"] += getattr(evt, "input_tokens", 0) or 0
-                usage["output_tokens"] += getattr(evt, "output_tokens", 0) or 0
+                input_tokens = getattr(evt, "input_tokens", 0) or 0
+                output_tokens = getattr(evt, "output_tokens", 0) or 0
+                cache_tokens = getattr(evt, "cache_input_tokens", 0) or 0
+                usage["input_tokens"] += input_tokens
+                usage["output_tokens"] += output_tokens
+                usage["cache_input_tokens"] += cache_tokens
+                item = model_usage.setdefault(
+                    current_model,
+                    {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cache_input_tokens": 0},
+                )
+                item["calls"] += 1
+                item["input_tokens"] += input_tokens
+                item["output_tokens"] += output_tokens
+                item["cache_input_tokens"] += cache_tokens
     except Exception as exc:  # noqa: BLE001
         yield _sse("error", {"error": f"生成失败：{exc}"})
         return
@@ -179,7 +196,26 @@ async def async_stream_chat(user_id: str, conversation_id: str, content: str) ->
             tool_events=json.dumps(tool_events, ensure_ascii=False),
             input_tokens=usage["input_tokens"],
             output_tokens=usage["output_tokens"],
+            cache_input_tokens=usage["cache_input_tokens"],
         )
+        if model_usage:
+            from app.models import AgentModelCall
+
+            for model_name, item in model_usage.items():
+                session.add(
+                    AgentModelCall(
+                        user_id=user_id,
+                        conversation_id=conversation_id,
+                        message_id=assistant.id,
+                        source="web",
+                        model_name=model_name,
+                        calls=item["calls"],
+                        input_tokens=item["input_tokens"],
+                        output_tokens=item["output_tokens"],
+                        cache_input_tokens=item["cache_input_tokens"],
+                    )
+                )
+            await session.commit()
     yield _sse("done", {
         "conversation_id": conversation_id,
         "message_id": assistant.id,

@@ -96,6 +96,7 @@ async def async_save_message(
     tool_events: str = "[]",
     input_tokens: int = 0,
     output_tokens: int = 0,
+    cache_input_tokens: int = 0,
 ) -> AgentMessage:
     row = AgentMessage(
         conversation_id=conversation_id,
@@ -105,6 +106,7 @@ async def async_save_message(
         tool_events=tool_events,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
+        cache_input_tokens=cache_input_tokens,
     )
     session.add(row)
     conv = await session.get(AgentConversation, conversation_id)
