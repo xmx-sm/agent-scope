@@ -54,6 +54,10 @@ except ImportError:
     from scope.config import get as _cfg_get
 
 from .context import build_context_bundle
+try:
+    from .plan import attach_plan, seed_tasks
+except ImportError:
+    from plan import attach_plan, seed_tasks
 
 
 def _err(message: str, fn: str, code: int = 400) -> Dict[str, Any]:
@@ -212,6 +216,23 @@ async def async_get_agent(data: dict = None) -> Dict[str, Any]:
         if skills_present or skills:
             toolkit = _attach_skills(toolkit, skills)
 
+        plan_cfg = agent_cfg.get("plan") or data.get("plan")
+        if plan_cfg is None:
+            plan_cfg = {}
+        if not isinstance(plan_cfg, dict):
+            return _err("plan 必须是字典", fn)
+        plan_present = agent_cfg.get("plan") is not None or data.get("plan") is not None
+        plan_raw = agent_cfg.get("plan_enabled")
+        if plan_raw is None:
+            plan_raw = data.get("plan_enabled")
+        if plan_raw is None:
+            plan_raw = plan_cfg.get("enabled")
+        if plan_raw is None:
+            plan_raw = _cfg_get("agent.plan.enabled", False)
+        plan_enabled = _as_bool(plan_raw, False)
+        if plan_present or plan_enabled:
+            toolkit = attach_plan(toolkit, plan_enabled)
+
         bundle = await build_context_bundle(data)
         context_config = bundle["context_config"] or ContextConfig()
         injection_config = bundle["injection_config"] or InjectionConfig()
@@ -232,6 +253,15 @@ async def async_get_agent(data: dict = None) -> Dict[str, Any]:
             state = AgentState(permission_context=permission_context or PermissionContext())
         else:
             state = _coerce(state_cfg, AgentState, "state")
+
+        tasks = plan_cfg.get("tasks") or agent_cfg.get("tasks") or data.get("tasks")
+        if tasks is not None:
+            if not isinstance(tasks, list):
+                return _err("plan.tasks 必须是列表", fn)
+            try:
+                seed_tasks(state, tasks)
+            except ValueError as e:
+                return _err(str(e), fn)
 
         middlewares = agent_cfg.get("middlewares") or data.get("middlewares") or []
         if not isinstance(middlewares, list):

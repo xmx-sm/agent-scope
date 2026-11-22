@@ -20,11 +20,15 @@ from .delegate import (
     register_delegate_tool,
 )
 from .runtime import AgentRuntime
+from .plan import build_plan_group, attach_plan, seed_tasks
 from .subagents import async_get_subagents, normalize_tools, resolve_tools
 
 __all__ = [
     "AgentRuntime",
     "async_get_agent",
+    "build_plan_group",
+    "attach_plan",
+    "seed_tasks",
     "async_get_subagents",
     "resolve_tools",
     "normalize_tools",

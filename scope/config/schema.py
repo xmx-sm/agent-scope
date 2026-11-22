@@ -165,6 +165,7 @@ AGENT: List[Item] = [
     Item("agent.skills.enabled", False, "bool", "agent", "是否启用 Skills"),
     Item("agent.skills.dirs", None, "list", "agent", "Skills 目录列表（不预置）"),
     Item("agent.skills.ignore_missing", False, "bool", "agent", "Skills 目录不存在时是否跳过"),
+    Item("agent.plan.enabled", False, "bool", "agent", "是否启用计划模式（TaskCreate/Get/List/Update）"),
 ]
 
 # ── rag 域 ───────────────────────────────────────────────────────

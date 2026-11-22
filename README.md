@@ -20,11 +20,11 @@
 | 层 | 内容 | 规模 |
 |---|---|---|
 | 工具层 | 5 个通用域：db / net / mail / mcp / system + `tools/rag` | 40 文件 |
-| 配置层 | `scope/config/`：SQLite 配置中心，109 项默认配置 | 4 文件 / 619 行 |
+| 配置层 | `scope/config/`：SQLite 配置中心，110 项默认配置 | 4 文件 / 619 行 |
 | 模型层 | `scope/llm/`：多厂商 Chat / Embedding / TTS / ASR 工厂，视频 formatter | 3 文件 |
 | 媒体层 | `scope/media/`：TTS 落盘 / base64 / URL、ASR 转写、文件闸门 | 4 文件 |
 | RAG 层 | `scope/rag/`：文档解析/切片/embedding、SQLite 向量库、注册表、KnowledgeBase/RAGMiddleware；`tools/rag/` 工具入口 | 8 文件 |
-| 子智能体 | `scope/agent/`：主 Agent builder/runtime、上下文管理、子智能体、委派、审批、取消 | 6 文件 |
+| 子智能体 | `scope/agent/`：主 Agent builder/runtime、上下文管理、子智能体、委派、审批、取消、Plan | 7 文件 |
 | Skills | `scope/skills/`：用户自定义目录加载（`LocalSkillLoader`） | 2 文件 |
 
 工具域能力：
@@ -88,7 +88,7 @@ agent_scope/
 ├── .gitignore
 └── scope/
     ├── config/                  # SQLite 配置中心
-    │   ├── schema.py            # 109 项配置的单一真相源
+    │   ├── schema.py            # 110 项配置的单一真相源
     │   ├── store.py             # 读写 + 进程级缓存 + 生命周期 API
     │   ├── merge.py             # pick / pick_str / pick_int
     │   └── __init__.py
@@ -99,6 +99,7 @@ agent_scope/
     │   ├── builder.py           # 主 Agent 装配（模型/Toolkit/上下文）
     │   ├── context.py           # 上下文压缩 / 运行时注入 / 卸载
     │   ├── runtime.py           # 主 Agent 事件流 / 审批 / 中断
+    │   ├── plan.py              # 计划模式 TaskCreate/Get/List/Update
     │   ├── subagents.py         # spec 校验 / 工具解析 / 工具组权限
     │   ├── delegate.py          # 独立 AgentState 执行 / 委派工具
     │   └── __init__.py
@@ -137,7 +138,7 @@ agent_scope/
         ├── CODE_INDEX.md        # 文件 / 符号 / 依赖图
         ├── 工具拆分规范.md      # 组织规则与验证方法
         ├── 踩坑记录.md          # 使用侧坑、集成坑、误诊纠正
-        ├── 配置说明.md          # 109 项配置与生命周期
+        ├── 配置说明.md          # 110 项配置与生命周期
         └── 框架层规划.md        # 框架层缺口、审批/RAG 设计、路线图
 ```
 
