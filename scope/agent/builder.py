@@ -66,6 +66,11 @@ except ImportError:
     )
 
 try:
+    from ..workspace import async_get_workspace
+except ImportError:
+    from workspace import async_get_workspace
+
+try:
     from config import get as _cfg_get
 except ImportError:
     from scope.config import get as _cfg_get
@@ -147,6 +152,24 @@ def _attach_skills(toolkit: Toolkit, skills: list) -> Toolkit:
         skills_or_loaders=list(skills),
         mcps=list(basic.mcps),
         tool_groups=groups,
+    )
+
+
+def _merge_workspace_resources(
+    toolkit: Toolkit,
+    *,
+    tools: list,
+    mcps: list,
+    skills: list,
+) -> Toolkit:
+    if not tools and not mcps and not skills:
+        return toolkit
+    basic = toolkit.tool_groups[0]
+    return Toolkit(
+        tools=list(basic.tools) + list(tools),
+        mcps=list(basic.mcps) + list(mcps),
+        skills_or_loaders=list(basic.skills_or_loaders) + list(skills),
+        tool_groups=list(toolkit.tool_groups[1:]),
     )
 
 
@@ -329,9 +352,47 @@ async def async_get_agent(data: dict = None) -> Dict[str, Any]:
             if memory_data.get("tools"):
                 await toolkit.add_tool(memory_data["tools"])
 
+        agent_name = str(agent_cfg.get("name") or "assistant")
+        workspace_cfg = agent_cfg.get("workspace")
+        if workspace_cfg is None:
+            workspace_cfg = data.get("workspace")
+        workspace_data = None
+        if workspace_cfg is not None:
+            workspace_r = await async_get_workspace({
+                "workspace": workspace_cfg,
+                "agent_id": agent_name,
+                "session_id": getattr(state, "session_id", "") or "",
+            })
+            if workspace_r.get("code") != 200:
+                return workspace_r
+            workspace_data = workspace_r["data"]
+            workspace = workspace_data.get("workspace")
+            if workspace is not None:
+                offloader = workspace
+                toolkit = _merge_workspace_resources(
+                    toolkit,
+                    tools=workspace_data.get("tools") or [],
+                    mcps=workspace_data.get("mcps") or [],
+                    skills=workspace_data.get("skills") or [],
+                )
+
+        system_prompt = str(
+            agent_cfg.get("system_prompt") or "你是一个智能助手。")
+        if workspace_data and workspace_data.get("instructions"):
+            inject = True
+            if isinstance(workspace_cfg, dict):
+                inject = _as_bool(
+                    workspace_cfg.get("inject_instructions"), True)
+            if inject:
+                system_prompt = (
+                    system_prompt.rstrip()
+                    + "\n\n"
+                    + str(workspace_data["instructions"]).strip()
+                )
+
         agent = Agent(
-            name=str(agent_cfg.get("name") or "assistant"),
-            system_prompt=str(agent_cfg.get("system_prompt") or "你是一个智能助手。"),
+            name=agent_name,
+            system_prompt=system_prompt,
             model=model,
             toolkit=toolkit,
             middlewares=middlewares or None,
@@ -352,6 +413,7 @@ async def async_get_agent(data: dict = None) -> Dict[str, Any]:
             "skills": skills,
             "permission": permission_bundle,
             "memory": memory_data,
+            "workspace": workspace_data,
         }, "Agent 初始化成功")
     except (TypeError, ValueError) as e:
         return _err(str(e), fn)

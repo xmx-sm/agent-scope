@@ -62,6 +62,11 @@ except ImportError:
         collect_middleware_tools,
     )
 
+try:
+    from ..workspace import async_get_workspace
+except ImportError:
+    from workspace import async_get_workspace
+
 from .subagents import async_get_subagents, build_subagent_toolkit
 
 _WHERE_FILE = os.path.abspath(__file__)
@@ -216,6 +221,24 @@ def _coerce(value: Any, cls: Any, name: str) -> Any:
             raise ValueError(f"{name} 配置非法：{e}") from e
     raise ValueError(f"{name} 必须是 {cls.__name__} 或字典，收到 {type(value).__name__}")
 
+
+def _merge_workspace_resources(
+    toolkit: Toolkit,
+    *,
+    tools: list,
+    mcps: list,
+    skills: list,
+) -> Toolkit:
+    if not tools and not mcps and not skills:
+        return toolkit
+    basic = toolkit.tool_groups[0]
+    return Toolkit(
+        tools=list(basic.tools) + list(tools),
+        mcps=list(basic.mcps) + list(mcps),
+        skills_or_loaders=list(basic.skills_or_loaders) + list(skills),
+        tool_groups=list(toolkit.tool_groups[1:]),
+    )
+
 async def _build_subagent(spec: dict, data: dict) -> Dict[str, Any]:
     model = data.get("model") or spec.get("model")
     if model is None:
@@ -306,13 +329,51 @@ async def _build_subagent(spec: dict, data: dict) -> Dict[str, Any]:
             state = _coerce(state_cfg, AgentState, "state")
             state.permission_context = permission_bundle["permission_context"]
 
+        agent_name = str(spec.get("name") or "subagent")
+        workspace_cfg = spec.get("workspace")
+        if workspace_cfg is None:
+            workspace_cfg = data.get("workspace")
+        workspace_data = None
+        offloader = None
+        if workspace_cfg is not None:
+            workspace_r = await async_get_workspace({
+                "workspace": workspace_cfg,
+                "agent_id": agent_name,
+                "session_id": getattr(state, "session_id", "") or "",
+            })
+            if workspace_r.get("code") != 200:
+                raise ValueError(workspace_r.get("message") or "工作区构建失败")
+            workspace_data = workspace_r["data"]
+            workspace = workspace_data.get("workspace")
+            if workspace is not None:
+                offloader = workspace
+                toolkit = _merge_workspace_resources(
+                    toolkit,
+                    tools=workspace_data.get("tools") or [],
+                    mcps=workspace_data.get("mcps") or [],
+                    skills=workspace_data.get("skills") or [],
+                )
+
+        system_prompt = spec.get("system_prompt")
+        if workspace_data and workspace_data.get("instructions"):
+            inject = True
+            if isinstance(workspace_cfg, dict) and "inject_instructions" in workspace_cfg:
+                inject = bool(workspace_cfg.get("inject_instructions"))
+            if inject:
+                system_prompt = (
+                    str(system_prompt or "").rstrip()
+                    + "\n\n"
+                    + str(workspace_data["instructions"]).strip()
+                )
+
         agent = Agent(
             name=spec.get("name"),
-            system_prompt=spec.get("system_prompt"),
+            system_prompt=system_prompt,
             model=model,
             toolkit=toolkit,
             middlewares=middlewares or None,
             state=state,
+            offloader=offloader,
             model_config=model_config,
             react_config=react_config,
             context_config=context_config,
@@ -322,6 +383,7 @@ async def _build_subagent(spec: dict, data: dict) -> Dict[str, Any]:
         return _ok({"agent": agent, "toolkit": toolkit,
                     "permission": permission_bundle,
                     "memory": memory_data,
+                    "workspace": workspace_data,
                     "tool_group_map": {
                         getattr(t, "name", type(t).__name__): g.name
                         for g in toolkit.tool_groups

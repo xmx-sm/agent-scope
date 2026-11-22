@@ -5,7 +5,7 @@
 目标是把「模型、Agent 运行循环、工具、权限审批、记忆、RAG、存储」收敛成一套可复用的框架层，
 业务侧只负责配置和编排，而不是每个项目重写一遍 Agent 底座。
 
-当前进度：**工具层、配置中心、模型/媒体/RAG/Agent/权限/中间件框架层已实现；下一步服务化入口与存储。**
+当前进度：**工具层、配置中心、模型/媒体/RAG/Agent/权限/中间件/工作区框架层已实现；下一步服务化入口与存储。**
 
 - AgentScope：`2.0.12`
 - Python：`3.14.8`
@@ -27,6 +27,7 @@
 | 子智能体 | `scope/agent/`：主 Agent builder/runtime、上下文管理、子智能体、委派、审批、取消、Plan、Pipeline、SOP | 9 文件 |
 | 权限层 | `scope/permission/`：官方 `PermissionContext` 字典构建；`sqlite/audit/pending/function_rules` 字典开关；SQLite 规则/审计/pending；函数级工具适配 | 5 文件 |
 | 中间件层 | `scope/middleware/`：Tracing / Budget / TTS / ModelRouter / RAG / 长期记忆（Agentic/ReMe/Mem0）/ Steering / 自定义中间件字典工厂 | 2 文件 |
+| 工作区层 | `scope/workspace/`：Local / Bubblewrap / Docker / E2B / Daytona / K8s / OpenSandbox / AppleContainer 字典工厂 | 2 文件 |
 | Skills | `scope/skills/`：用户自定义目录加载（`LocalSkillLoader`） | 2 文件 |
 
 工具域能力：
@@ -115,6 +116,9 @@ agent_scope/
     │   └── __init__.py
     ├── middleware/              # 官方 Agent 中间件
     │   ├── factory.py           # 字典 → Tracing/Budget/TTS/ModelRouter/RAG/长期记忆
+    │   └── __init__.py
+    ├── workspace/               # 官方工作区
+    │   ├── factory.py           # Local/Docker/Bubblewrap/E2B/K8s/... 字典工厂
     │   └── __init__.py
     ├── llm/                     # 模型工厂（Chat / Embedding / TTS / ASR）
     │   ├── agent_model.py       # 对外入口
