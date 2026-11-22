@@ -3,8 +3,12 @@
 
 当前内置后端：
 
-- ``sqlite``：本地 SQLite + numpy 余弦检索（默认，零外部依赖）
-- 其他后端通过 ``_DB_MODULES`` 注册，按其依赖是否安装懒加载；缺失时只影响该后端
+- ``sqlite``：本地 SQLite + numpy 余弦检索（默认）
+- ``qdrant`` / ``milvus`` / ``mongodb`` / ``elasticsearch``
+- ``zvec``：本地 BM25 / embedding / hybrid
+- ``oceanbase``：pyobvector
+
+其他后端通过 ``_DB_MODULES`` 注册，按其依赖是否安装懒加载；缺失时只影响该后端
 
 统一数据契约::
 
@@ -32,6 +36,15 @@ from .registry import record_delete, record_delete_library, record_write
 # 后端名 -> 模块名（相对本包）
 _DB_MODULES = {
     "sqlite": "sqlite_db",
+    "qdrant": "kb_db",
+    "milvus": "kb_db",
+    "mongo": "kb_db",
+    "mongodb": "kb_db",
+    "elasticsearch": "kb_db",
+    "es": "kb_db",
+    "zvec": "kb_db",
+    "oceanbase": "kb_db",
+    "ob": "kb_db",
 }
 
 _FUNC_NAMES = {
@@ -75,7 +88,11 @@ def _handler(rag_type: str, function: str):
                 _FAILED[rag_type] = f"{type(e).__name__}: {e}"
     if mod is None:
         return None
-    name = _FUNC_NAMES.get(function, "").format(t=rag_type)
+    if rag_type in ("qdrant", "milvus", "mongo", "mongodb",
+                    "elasticsearch", "es", "zvec", "oceanbase", "ob"):
+        name = _FUNC_NAMES.get(function, "").format(t="kb")
+    else:
+        name = _FUNC_NAMES.get(function, "").format(t=rag_type)
     return getattr(mod, name, None) if name else None
 
 

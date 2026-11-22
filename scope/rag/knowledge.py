@@ -47,7 +47,7 @@ try:
 except ImportError:
     from llm.agent_model import async_get_embedding_model, async_get_llm_model
 
-from .sqlite_vector_store import SQLiteVectorStore
+from .vector_store_factory import async_create_vector_store, ZvecKnowledgeBase
 from ._utils import as_bool, as_dict
 
 
@@ -126,27 +126,38 @@ async def async_create_knowledge_base(data: dict = None) -> Dict[str, Any]:
         if not name:
             return _err("缺少 knowledge_base.name", fn)
 
-        emb = await _embedding_model(data, item)
-        if emb.get("code") != 200:
-            return emb
-        embedding_model = emb["data"]
+        store_r = await async_create_vector_store(data, item)
+        if store_r.get("code") != 200:
+            return store_r
+        store_data = store_r["data"]
+        store = store_data["store"]
+        backend = store_data["backend"]
+        zvec_cfg = store_data.get("config") or {}
+        zvec_mode = str(zvec_cfg.get("mode") or "hybrid").lower()
 
-        base_dir = _base_dir(data, item)
-        create_dir = _create_dir(data, item)
-        if not os.path.isdir(base_dir) and not create_dir:
-            return _err(f"RAG 数据目录不存在: {base_dir}（如允许自动创建请传 create_dir=True）", fn)
+        embedding_model = None
+        if not (backend == "zvec" and zvec_mode == "bm25"):
+            emb = await _embedding_model(data, item)
+            if emb.get("code") != 200:
+                return emb
+            embedding_model = emb["data"]
 
-        store = SQLiteVectorStore(base_dir, create=create_dir)
+        kb_cls = store_data.get("knowledge_base") or KnowledgeBase
+        kb_kwargs = {}
+        if kb_cls is ZvecKnowledgeBase:
+            kb_kwargs["zvec_mode"] = zvec_mode
         await store.__aenter__()
-        kb = KnowledgeBase(
+        kb = kb_cls(
             name=name,
             description=str(item.get("description") or name),
             embedding_model=embedding_model,
             vector_store=store,
             collection=str(item.get("collection") or name),
             metadata_filter=item.get("metadata_filter") or None,
+            **kb_kwargs,
         )
-        return _ok({"knowledge_base": kb, "vector_store": store},
+        return _ok({"knowledge_base": kb, "vector_store": store,
+                    "backend": backend},
                    "KnowledgeBase 创建成功")
     except (TypeError, ValueError) as e:
         return _err(str(e), fn)

@@ -15,6 +15,9 @@ from .rag_main import (
     async_write_rag,
 )
 from .knowledge import async_create_knowledge_base, async_create_rag_middleware
+from .vector_store_factory import async_create_vector_store, ZvecKnowledgeBase
+from .zvec_store import ZvecVectorStore
+from .oceanbase_store import OceanBaseVectorStore
 from .registry import query_registry, query_registry_page
 from .sqlite_vector_store import SQLiteVectorStore
 from .storage import async_ensure_rag_storage, async_rag_storage_status
@@ -29,6 +32,10 @@ __all__ = [
     "async_rag_config",
     "async_create_knowledge_base",
     "async_create_rag_middleware",
+    "async_create_vector_store",
+    "ZvecVectorStore",
+    "ZvecKnowledgeBase",
+    "OceanBaseVectorStore",
     "async_rag_storage_status",
     "async_ensure_rag_storage",
     "SQLiteVectorStore",

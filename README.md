@@ -23,7 +23,7 @@
 | 配置层 | `scope/config/`：SQLite 配置中心，110 项默认配置 | 4 文件 / 619 行 |
 | 模型层 | `scope/llm/`：多厂商 Chat / Embedding / TTS / ASR 工厂，视频 formatter | 3 文件 |
 | 媒体层 | `scope/media/`：TTS 落盘 / base64 / URL、ASR 转写、文件闸门 | 4 文件 |
-| RAG 层 | `scope/rag/`：文档解析/切片/embedding、SQLite 向量库、注册表、KnowledgeBase/RAGMiddleware；`tools/rag/` 工具入口 | 8 文件 |
+| RAG 层 | `scope/rag/`：文档解析/切片/embedding、SQLite / Qdrant / Milvus / MongoDB / Elasticsearch / Zvec / OceanBase 向量库、KnowledgeBase/RAGMiddleware；`tools/rag/` 工具入口 | 14 文件 |
 | 子智能体 | `scope/agent/`：主 Agent builder/runtime、上下文管理、子智能体、委派、审批、取消、Plan、Pipeline、SOP | 9 文件 |
 | 权限层 | `scope/permission/`：官方 `PermissionContext` 字典构建；`sqlite/audit/pending/function_rules` 字典开关；SQLite 规则/审计/pending；函数级工具适配 | 5 文件 |
 | 中间件层 | `scope/middleware/`：Tracing / Budget / TTS / ModelRouter / RAG / 长期记忆（Agentic/ReMe/Mem0）/ Steering / 自定义中间件字典工厂 | 2 文件 |
@@ -138,6 +138,10 @@ agent_scope/
     │   ├── common.py            # 解析 / 切片 / embedding
     │   ├── sqlite_db.py         # 本地 SQLite 向量库（工具后端）
     │   ├── sqlite_vector_store.py # 官方 VectorStoreBase 适配
+    │   ├── vector_store_factory.py # Qdrant/Milvus/Mongo/ES/Zvec/OceanBase
+    │   ├── zvec_store.py        # Zvec BM25 / embedding / hybrid
+    │   ├── oceanbase_store.py   # OceanBase / pyobvector 适配
+    │   ├── kb_db.py             # 通用 KnowledgeBase 直连后端
     │   ├── knowledge.py         # KnowledgeBase / RAGMiddleware 工厂
     │   ├── registry.py          # 向量模型标注注册表
     │   ├── config.py            # data > config.db > 默认/400

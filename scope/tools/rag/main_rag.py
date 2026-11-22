@@ -35,8 +35,9 @@ async def async_rag_tools(data: dict = None) -> Dict[str, Any]:
     """知识库检索与管理工具。
 
     公共配置段 ``rag_config``:
-        type(str, 默认 sqlite)     向量库类型；当前支持 sqlite
+        type(str, 默认 sqlite)     向量库类型：sqlite / qdrant / milvus / mongodb / elasticsearch / zvec / oceanbase
         sqlite_config(dict)        {"path": 集合名, "base_dir": 数据目录}
+        <backend>_config(dict)     各后端独立配置段
         vector_type(str)           dense（sqlite 后端仅支持 dense）
         rag_function(str)          通常由 function 自动填入
 
