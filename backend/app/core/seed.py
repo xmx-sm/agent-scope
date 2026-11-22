@@ -47,6 +47,9 @@ SEED_MENUS: list[dict[str, Any]] = [
     {"key": "menu.tool_settings", "parent_key": "group.agent", "title": "工具配置",
      "path": "/tool-settings", "icon": "Tools", "permission": "ai.use",
      "super_only": False, "sort_order": 35},
+    {"key": "menu.knowledge", "parent_key": "group.agent", "title": "知识库",
+     "path": "/agent-knowledge", "icon": "Collection", "permission": "ai.use",
+     "super_only": False, "sort_order": 34},
     {"key": "menu.skills", "parent_key": "group.agent", "title": "Skills",
      "path": "/agent-skills", "icon": "MagicStick", "permission": "ai.use",
      "super_only": False, "sort_order": 36},
@@ -59,9 +62,6 @@ SEED_MENUS: list[dict[str, Any]] = [
     {"key": "menu.agent_stats", "parent_key": "group.agent", "title": "Agent 统计",
      "path": "/agent-stats", "icon": "DataAnalysis", "permission": "ai.use",
      "super_only": False, "sort_order": 45},
-    {"key": "menu.agent", "parent_key": "group.agent", "title": "Agent 配置",
-     "path": "/admin/agent", "icon": "Cpu", "permission": "ai.config",
-     "super_only": True, "sort_order": 50},
     {"key": "group.personal", "parent_key": None, "title": "我的", "path": "",
      "icon": "User", "permission": None, "super_only": False, "sort_order": 20},
     {"key": "menu.my_permissions", "parent_key": "group.personal", "title": "页面权限",
@@ -92,6 +92,9 @@ SEED_MENUS: list[dict[str, Any]] = [
     {"key": "menu.config.menus", "parent_key": "group.config", "title": "菜单配置",
      "path": "/admin/config/menus", "icon": "Menu", "permission": "admin.menus",
      "super_only": True, "sort_order": 30},
+    {"key": "menu.agent", "parent_key": "group.config", "title": "Agent 配置",
+     "path": "/admin/agent", "icon": "Cpu", "permission": "ai.config",
+     "super_only": True, "sort_order": 40},
 ]
 
 async def async_seed(params: dict) -> None:
@@ -147,7 +150,7 @@ async def async_seed(params: dict) -> None:
         created_configs += 1
 
     created_menus = 0
-    layout_marker = await session.get(SystemConfig, "__meta.menu_layout_v5")
+    layout_marker = await session.get(SystemConfig, "__meta.menu_layout_v6")
     if layout_marker is None:
         legacy_keys = [
             "group.permissions", "menu.settings", "menu.team_permissions", "menu.admin",
@@ -170,8 +173,8 @@ async def async_seed(params: dict) -> None:
                         setattr(row, field, value)
         session.add(
             SystemConfig(
-                key="__meta.menu_layout_v5",
-                value='"5"',
+                key="__meta.menu_layout_v6",
+                value='"6"',
                 label="内部：菜单布局版本",
                 description="内部迁移标记，不在默认设置中展示",
                 value_type="string",

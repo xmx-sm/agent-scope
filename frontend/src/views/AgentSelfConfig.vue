@@ -19,57 +19,70 @@
         </div>
       </div>
 
-      <el-form v-else label-position="top" class="config-form">
-        <div class="form-grid">
-          <el-form-item label="模型厂商">
-            <el-select v-model="form.provider" filterable allow-create default-first-option style="width: 100%">
-              <el-option v-for="item in providers" :key="item.value" :label="item.label" :value="item.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="API 地址">
-            <el-input v-model="form.base_url" placeholder="https://.../v1" />
-          </el-form-item>
-          <el-form-item label="API Key">
-            <el-input v-model="form.api_key" type="password" show-password placeholder="sk-..." />
-          </el-form-item>
-          <el-form-item label="模型">
-            <div class="model-row">
-              <el-select v-model="form.model" filterable allow-create default-first-option style="flex: 1">
-                <el-option v-for="name in models" :key="name" :label="name" :value="name" />
+      <el-collapse v-else v-model="openSections" class="settings-collapse">
+        <el-collapse-item title="模型服务" name="model">
+          <div class="form-grid">
+            <el-form-item label="模型厂商">
+              <el-select v-model="form.provider" filterable allow-create default-first-option style="width: 100%">
+                <el-option v-for="item in providers" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>
-              <el-button :loading="fetching" @click="fetchModels">获取模型</el-button>
-            </div>
-          </el-form-item>
-          <el-form-item label="温度">
-            <el-input-number v-model="form.temperature" :min="0" :max="2" :step="0.1" :precision="2" />
-          </el-form-item>
-          <el-form-item label="最大输出 tokens">
-            <el-input-number v-model="form.max_tokens" :min="64" :step="256" />
-          </el-form-item>
-          <el-form-item label="上下文窗口">
-            <el-input-number v-model="form.context_window" :min="1024" :step="1024" />
-          </el-form-item>
-          <el-form-item label="流式输出">
-            <el-switch v-model="form.stream" />
-          </el-form-item>
-          <el-form-item label="思考模式">
-            <el-switch v-model="form.think" />
-          </el-form-item>
-          <el-form-item label="思考预算 tokens">
-            <el-input-number v-model="form.thinking_budget" :min="0" :step="256" />
-          </el-form-item>
-          <el-form-item label="思考强度">
-            <el-select v-model="form.reasoning_effort" style="width: 100%">
-              <el-option label="低" value="low" />
-              <el-option label="中" value="medium" />
-              <el-option label="高" value="high" />
-            </el-select>
-          </el-form-item>
-        </div>
-        <el-form-item label="系统提示词">
-          <el-input v-model="form.system_prompt" type="textarea" :rows="5" placeholder="留空使用系统默认提示词" />
-        </el-form-item>
-      </el-form>
+            </el-form-item>
+            <el-form-item label="API 地址">
+              <el-input v-model="form.base_url" placeholder="https://.../v1" />
+            </el-form-item>
+            <el-form-item label="API Key">
+              <el-input v-model="form.api_key" type="password" show-password placeholder="sk-..." />
+            </el-form-item>
+            <el-form-item label="模型">
+              <div class="model-row">
+                <el-select v-model="form.model" filterable allow-create default-first-option style="flex: 1">
+                  <el-option v-for="name in models" :key="name" :label="name" :value="name" />
+                </el-select>
+                <el-button :loading="fetching" @click="fetchModels">获取模型</el-button>
+              </div>
+            </el-form-item>
+          </div>
+        </el-collapse-item>
+
+        <el-collapse-item title="生成参数" name="generation">
+          <div class="form-grid">
+            <el-form-item label="温度">
+              <el-input-number v-model="form.temperature" :min="0" :max="2" :step="0.1" :precision="2" />
+            </el-form-item>
+            <el-form-item label="最大输出 tokens">
+              <el-input-number v-model="form.max_tokens" :min="64" :step="256" />
+            </el-form-item>
+            <el-form-item label="上下文窗口">
+              <el-input-number v-model="form.context_window" :min="1024" :step="1024" />
+            </el-form-item>
+            <el-form-item label="流式输出">
+              <el-switch v-model="form.stream" />
+            </el-form-item>
+          </div>
+        </el-collapse-item>
+
+        <el-collapse-item title="思考设置" name="thinking">
+          <div class="form-grid">
+            <el-form-item label="思考模式">
+              <el-switch v-model="form.think" />
+            </el-form-item>
+            <el-form-item label="思考预算 tokens">
+              <el-input-number v-model="form.thinking_budget" :min="0" :step="256" />
+            </el-form-item>
+            <el-form-item label="思考强度">
+              <el-select v-model="form.reasoning_effort" style="width: 100%">
+                <el-option label="低" value="low" />
+                <el-option label="中" value="medium" />
+                <el-option label="高" value="high" />
+              </el-select>
+            </el-form-item>
+          </div>
+        </el-collapse-item>
+
+        <el-collapse-item title="系统提示词" name="prompt">
+          <el-input v-model="form.system_prompt" type="textarea" :rows="6" placeholder="留空使用系统默认提示词" />
+        </el-collapse-item>
+      </el-collapse>
 
       <div class="save-bar">
         <el-button @click="reset" :loading="resetting">恢复系统默认</el-button>
@@ -89,6 +102,7 @@ const saving = ref(false)
 const resetting = ref(false)
 const fetching = ref(false)
 const useDefault = ref(true)
+const openSections = ref(['model', 'generation'])
 const view = ref({ system: {}, user: {}, effective: {} })
 const providers = ref([])
 const models = ref([])
@@ -209,6 +223,21 @@ onMounted(load)
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.settings-collapse {
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.settings-collapse :deep(.el-collapse-item__header) {
+  padding: 0 14px;
+  background: #fafbfc;
+}
+
+.settings-collapse :deep(.el-collapse-item__content) {
+  padding: 12px 14px;
 }
 
 .form-grid {

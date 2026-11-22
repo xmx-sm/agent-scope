@@ -8,6 +8,7 @@ from app.schemas.config import ConfigUpdateIn
 from app.schemas.email import EmailSendIn
 from app.schemas.menu import MenuCreateIn, MenuPrefIn, MenuReorderIn, MenuUpdateIn
 from app.schemas.permission import PermissionUpdateIn, TempGrantIn, UserPermissionUpdateIn
+from app.schemas.rag import RagSearchIn
 from app.schemas.security import DbAccessCheckIn
 from app.schemas.tool import ToolItemIn, ToolNarrowIn, ToolPolicyIn, ToolSetIn
 from app.schemas.tool_approval import (
@@ -53,4 +54,5 @@ __all__ = [
     "ToolApprovalRequiredIn",
     "ToolPolicyIn",
     "DbAccessCheckIn",
+    "RagSearchIn",
 ]

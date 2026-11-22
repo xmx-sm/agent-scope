@@ -22,6 +22,7 @@ from agentscope.tool import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import User
+from app.services.agent import rag as rag_service
 from app.services.agent.scope_bridge import user_workspace
 from app.services.config.service import async_get_config
 from app.services.security.db_policy import (
@@ -73,6 +74,11 @@ async def async_build_toolkit(params: dict) -> Toolkit:
         for key in ("db_type", "host", "port", "user", "password", "database", "path", "dir")
         if db_cfg.get(key) not in (None, "", 0)
     }
+    rag_embedding = None
+    try:
+        rag_embedding = await rag_service._embedding(session)
+    except Exception:  # noqa: BLE001 - 未配置 embedding 时不阻断其它工具
+        rag_embedding = None
     email_runtime = {
         "smtp_host": email_cfg.get("smtp_host") or "",
         "smtp_port": email_cfg.get("smtp_port") or 465,
@@ -156,6 +162,13 @@ async def async_build_toolkit(params: dict) -> Toolkit:
             return {"code": 403, "data": None, "message": "数据库写入已被默认策略禁用"}
         return await async_db_write_tools(build_db_data(kwargs))
 
+    async def rag_run(**kwargs):
+        data = dict(kwargs)
+        data.setdefault("rag_config", rag_service._rag_config(user.id, "default"))
+        if rag_embedding is not None:
+            data.setdefault("embedding", rag_embedding)
+        return await async_rag_tools(data)
+
     async def email_run(**kwargs):
         data = dict(kwargs)
         data["email_config"] = email_runtime
@@ -173,7 +186,7 @@ async def async_build_toolkit(params: dict) -> Toolkit:
         "mail": {"async_email_tools": (email_run, "邮件收发")},
         "mcp": {"async_mcp_tools": (async_mcp_tools, "MCP 客户端")},
         "sys": {"async_sys_tools": (async_sys_tools, "Shell 命令")},
-        "rag": {"async_rag_tools": (async_rag_tools, "知识库检索")},
+        "rag": {"async_rag_tools": (rag_run, "知识库检索")},
     }
     if db_policy["allow_write"]:
         registry["db"]["async_db_write_tools"] = (db_write, "数据库写入")

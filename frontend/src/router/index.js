@@ -58,6 +58,12 @@ const routes = [
         meta: { title: '工具配置', permission: 'ai.use' }
       },
       {
+        path: 'agent-knowledge',
+        name: 'AgentKnowledge',
+        component: () => import('../views/Knowledge.vue'),
+        meta: { title: '知识库', permission: 'ai.use' }
+      },
+      {
         path: 'agent-skills',
         name: 'AgentSkills',
         component: () => import('../views/Skills.vue'),

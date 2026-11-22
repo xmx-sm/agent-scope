@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.core.deps import ApiError, CurrentUser, SuperAdmin, ok, require_permission
 from app.models import User
 from app.schemas import (
+    RagSearchIn,
     McpSaveIn,
     ToggleIn,
     ChatStreamIn,
@@ -19,6 +20,7 @@ from app.schemas import (
 )
 from app.services.agent import conversations as conv_service
 from app.services.agent import mcps as mcp_service
+from app.services.agent import rag as rag_service
 from app.services.agent import skills as skill_service
 from app.services.agent import stats as stats_service
 from app.services.agent import attachments as attachment_service
@@ -171,6 +173,93 @@ async def save_mcp(
 async def delete_mcp(mcp_id: str, user: CurrentUser, db: AsyncSession = Depends(get_db)):
     await mcp_service.async_delete({"session": db, "user": user, "mcp_id": mcp_id})
     return ok(None, "MCP 已删除")
+
+
+@router.get("/rag/libraries")
+async def rag_libraries(user: CurrentUser, db: AsyncSession = Depends(get_db)):
+    return ok(await rag_service.async_libraries({"session": db, "user_id": user.id}))
+
+
+@router.get("/rag/documents")
+async def rag_documents(
+    user: CurrentUser, collection: str = "default", db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await rag_service.async_documents(
+            {"session": db, "user_id": user.id, "collection": collection}
+        )
+    )
+
+
+@router.post("/rag/upload")
+async def rag_upload(
+    user: CurrentUser,
+    file: UploadFile = File(...),
+    collection: str = Form("default"),
+    db: AsyncSession = Depends(get_db),
+):
+    content = await file.read()
+    return ok(
+        await rag_service.async_upload(
+            {
+                "session": db,
+                "user_id": user.id,
+                "collection": collection,
+                "filename": file.filename or "file",
+                "content": content,
+            }
+        ),
+        "文档已入库",
+    )
+
+
+@router.post("/rag/search")
+async def rag_search(
+    body: RagSearchIn, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await rag_service.async_search(
+            {
+                "session": db,
+                "user_id": user.id,
+                "collection": body.collection,
+                "query": body.query,
+                "top_k": body.top_k,
+            }
+        )
+    )
+
+
+@router.delete("/rag/documents")
+async def rag_delete_document(
+    user: CurrentUser,
+    doc_id: str,
+    collection: str = "default",
+    db: AsyncSession = Depends(get_db),
+):
+    return ok(
+        await rag_service.async_delete_document(
+            {
+                "session": db,
+                "user_id": user.id,
+                "collection": collection,
+                "doc_id": doc_id,
+            }
+        ),
+        "文档已删除",
+    )
+
+
+@router.delete("/rag/libraries/{collection}")
+async def rag_delete_library(
+    collection: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await rag_service.async_delete_library(
+            {"session": db, "user_id": user.id, "collection": collection}
+        ),
+        "知识库已删除",
+    )
 
 
 @router.get("/providers")
