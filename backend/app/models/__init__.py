@@ -10,6 +10,7 @@ from app.models.user import (
     User,
     UserPermissionState,
     UserToolMode,
+    UserToolConfig,
     UserToolPermission,
 )
 
@@ -21,6 +22,7 @@ __all__ = [
     "UserPermissionState",
     "UserToolMode",
     "UserToolPermission",
+    "UserToolConfig",
     "ToolPermissionAudit",
     "ToolPolicy",
     "SystemConfig",

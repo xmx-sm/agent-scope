@@ -9,6 +9,7 @@ from app.schemas.menu import MenuCreateIn, MenuPrefIn, MenuReorderIn, MenuUpdate
 from app.schemas.permission import PermissionUpdateIn, TempGrantIn, UserPermissionUpdateIn
 from app.schemas.security import DbAccessCheckIn
 from app.schemas.tool import ToolItemIn, ToolNarrowIn, ToolPolicyIn, ToolSetIn
+from app.schemas.tool_config import ToolConfigIn
 from app.schemas.user import ProfileUpdateIn, ResetPasswordIn, UserCreateIn, UserUpdateIn
 
 __all__ = [
@@ -36,6 +37,7 @@ __all__ = [
     "ToolItemIn",
     "ToolSetIn",
     "ToolNarrowIn",
+    "ToolConfigIn",
     "ToolPolicyIn",
     "DbAccessCheckIn",
 ]

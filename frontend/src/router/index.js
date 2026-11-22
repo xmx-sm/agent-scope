@@ -52,6 +52,12 @@ const routes = [
         meta: { title: '个人中心', permission: 'profile' }
       },
       {
+        path: 'tool-settings',
+        name: 'ToolConfig',
+        component: () => import('../views/ToolConfig.vue'),
+        meta: { title: '工具配置', permission: 'ai.use' }
+      },
+      {
         path: 'agent-settings',
         name: 'AgentSelfConfig',
         component: () => import('../views/AgentSelfConfig.vue'),

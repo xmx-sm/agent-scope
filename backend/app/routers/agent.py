@@ -5,16 +5,74 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import CurrentUser, ok, require_permission
+from app.core.deps import ApiError, CurrentUser, ok, require_permission
 from app.models import User
-from app.schemas import ChatStreamIn, ConversationCreateIn, ModelFetchIn, UserAgentConfigIn
+from app.schemas import ChatStreamIn, ConversationCreateIn, ModelFetchIn, ToolConfigIn, UserAgentConfigIn
 from app.services.agent import conversations as conv_service
 from app.services.agent import user_config as user_config_service
+from app.services.tools import tool_config as tool_config_service
 from app.services.agent.chat import async_stream_chat
 from app.services.config import agent as agent_config_service
 from app.utils.mask import SENTINEL
 
 router = APIRouter(prefix="/agent", tags=["Agent 对话"])
+
+
+@router.get("/tool-config/{category}")
+async def get_tool_config(
+    category: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await tool_config_service.async_view(
+            {"session": db, "user_id": user.id, "category": category}
+        )
+    )
+
+
+@router.put("/tool-config/{category}")
+async def save_tool_config(
+    category: str, body: ToolConfigIn, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await tool_config_service.async_save(
+            {
+                "session": db,
+                "user": user,
+                "category": category,
+                "data": body.model_dump(),
+            }
+        ),
+        "工具配置已保存",
+    )
+
+
+@router.delete("/tool-config/{category}")
+async def reset_tool_config(
+    category: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    return ok(
+        await tool_config_service.async_reset(
+            {"session": db, "user": user, "category": category}
+        ),
+        "已恢复系统默认",
+    )
+
+
+@router.post("/tool-config/{category}/test")
+async def test_tool_config(
+    category: str, user: CurrentUser, db: AsyncSession = Depends(get_db)
+):
+    if category == "email":
+        data = await tool_config_service.async_test_email(
+            {"session": db, "user_id": user.id}
+        )
+    elif category == "db":
+        data = await tool_config_service.async_test_db(
+            {"session": db, "user_id": user.id}
+        )
+    else:
+        raise ApiError("未知工具配置类别")
+    return ok(data, "连接成功")
 
 
 @router.get("/providers")

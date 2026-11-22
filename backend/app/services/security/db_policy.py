@@ -58,12 +58,18 @@ def is_table_allowed(policy: dict, db_name: str, table: str) -> bool:
     return any(_matches(item, db_name, table) for item in policy["allowed_tables"])
 
 
-def apply_db_policy(policy: dict, db_config: dict) -> dict:
-    """把默认策略压到 db_config 上；模型自传连接默认被剥离。"""
+def sanitize_model_db_config(policy: dict, db_config: dict) -> dict:
+    """模型自传的 db_config 只保留非连接字段；连接由服务端注入。"""
     config = dict(db_config or {})
     if not policy["allow_model_db_config"]:
         for key in ("host", "port", "user", "password", "path", "dir"):
             config.pop(key, None)
+    return config
+
+
+def apply_db_policy(policy: dict, db_config: dict) -> dict:
+    """把默认库/表白名单与写开关压到已合并的 db_config 上。"""
+    config = dict(db_config or {})
     config["allow_write"] = bool(policy["allow_write"] and config.get("allow_write", True))
     config["allowed_databases"] = policy["allowed_databases"]
     config["allowed_tables"] = policy["allowed_tables"]

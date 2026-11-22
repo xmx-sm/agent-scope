@@ -126,3 +126,23 @@ class ToolPolicy(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
+
+
+class UserToolConfig(Base):
+    """用户工具连接配置（邮箱 / 数据库）。"""
+
+    __tablename__ = "user_tool_configs"
+    __table_args__ = (
+        UniqueConstraint("user_id", "category", name="uq_user_tool_config"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    category: Mapped[str] = mapped_column(String(40), nullable=False)
+    use_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    config_data: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )

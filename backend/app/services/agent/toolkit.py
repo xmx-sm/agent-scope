@@ -24,9 +24,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import User
 from app.services.agent.scope_bridge import user_workspace
 from app.services.config.service import async_get_config
-from app.services.security.db_policy import apply_db_policy, async_get_db_policy
+from app.services.security.db_policy import (
+    apply_db_policy,
+    async_get_db_policy,
+    sanitize_model_db_config,
+)
 from app.services.security.identity import merge_identity
 from app.services.tools.evaluate import async_tool_view
+from app.services.tools.tool_config import async_effective as async_tool_config
 
 
 def _scope_tool(fn: Callable[..., Awaitable[Any]], name: str, description: str,
@@ -57,6 +62,38 @@ async def async_build_toolkit(params: dict) -> Toolkit:
     user: User = params["user"]
     view = await async_tool_view({"session": session, "user": user})
     db_policy = await async_get_db_policy({"session": session})
+    email_cfg = await async_tool_config(
+        {"session": session, "user_id": user.id, "category": "email"}
+    )
+    db_cfg = await async_tool_config(
+        {"session": session, "user_id": user.id, "category": "db"}
+    )
+    server_db = {
+        key: db_cfg.get(key)
+        for key in ("db_type", "host", "port", "user", "password", "database", "path", "dir")
+        if db_cfg.get(key) not in (None, "", 0)
+    }
+    email_runtime = {
+        "smtp_host": email_cfg.get("smtp_host") or "",
+        "smtp_port": email_cfg.get("smtp_port") or 465,
+        "imap_host": email_cfg.get("imap_host") or "",
+        "imap_port": email_cfg.get("imap_port") or 993,
+        "host_user": email_cfg.get("host_user") or "",
+        "password": email_cfg.get("password") or "",
+        "profile_name": email_cfg.get("from_name") or "Agent Scope",
+    }
+
+    def build_db_data(kwargs: dict) -> dict:
+        model_cfg = sanitize_model_db_config(db_policy, kwargs.get("db_config") or {})
+        merged = {**model_cfg, **server_db}
+        merged = apply_db_policy(db_policy, merged)
+        data = {
+            key: value
+            for key, value in kwargs.items()
+            if key not in ("db_config", "host", "port", "user", "password", "database", "path", "dir")
+        }
+        data["db_config"] = merged
+        return data
     enabled = {
         (group["name"], tool["name"])
         for group in view["groups"]
@@ -112,14 +149,17 @@ async def async_build_toolkit(params: dict) -> Toolkit:
     from scope.tools.system.main_sys import async_sys_tools
 
     async def db_read(**kwargs):
-        data = apply_db_policy(db_policy, {k: v for k, v in kwargs.items() if k != "db_config"})
-        return await async_db_tools(data)
+        return await async_db_tools(build_db_data(kwargs))
 
     async def db_write(**kwargs):
         if not db_policy["allow_write"]:
             return {"code": 403, "data": None, "message": "数据库写入已被默认策略禁用"}
-        data = apply_db_policy(db_policy, kwargs)
-        return await async_db_write_tools(data)
+        return await async_db_write_tools(build_db_data(kwargs))
+
+    async def email_run(**kwargs):
+        data = dict(kwargs)
+        data["email_config"] = email_runtime
+        return await async_email_tools(data)
 
     registry = {
         "db": {
@@ -130,7 +170,7 @@ async def async_build_toolkit(params: dict) -> Toolkit:
             "async_req_tools": (async_req_tools, "HTTP 请求/下载"),
             "async_crawl_tools": (async_crawl_tools, "网页抓取/截图"),
         },
-        "mail": {"async_email_tools": (async_email_tools, "邮件收发")},
+        "mail": {"async_email_tools": (email_run, "邮件收发")},
         "mcp": {"async_mcp_tools": (async_mcp_tools, "MCP 客户端")},
         "sys": {"async_sys_tools": (async_sys_tools, "Shell 命令")},
         "rag": {"async_rag_tools": (async_rag_tools, "知识库检索")},
