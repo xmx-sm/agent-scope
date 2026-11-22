@@ -115,9 +115,29 @@ async def _collect_tool_response(toolkit: Toolkit, tool_call: Any, agent: Agent)
     return str(content or "")
 
 
-async def _run_reply_loop(agent: Agent, toolkit: Toolkit, inputs: Any) -> Any:
-    """驱动子 agent 完整跑一轮，处理外部执行与确认事件。"""
+async def _run_reply_loop(
+    agent: Agent,
+    toolkit: Toolkit,
+    inputs: Any,
+    *,
+    tool_group_map: Dict[str, str] | None = None,
+    approval_policy: Dict[str, str] | None = None,
+    approval_handler: Any = None,
+) -> Any:
+    """驱动子 agent 完整跑一轮，处理外部执行与确认事件。
+
+    审批策略：
+        tool_approval = {
+            "rag": "ask",              # 组级
+            "async_sys_tools": "deny", # 工具级覆盖组级
+            "default": "allow",
+        }
+    未配置时默认 allow，保持原有自动确认行为；ask 且没有 approval_handler
+    时按 fail-closed 拒绝。
+    """
     final = None
+    policy = approval_policy or {}
+    group_map = tool_group_map or {}
     while True:
         pending_results, pending_confirms, reply_id = [], [], None
         async for evt in agent.reply_stream(inputs=inputs, yield_final_msg=True):
@@ -133,9 +153,33 @@ async def _run_reply_loop(agent: Agent, toolkit: Toolkit, inputs: Any) -> Any:
                     ))
             elif isinstance(evt, RequireUserConfirmEvent):
                 reply_id = evt.reply_id
-                # 子智能体默认自动确认；如需真正审批，应由 permission 层接管
                 for tc in evt.tool_calls:
-                    pending_confirms.append(ConfirmResult(confirmed=True, tool_call=tc))
+                    name = getattr(tc, "name", "") or ""
+                    group = group_map.get(name)
+                    decision = str(
+                        policy.get(name)
+                        or (policy.get(group) if group else None)
+                        or policy.get("default", "allow")
+                    ).lower()
+                    if decision not in ("allow", "deny", "ask"):
+                        decision = "ask"
+                    confirmed = decision == "allow"
+                    if decision == "ask":
+                        if approval_handler is None:
+                            confirmed = False
+                        else:
+                            try:
+                                result = approval_handler(tc, group, "ask")
+                                if asyncio.iscoroutine(result):
+                                    result = await result
+                                if isinstance(result, dict):
+                                    confirmed = bool(result.get("confirmed", False))
+                                else:
+                                    confirmed = bool(result)
+                            except Exception:
+                                confirmed = False
+                    pending_confirms.append(ConfirmResult(
+                        confirmed=confirmed, tool_call=tc))
 
         if pending_results:
             inputs = ExternalExecutionResultEvent(
@@ -220,7 +264,12 @@ async def _build_subagent(spec: dict, data: dict) -> Dict[str, Any]:
             context_config=context_config,
             injection_config=injection_config,
         )
-        return _ok({"agent": agent, "toolkit": toolkit})
+        return _ok({"agent": agent, "toolkit": toolkit,
+                    "tool_group_map": {
+                        getattr(t, "name", type(t).__name__): g.name
+                        for g in toolkit.tool_groups
+                        for t in (g.tools or [])
+                    }})
     except (TypeError, ValueError) as e:
         return _err(str(e), "async_run_subagent")
 
@@ -273,13 +322,26 @@ async def async_run_subagent(data: dict = None) -> Dict[str, Any]:
         if built.get("code") != 200:
             return built
         agent, toolkit = built["data"]["agent"], built["data"]["toolkit"]
+        group_map = built["data"].get("tool_group_map") or {}
+
+        approval_policy = spec.get("tool_approval") or data.get("tool_approval") or {}
+        if not isinstance(approval_policy, dict):
+            return _err("tool_approval 必须是字典", fn)
+        approval_handler = data.get("approval_handler")
+        if approval_handler is not None and not callable(approval_handler):
+            return _err("approval_handler 必须可调用", fn)
 
         mode = str(data.get("mode") or spec.get("mode") or "auto").strip().lower()
         if mode not in ("blackbox", "transparent", "auto"):
             return _err(f"不支持的 mode: {mode}（blackbox/transparent/auto）", fn)
 
         final = await _run_reply_loop(
-            agent, toolkit, Msg(name="user", role="user", content=[TextBlock(text=task)]))
+            agent, toolkit,
+            Msg(name="user", role="user", content=[TextBlock(text=task)]),
+            tool_group_map=group_map,
+            approval_policy=approval_policy,
+            approval_handler=approval_handler,
+        )
         reply = _reply_text(final)
         out: Dict[str, Any] = {
             "name": spec.get("name"),
@@ -405,6 +467,7 @@ async def register_delegate_tool(
     subagents: list = None,
     register_task_tool: bool = True,
     owner: str = None,
+    approval_handler: Any = None,
 ) -> None:
     """把委派工具 / 子智能体列表 / 后台任务查询注册进主 Toolkit。"""
     catalog = []
@@ -443,6 +506,8 @@ async def register_delegate_tool(
             payload["default_llm"] = default_llm
         if owner:
             payload["owner"] = owner
+        if approval_handler is not None:
+            payload["approval_handler"] = approval_handler
         return await async_delegate_tool(payload)
 
     _delegate.__doc__ = _delegate.__doc__.replace("{catalog}", catalog_text)

@@ -17,6 +17,7 @@ spec 全部由调用方传入（不内置模板）：
         "react_config": {...}, # 可选
         "context_config": {...}, # 可选
         "permission_context": {...}, # 可选
+        "tool_approval": {"sys": "ask"},  # 可选：组级/工具级 allow/deny/ask
     }
 
 本文件只做校验和解析，不创建 Agent；实际执行在 ``delegate.py``。
@@ -175,6 +176,13 @@ async def async_get_subagents(data: dict = None) -> Dict[str, Any]:
                     return _err(f"子智能体 {name} 的 {fld} 必须是列表", fn)
             if spec.get("middlewares") is not None and not isinstance(spec["middlewares"], list):
                 return _err(f"子智能体 {name} 的 middlewares 必须是列表", fn)
+            if spec.get("tool_approval") is not None:
+                if not isinstance(spec["tool_approval"], dict):
+                    return _err(f"子智能体 {name} 的 tool_approval 必须是字典", fn)
+                for k, v in spec["tool_approval"].items():
+                    if str(v).lower() not in ("allow", "deny", "ask"):
+                        return _err(
+                            f"子智能体 {name} 的 tool_approval.{k} 必须是 allow/deny/ask", fn)
             result.append(spec)
         return _ok(result, f"共创建 {len(result)} 个子智能体")
     except ValueError as e:
