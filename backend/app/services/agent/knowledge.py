@@ -241,8 +241,8 @@ async def async_library_test(params: dict) -> dict:
     row = await session.get(VectorLibrary, params["library_id"])
     if row is None or row.user_id != params["user_id"]:
         raise ApiError("向量库不存在", code=404)
-    data = await _call({"function": "list", "rag_config": _rag_config(row)})
-    return {"library_id": row.id, "collections": data}
+    result = await _call({"function": "list", "rag_config": _rag_config(row)})
+    return {"library_id": row.id, "collections": result.get("data") or []}
 
 
 async def async_upload_document(params: dict) -> dict:
@@ -404,7 +404,7 @@ async def async_search(params: dict) -> dict:
     for library in libraries:
         try:
             embedding = await _embedding(session, library)
-            data = await _call(
+            result = await _call(
                 {
                     "function": "read",
                     "rag_config": _rag_config(library),
@@ -416,6 +416,7 @@ async def async_search(params: dict) -> dict:
                     "embedding": embedding,
                 }
             )
+            data = result.get("data") if isinstance(result, dict) else result
             items = data if isinstance(data, list) else (data or {}).get("results") or []
             for item in items:
                 if isinstance(item, dict):
