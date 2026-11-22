@@ -33,6 +33,12 @@ async def init_db() -> None:
             await conn.execute(
                 text("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar VARCHAR(500)")
             )
+            await conn.execute(
+                text(
+                    "ALTER TABLE menus ADD COLUMN IF NOT EXISTS "
+                    "leader_only BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            )
 
 
 async def close_db() -> None:

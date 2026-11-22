@@ -44,7 +44,7 @@
           </router-link>
         </template>
       </nav>
-      <div v-if="!collapsed" class="sidebar-footer">v0.3.1</div>
+      <div v-if="!collapsed" class="sidebar-footer">v0.3.2</div>
     </el-aside>
 
     <!-- 移动端抽屉 -->
@@ -110,6 +110,7 @@
             <el-dropdown-menu>
               <el-dropdown-item command="profile">个人中心</el-dropdown-item>
               <el-dropdown-item command="permissions">我的权限</el-dropdown-item>
+              <el-dropdown-item command="menu-settings">菜单个性化</el-dropdown-item>
               <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -229,6 +230,10 @@ async function onCommand(command) {
   }
   if (command === 'permissions') {
     router.push('/permissions')
+    return
+  }
+  if (command === 'menu-settings') {
+    router.push('/menu-settings')
     return
   }
   if (command === 'logout') {

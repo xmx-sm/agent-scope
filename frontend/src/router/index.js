@@ -40,6 +40,18 @@ const routes = [
         meta: { title: '个人中心', permission: 'profile' }
       },
       {
+        path: 'menu-settings',
+        name: 'MenuPersonalize',
+        component: () => import('../views/MenuPersonalize.vue'),
+        meta: { title: '菜单个性化', permission: 'dashboard' }
+      },
+      {
+        path: 'admin',
+        name: 'AdminHome',
+        component: () => import('../views/AdminHome.vue'),
+        meta: { title: '管理后台', permission: 'admin.users', superAdminOnly: true }
+      },
+      {
         path: 'admin/users',
         name: 'UserManage',
         component: () => import('../views/admin/UserManage.vue'),

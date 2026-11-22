@@ -33,27 +33,26 @@ SEED_PASSWORD = "990108"
 SEED_MENUS: list[dict[str, Any]] = [
     {"key": "dashboard", "parent_key": None, "title": "工作台", "path": "/dashboard",
      "icon": "Grid", "permission": "dashboard", "super_only": False, "sort_order": 10},
-    {"key": "group.permissions", "parent_key": None, "title": "权限管理", "path": "",
-     "icon": "Key", "permission": None, "super_only": False, "sort_order": 20},
-    {"key": "menu.my_permissions", "parent_key": "group.permissions", "title": "我的权限",
+    {"key": "group.personal", "parent_key": None, "title": "我的", "path": "",
+     "icon": "User", "permission": None, "super_only": False, "sort_order": 20},
+    {"key": "menu.my_permissions", "parent_key": "group.personal", "title": "我的权限",
      "path": "/permissions", "icon": "Key", "permission": "permissions.self",
      "super_only": False, "sort_order": 10},
-    {"key": "menu.team_permissions", "parent_key": "group.permissions", "title": "团队权限",
-     "path": "/team/permissions", "icon": "Avatar", "permission": "permissions.team",
+    {"key": "menu.personalize", "parent_key": "group.personal", "title": "菜单个性化",
+     "path": "/menu-settings", "icon": "Setting", "permission": "dashboard",
      "super_only": False, "sort_order": 20},
-    {"key": "group.system", "parent_key": None, "title": "系统", "path": "",
-     "icon": "Setting", "permission": None, "super_only": False, "sort_order": 30},
-    {"key": "menu.users", "parent_key": "group.system", "title": "用户管理",
-     "path": "/admin/users", "icon": "UserFilled", "permission": "admin.users",
-     "super_only": True, "sort_order": 10},
-    {"key": "menu.settings", "parent_key": "group.system", "title": "默认设置",
-     "path": "/admin/settings", "icon": "Setting", "permission": "admin.settings",
-     "super_only": True, "sort_order": 20},
-    {"key": "menu.status", "parent_key": "group.system", "title": "运行信息",
-     "path": "/system/status", "icon": "Monitor", "permission": "system.status",
+    {"key": "profile", "parent_key": "group.personal", "title": "个人中心",
+     "path": "/profile", "icon": "User", "permission": "profile",
      "super_only": False, "sort_order": 30},
-    {"key": "profile", "parent_key": None, "title": "个人中心", "path": "/profile",
-     "icon": "User", "permission": "profile", "super_only": False, "sort_order": 40},
+    {"key": "menu.team", "parent_key": None, "title": "管理下级",
+     "path": "/team/permissions", "icon": "UserFilled", "permission": "permissions.team",
+     "super_only": False, "leader_only": True, "sort_order": 30},
+    {"key": "menu.status", "parent_key": None, "title": "运行信息",
+     "path": "/system/status", "icon": "Monitor", "permission": "system.status",
+     "super_only": False, "sort_order": 35},
+    {"key": "menu.admin", "parent_key": None, "title": "管理后台",
+     "path": "/admin", "icon": "Setting", "permission": "admin.users",
+     "super_only": True, "sort_order": 40},
 ]
 
 async def async_seed(params: dict) -> None:
@@ -109,6 +108,38 @@ async def async_seed(params: dict) -> None:
         created_configs += 1
 
     created_menus = 0
+    layout_marker = await session.get(SystemConfig, "__meta.menu_layout_v3")
+    if layout_marker is None:
+        legacy_keys = [
+            "group.permissions", "group.system", "menu.users", "menu.settings",
+            "menu.team_permissions",
+        ]
+        for key in legacy_keys:
+            row = (
+                await session.execute(select(Menu).where(Menu.key == key))
+            ).scalar_one_or_none()
+            if row is not None:
+                await session.delete(row)
+        # 同 key 的默认菜单同步为新布局（parent/title/order 等）
+        for spec in SEED_MENUS:
+            row = (
+                await session.execute(select(Menu).where(Menu.key == spec["key"]))
+            ).scalar_one_or_none()
+            if row is not None:
+                for field, value in spec.items():
+                    if field != "key":
+                        setattr(row, field, value)
+        session.add(
+            SystemConfig(
+                key="__meta.menu_layout_v3",
+                value='"3"',
+                label="内部：菜单布局版本",
+                description="内部迁移标记，不在默认设置中展示",
+                value_type="string",
+            )
+        )
+        await session.flush()
+
     for spec in SEED_MENUS:
         exists = (
             await session.execute(select(Menu).where(Menu.key == spec["key"]))

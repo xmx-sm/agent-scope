@@ -40,6 +40,8 @@ async def async_list_configs(params: dict) -> list[dict[str, Any]]:
     ).scalars().all()
     result = []
     for row in rows:
+        if row.key.startswith("__meta."):
+            continue
         try:
             value = json.loads(row.value)
         except (ValueError, TypeError):

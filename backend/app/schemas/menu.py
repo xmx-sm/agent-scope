@@ -11,6 +11,7 @@ class MenuCreateIn(BaseModel):
     icon: str = Field(default="Menu", max_length=60)
     permission: str | None = None
     super_only: bool = False
+    leader_only: bool = False
     sort_order: int = 100
     is_visible: bool = True
 
@@ -22,9 +23,15 @@ class MenuUpdateIn(BaseModel):
     icon: str | None = Field(default=None, max_length=60)
     permission: str | None = None
     super_only: bool | None = None
+    leader_only: bool | None = None
     sort_order: int | None = None
     is_visible: bool | None = None
 
 
 class MenuReorderIn(BaseModel):
     ids: list[str]
+
+
+class MenuPrefIn(BaseModel):
+    order: dict[str, list[str]] = {}
+    hidden: list[str] = []

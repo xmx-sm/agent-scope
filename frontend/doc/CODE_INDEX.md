@@ -180,3 +180,29 @@ Settings → MenuConfig → /admin/menus CRUD + reorder + /admin/permissions
 ### 菜单配置字段
 
 `key / parent_key / title / path / icon / permission / super_only / sort_order / is_visible`
+
+---
+
+## 八、v0.3.2 新增
+
+| 文件 | 行数 | 职责 |
+|---|---:|---|
+| `src/views/AdminHome.vue` | 129 | 超管管理后台聚合入口 |
+| `src/views/MenuPersonalize.vue` | 225 | 用户菜单排序与隐藏 |
+| `src/views/Layout.vue` | 410 | 分组折叠、动态菜单、菜单个性化入口 |
+| `src/views/admin/Settings.vue` | 350 | 配置分组折叠、菜单配置 Tab |
+
+### 新路由
+
+| 路径 | 页面 | 权限 |
+|---|---|---|
+| `/admin` | AdminHome | `admin.users` + 超管 |
+| `/menu-settings` | MenuPersonalize | `dashboard` |
+
+### 用户偏好链路
+
+```text
+MenuPersonalize → GET /menus/catalog + GET /menus/prefs
+                → PUT /menus/prefs
+                → auth.fetchMenus() → Layout 立即更新
+```

@@ -53,6 +53,7 @@ async def async_create_menu(params: dict) -> dict:
         icon=data.get("icon") or "Menu",
         permission=data.get("permission") or None,
         super_only=bool(data.get("super_only")),
+        leader_only=bool(data.get("leader_only")),
         sort_order=int(data.get("sort_order") or 100),
         is_visible=bool(data.get("is_visible", True)),
     )
@@ -83,6 +84,8 @@ async def async_update_menu(params: dict) -> dict:
             setattr(row, field, data[field])
     if data.get("super_only") is not None:
         row.super_only = bool(data["super_only"])
+    if data.get("leader_only") is not None:
+        row.leader_only = bool(data["leader_only"])
     if data.get("sort_order") is not None:
         row.sort_order = int(data["sort_order"])
     if data.get("is_visible") is not None:

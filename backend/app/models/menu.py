@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String
+from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -27,9 +27,22 @@ class Menu(Base):
     icon: Mapped[str] = mapped_column(String(60), nullable=False, default="Menu")
     permission: Mapped[str | None] = mapped_column(String(80), nullable=True)
     super_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    leader_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
     is_visible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+
+class UserMenuPref(Base):
+    """用户菜单个性化：排序与隐藏。"""
+
+    __tablename__ = "user_menu_prefs"
+
+    user_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    config_data: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )

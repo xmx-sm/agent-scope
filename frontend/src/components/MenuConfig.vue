@@ -85,6 +85,7 @@
         <el-form-item label="可见性">
           <el-switch v-model="form.is_visible" active-text="显示" inactive-text="隐藏" />
           <el-switch v-model="form.super_only" active-text="仅超管" style="margin-left: 16px" />
+          <el-switch v-model="form.leader_only" active-text="仅上级" style="margin-left: 16px" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -152,6 +153,7 @@ function emptyForm() {
     icon: 'Menu',
     permission: '',
     super_only: false,
+    leader_only: false,
     sort_order: 100,
     is_visible: true
   }
@@ -190,6 +192,7 @@ function openEdit(row) {
     icon: row.icon || 'Menu',
     permission: row.permission || '',
     super_only: row.super_only,
+    leader_only: row.leader_only,
     sort_order: row.sort_order,
     is_visible: row.is_visible
   })
@@ -211,6 +214,7 @@ async function save() {
       icon: form.icon || 'Menu',
       permission: form.permission || null,
       super_only: form.super_only,
+      leader_only: form.leader_only,
       sort_order: form.sort_order,
       is_visible: form.is_visible
     }

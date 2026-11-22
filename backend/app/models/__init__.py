@@ -1,7 +1,7 @@
 """ORM 模型统一出口。"""
 
 from app.models.common import new_id, utc_now
-from app.models.menu import Menu
+from app.models.menu import Menu, UserMenuPref
 from app.models.system import RolePermission, SystemConfig
 from app.models.user import User, UserPermissionState
 
@@ -11,6 +11,7 @@ __all__ = [
     "SystemConfig",
     "RolePermission",
     "Menu",
+    "UserMenuPref",
     "new_id",
     "utc_now",
 ]
