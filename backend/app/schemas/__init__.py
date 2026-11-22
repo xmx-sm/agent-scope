@@ -2,6 +2,7 @@
 
 from app.schemas.agent import ModelFetchIn
 from app.schemas.auth import ChangePasswordIn, LoginIn, RefreshIn, RegisterIn
+from app.schemas.chat import ChatStreamIn, ConversationCreateIn
 from app.schemas.config import ConfigUpdateIn
 from app.schemas.email import EmailSendIn
 from app.schemas.menu import MenuCreateIn, MenuPrefIn, MenuReorderIn, MenuUpdateIn
@@ -21,6 +22,8 @@ __all__ = [
     "UserUpdateIn",
     "ResetPasswordIn",
     "ConfigUpdateIn",
+    "ConversationCreateIn",
+    "ChatStreamIn",
     "EmailSendIn",
     "MenuCreateIn",
     "MenuUpdateIn",

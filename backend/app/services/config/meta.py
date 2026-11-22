@@ -80,6 +80,8 @@ CONFIG_DEFINITIONS: list[dict[str, Any]] = [
      "type": "bool", "group": "AI 安全", "description": "默认关闭；关闭时模型不能指定 host/user/password/path"},
     {"key": "security.allow_model_file_paths", "value": False, "label": "允许模型自传文件路径",
      "type": "bool", "group": "AI 安全", "description": "默认关闭；文件路径应由服务端工作区策略注入"},
+    {"key": "security.allow_agent_shell", "value": False, "label": "允许 AI 执行 Shell",
+     "type": "bool", "group": "AI 安全", "description": "默认关闭；关闭时 sys 工具组不会挂载到 Agent"},
     # ── 数据库安全默认值 ────────────────────────────────────────
     {"key": "db.allow_all_tables", "value": False, "label": "允许读取全部表",
      "type": "bool", "group": "数据库安全", "description": "关闭时只允许下方可读表白名单中的表"},

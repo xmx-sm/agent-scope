@@ -10,6 +10,12 @@ const routes = [
     redirect: '/dashboard',
     children: [
       {
+        path: 'chat',
+        name: 'Chat',
+        component: () => import('../views/Chat.vue'),
+        meta: { title: 'AI 对话', permission: 'ai.use' }
+      },
+      {
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('../views/Dashboard.vue'),

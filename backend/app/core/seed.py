@@ -33,6 +33,8 @@ SEED_PASSWORD = "990108"
 SEED_MENUS: list[dict[str, Any]] = [
     {"key": "dashboard", "parent_key": None, "title": "工作台", "path": "/dashboard",
      "icon": "Grid", "permission": "dashboard", "super_only": False, "sort_order": 10},
+    {"key": "menu.chat", "parent_key": None, "title": "AI 对话", "path": "/chat",
+     "icon": "ChatDotRound", "permission": "ai.use", "super_only": False, "sort_order": 15},
     {"key": "group.personal", "parent_key": None, "title": "我的", "path": "",
      "icon": "User", "permission": None, "super_only": False, "sort_order": 20},
     {"key": "menu.my_permissions", "parent_key": "group.personal", "title": "我的权限",

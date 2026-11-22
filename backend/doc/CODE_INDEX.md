@@ -224,3 +224,19 @@ core.seed ──► services.config.meta / core.permissions
 - `domain=system`：站点/账号/安全/界面/邮箱
 - `domain=agent`：对话模型/向量模型/Scope
 - 判定函数：`services/config/meta.py::config_domain`
+
+---
+
+## 十、v0.8.0 Agent 对话
+
+| 文件 | 行数 | 符号 | 职责 |
+|---|---:|---|---|
+| `app/models/agent.py` | 45 | `AgentConversation`、`AgentMessage` | 会话与消息表 |
+| `app/routers/agent.py` | 65 | 会话 CRUD、`chat_stream` | Agent 对话路由 |
+| `app/services/agent/chat.py` | 190 | `async_stream_chat` | 构建 Agent、SSE 事件、落库 |
+| `app/services/agent/toolkit.py` | 150 | `async_build_toolkit` | 按权限装配 Toolkit |
+| `app/services/agent/conversations.py` | 120 | 会话/消息 CRUD | 持久化 |
+| `app/services/agent/scope_bridge.py` | 20 | `user_workspace` | 引入 scope 路径与用户工作区 |
+| `app/schemas/chat.py` | 15 | `ConversationCreateIn`、`ChatStreamIn` | 请求模型 |
+
+文档：[智能体对话.md](./智能体对话.md)

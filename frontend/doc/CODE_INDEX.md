@@ -256,3 +256,13 @@ AgentConfig → GET /admin/configs?domain=agent
 | `src/views/MyPermissions.vue` | 261 | 展示并自关闭 AI 工具 |
 
 接口：`/tools/mine`、`/tools/team`、`/admin/users/{id}/tools`。
+
+---
+
+## 十二、v0.8.0 AI 对话
+
+| 文件 | 行数 | 职责 |
+|---|---:|---|
+| `src/views/Chat.vue` | 430 | 会话列表、消息流、SSE 解析、移动端抽屉 |
+
+路由：`/chat`，权限 `ai.use`。
