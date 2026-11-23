@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import api from '../utils/api'
+import { useChatStore } from './chat'
 
 function readJSON(key, fallback) {
   try {
@@ -74,6 +75,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     permissions.value = []
     menus.value = []
+    useChatStore().reset()
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
     localStorage.removeItem('user')

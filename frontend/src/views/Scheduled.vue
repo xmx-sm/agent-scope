@@ -9,6 +9,7 @@
         <div class="grow"></div>
         <el-button type="primary" :icon="Plus" @click="openCreate">新建任务</el-button>
         <el-button :icon="Refresh" @click="load">刷新</el-button>
+        <el-button @click="openAllConversations">定时会话</el-button>
       </div>
       <el-table :data="jobs" size="small" stripe>
         <el-table-column prop="name" label="任务" min-width="130" />
@@ -324,7 +325,11 @@ async function remove(row) {
 }
 
 function openConversation(row) {
-  router.push({ path: '/chat', query: { conversation: row.last_conversation_id } })
+  router.push({ path: '/chat', query: { conversation: row.last_conversation_id, origin: 'cron' } })
+}
+
+function openAllConversations() {
+  router.push({ path: '/chat', query: { origin: 'cron' } })
 }
 
 onMounted(async () => {

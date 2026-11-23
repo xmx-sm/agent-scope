@@ -39,7 +39,10 @@
     </div>
 
     <div class="panel" style="margin-top: 16px">
-      <h3 class="section-title">协作记忆</h3>
+      <div class="section-head">
+        <h3 class="section-title">协作记忆（会话记录）</h3>
+        <el-button size="small" @click="openAllSessions">全部 A2A 会话</el-button>
+      </div>
       <el-table :data="sessions" size="small" stripe>
         <el-table-column prop="peer_name" label="伙伴" width="120" />
         <el-table-column prop="session_hint" label="远端会话" width="150" />
@@ -257,7 +260,11 @@ async function testPeer(row) {
 }
 
 function openSession(row) {
-  if (row.conversation_id) router.push({ path: '/chat', query: { conversation: row.conversation_id } })
+  if (row.conversation_id) router.push({ path: '/chat', query: { conversation: row.conversation_id, origin: 'a2a' } })
+}
+
+function openAllSessions() {
+  router.push({ path: '/chat', query: { origin: 'a2a' } })
 }
 
 async function forgetSession(row) {
@@ -282,4 +289,6 @@ onMounted(load)
 .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0 18px; }
 .section-title { margin: 0 0 12px; font-size: 15px; }
+.section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.section-head .section-title { margin: 0; }
 </style>

@@ -1,10 +1,11 @@
 <template>
-  <div class="page">
+  <div :class="embedded ? 'embedded-panel' : 'page'">
     <div class="page-head">
-      <div>
+      <div v-if="!embedded">
         <h2 class="page-title">超级智能体</h2>
         <p class="page-desc">一个主智能体负责编排，多个子智能体可长期独立对话；每个成员可覆盖模型与提示词。</p>
       </div>
+      <div v-else class="grow"></div>
       <el-button v-if="form.id" type="primary" :loading="entering" @click="enterMain">进入主对话</el-button>
     </div>
 
@@ -50,6 +51,30 @@
         <el-button v-if="form.id" type="danger" plain @click="remove">删除</el-button>
       </div>
     </div>
+
+    <div v-if="form.id" class="panel records">
+      <div class="records-head">
+        <h3 class="records-title">会话记录</h3>
+        <el-button size="small" @click="openAllRecords">在对话页查看</el-button>
+      </div>
+      <el-table :data="conversationRows" size="small" stripe>
+        <el-table-column prop="title" label="会话" min-width="220" show-overflow-tooltip />
+        <el-table-column label="来源" width="100">
+          <template #default="{ row }">
+            <el-tag size="small" effect="plain">{{ originLabel(row.origin) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="更新时间" width="180">
+          <template #default="{ row }">{{ formatTime(row.updated_at) }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="90">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openConversation(row)">打开</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-if="!conversationRows.length" description="暂无会话记录" :image-size="60" />
+    </div>
   </div>
 </template>
 
@@ -58,6 +83,10 @@ import { defineComponent, h, onMounted, reactive, ref } from 'vue'
 import { ElButton, ElCollapse, ElCollapseItem, ElDivider, ElEmpty, ElForm, ElFormItem, ElInput, ElInputNumber, ElMessage, ElMessageBox, ElOption, ElSelect, ElSwitch, ElTag } from 'element-plus'
 import { useRouter } from 'vue-router'
 import api from '../utils/api'
+
+defineProps({
+  embedded: { type: Boolean, default: false }
+})
 
 function blankLlM() {
   return {
@@ -157,6 +186,41 @@ const form = reactive({
   id: '', name: '超级智能体', description: '', enabled: false,
   main: blankMember('main'), subs: []
 })
+const conversationRows = ref([])
+
+const ORIGIN_LABELS = { super_main: '超级·主', super_sub: '超级·子' }
+
+function originLabel(origin) {
+  return ORIGIN_LABELS[origin] || origin || '会话'
+}
+
+function formatTime(value) {
+  if (!value) return '-'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+}
+
+async function loadSuperConversations() {
+  if (!form.id) {
+    conversationRows.value = []
+    return
+  }
+  try {
+    conversationRows.value = await api.get('/agent/conversations', {
+      params: { super_agent_id: form.id, limit: 100 }
+    })
+  } catch {
+    conversationRows.value = []
+  }
+}
+
+function openConversation(row) {
+  router.push({ path: '/chat', query: { conversation: row.id, origin: 'super' } })
+}
+
+function openAllRecords() {
+  router.push({ path: '/chat', query: { origin: 'super' } })
+}
 
 function apply(data) {
   if (!data) {
@@ -178,6 +242,7 @@ async function load() {
   loading.value = true
   try {
     apply(await api.get('/agent/super-agent'))
+    await loadSuperConversations()
   } catch {
     /* ignore */
   } finally {
@@ -226,6 +291,7 @@ async function save() {
       subs: form.subs.map(payloadMember)
     })
     apply(data)
+    await loadSuperConversations()
     ElMessage.success('已保存')
   } catch {
     /* ignore */
@@ -258,6 +324,7 @@ async function remove() {
   try {
     await api.delete('/agent/super-agent', { params: { super_agent_id: form.id } })
     apply(null)
+    conversationRows.value = []
     ElMessage.success('已删除')
   } catch {
     /* ignore */
@@ -275,4 +342,7 @@ onMounted(load)
 .sub-title { margin-right: 10px; font-weight: 600; }
 .add-sub { margin-left: 10px; }
 .actions { display: flex; gap: 10px; margin-top: 18px; }
+.records { margin-top: 16px; }
+.records-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.records-title { margin: 0; font-size: 15px; }
 </style>

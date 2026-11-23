@@ -58,19 +58,20 @@ _TOOL_IMPORTS = {
     "async_req_tools": ("tools.net.main_net", "async_req_tools"),
     "async_crawl_tools": ("tools.net.main_crawl", "async_crawl_tools"),
     "async_email_tools": ("tools.mail.main_mail", "async_email_tools"),
-    "async_db_tools": ("tools.db.main_db", "async_db_tools"),
-    "async_db_write_tools": ("tools.db.main_db", "async_db_write_tools"),
-    "async_rag_tools": ("tools.rag.main_rag", "async_rag_tools"),
-    "async_sys_tools": ("tools.system.main_sys", "async_sys_tools"),
+    # ---- 公网部署安全策略：禁用数据库与 RAG 工具（2026-11-23）----
+    # "async_db_tools": ("tools.db.main_db", "async_db_tools"),
+    # "async_db_write_tools": ("tools.db.main_db", "async_db_write_tools"),
+    # "async_rag_tools": ("tools.rag.main_rag", "async_rag_tools"),
+    # "async_sys_tools": ("tools.system.main_sys", "async_sys_tools"),
     "async_mcp_tools": ("tools.mcp.main_mcp", "async_mcp_tools"),
     # 兼容旧名
     "req_tools": ("tools.net.main_net", "async_req_tools"),
     "crawl_tools": ("tools.net.main_crawl", "async_crawl_tools"),
     "email_tools": ("tools.mail.main_mail", "async_email_tools"),
-    "db_tools": ("tools.db.main_db", "async_db_tools"),
-    "db_write_tools": ("tools.db.main_db", "async_db_write_tools"),
-    "rag_tools": ("tools.rag.main_rag", "async_rag_tools"),
-    "sys_tools": ("tools.system.main_sys", "async_sys_tools"),
+    # "db_tools": ("tools.db.main_db", "async_db_tools"),
+    # "db_write_tools": ("tools.db.main_db", "async_db_write_tools"),
+    # "rag_tools": ("tools.rag.main_rag", "async_rag_tools"),
+    # "sys_tools": ("tools.system.main_sys", "async_sys_tools"),
     "mcp_tools": ("tools.mcp.main_mcp", "async_mcp_tools"),
 }
 

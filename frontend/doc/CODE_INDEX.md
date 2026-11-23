@@ -263,6 +263,10 @@ AgentConfig → GET /admin/configs?domain=agent
 
 | 文件 | 行数 | 职责 |
 |---|---:|---|
-| `src/views/Chat.vue` | 430 | 会话列表、消息流、SSE 解析、移动端抽屉 |
+| `src/views/Chat.vue` | 611 | 会话列表、消息流、附件/朗读/分支、移动端抽屉 |
+| `src/stores/chat.js` | 366 | 会话与流式生成状态托管，跨页面继续输出、断线续传 |
+| `src/components/MarkdownView.vue` | 337 | Markdown 渲染、代码高亮与复制、DOMPurify 清洗 |
+
+Markdown 依赖：`markdown-it`、`highlight.js`、`dompurify`；支持表格、列表、引用、链接、行内代码和代码块高亮。
 
 路由：`/chat`，权限 `ai.use`。

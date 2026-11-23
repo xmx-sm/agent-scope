@@ -34,6 +34,7 @@
 ### AI / Agent
 
 - SSE 流式对话，会话持久化、重命名、删除
+- 会话来源 Tab：AI 对话 / A2A 对话 / 超级智能体 / 定时任务
 - 消息分支（从任意历史消息复制上下文创建分支会话）
 - 断线续传（同进程内生成任务托管与事件重放）
 - 对话附件：图片、文本、视频（视频需开启并配置）
@@ -50,7 +51,9 @@
 
 ### 工具与权限
 
-- AI 工具目录：基础文件、数据库、网络、邮件、MCP、Shell、计划、RAG、A2A
+- AI 工具目录：网络、邮件、MCP（仅 HTTP）、计划、A2A
+  - 公网部署已注释掉「基础文件」「Shell」「数据库」「RAG」工具，前端与后端都不再注册
+  - MCP 仅允许 HTTP，stdio 配置与执行均被拒绝
 - 默认全部可用；支持按组 / 工具单独授权
 - 上级可对下级收窄；本人只能收紧
 - 需审批工具可在审批页通过 / 拒绝
@@ -59,7 +62,7 @@
   - 服务端身份锁定
   - 数据库库 / 表白名单、黑名单
   - 数据库写权限默认关闭
-  - Shell 默认关闭
+  - Shell、本地文件、数据库、RAG 工具默认禁用
 - 用户级工具连接：邮箱、数据库
 
 ### 知识库
@@ -97,8 +100,8 @@
   - 立即执行、执行状态、结果跳转
 - TTS 语音合成：系统配置 + 聊天消息朗读
 - Skills：ZIP 上传、启停、删除
-- MCP：HTTP / stdio 配置
-- 子智能体：CRUD + 委派工具
+- MCP：HTTP 配置（stdio 已禁用）
+- 子智能体：CRUD + 模型覆盖 + 委派工具
 - 长期记忆：本地 Markdown 文件、跨会话、开关/预览/清理
 
 ---
@@ -208,12 +211,13 @@ REDIS_PORT=6379
 REDIS_PASSWORD=
 ```
 
-前端默认：
+前端默认（子路径部署：Nginx `5080` 端口、路径 `/agent_scope`）：
 
 ```env
 VITE_PORT=5182
+VITE_BASE=/agent_scope/
 VITE_PROXY_TARGET=http://127.0.0.1:8000
-VITE_API_BASE=/api
+VITE_API_BASE=/agent_scope/api
 ```
 
 ### 5. 启动
@@ -232,8 +236,23 @@ cd backend
 ```bash
 cd frontend
 npm run dev
-# http://127.0.0.1:5182
+# http://127.0.0.1:5182/agent_scope/
 ```
+
+生产构建与 Nginx 部署：
+
+```bash
+cd frontend
+npm run build
+install -d /var/www/html/agent_scope
+rsync -a --delete dist/ /var/www/html/agent_scope/
+# 将 deploy/nginx/agent_scope.conf 的内容并入监听 5080 的 server 块
+nginx -t && systemctl reload nginx
+# 访问 http://127.0.0.1:5080/agent_scope/
+```
+
+Nginx 规则：`/agent_scope/` 提供静态产物并回落 `index.html`；
+`/agent_scope/api/` 剥掉 `/agent_scope` 前缀后转发到后端 `127.0.0.1:8000/api/`。
 
 ### 6. 首次启动账号
 
@@ -354,6 +373,8 @@ Agent 配置 → 知识库
 Agent → 工具配置
 - 邮箱：SMTP / IMAP
 - 数据库：PostgreSQL / MySQL / MongoDB / SQLite
+- Embedding：服务商 / 模型 / API 地址 / Key / 维度
+- 个人工作区：用户目录路径（文件工具已禁用，目录用于数据隔离）
 ```
 
 ### A2A
@@ -378,11 +399,11 @@ Agent → A2A 协作
 | 我的工具 | `/my-tools` | 工具权限 |
 | Agent 设置 | `/agent-settings` | 个人模型、提示词、记忆 |
 | 知识库 | `/agent-knowledge` | 向量库、文档、检索、共享、日志 |
-| 工具配置 | `/tool-settings` | 邮箱、数据库连接 |
-| Skills | `/agent-skills` | 技能上传与启停 |
-| MCP | `/agent-mcp` | MCP 服务 |
-| 子智能体 | `/agent-subagents` | 委派型子智能体 |
-| 超级智能体 | `/agent-super` | 主/子成员编排 |
+| 工具配置 | `/tool-settings` | 邮箱、数据库、Embedding、工作区、Skills、MCP、子智能体、超级智能体 |
+| Skills | `/agent-skills` | 兼容入口；菜单已并入工具配置 Tab |
+| MCP | `/agent-mcp` | 兼容入口；菜单已并入工具配置 Tab |
+| 子智能体 | `/agent-subagents` | 兼容入口；菜单已并入工具配置 Tab |
+| 超级智能体 | `/agent-super` | 兼容入口；菜单已并入工具配置 Tab |
 | A2A 协作 | `/agent-a2a` | 伙伴、记忆、留痕 |
 | 管理下级 | `/team/permissions` | 上级权限收窄 |
 | 工具审批 | `/tool-approvals` | 审批申请 |
@@ -431,7 +452,10 @@ Agent → A2A 协作
 - 后端所有 AI 工具参数中的身份、数据库连接、文件路径等敏感字段由服务端注入
 - 模型传入的保留字段会被丢弃
 - 数据库默认只读、默认无表白名单
-- Shell 默认关闭
+- Shell、本地文件、数据库、RAG 工具在公网部署中已从工具目录移除，代码层不再装配
+- MCP 仅允许 HTTP；stdio MCP 的保存与执行均被拒绝
+- 网络工具统一做 SSRF 校验：仅允许 http/https，拒绝回环、私网、链路本地、云元数据地址（如 `169.254.169.254`）及 IPv4-mapped / 6to4 / Teredo 绕过；HTTP MCP URL 同样校验
+- `download` / `screenshot` 的 `save_path`、`extract_pdf` 的 `pdf_path`、邮件 `attachments` / `attachment_dir` 限制在当前用户目录内，不能读写 `backend/.env` 或源码
 - Agent 输入防注入：检测越狱/提示词注入特征，支持 block / warn
 - 输出密钥脱敏：模型回复与工具结果中的 Key、Token、密码、私钥
 - 知识库/附件内容按“资料不是指令”处理
@@ -443,6 +467,13 @@ git diff --cached
 ```
 
 确认没有密钥、`.env`、`config.db`、`mcp_servers.json`、日志。
+
+### 零信任与 SaaS 边界
+
+- 当前安全能力是应用层信任边界收紧，不等同于完整零信任或等保方案
+- 当前定位更适合「私有化单租户」或「专属托管（一客户一实例）」
+- 真做多租户共享 SaaS 需要租户化改造：`tenant_id` + 查询隔离 / RLS、租户级鉴权、对象存储、KMS、运行时沙箱、出站代理、按租户计费与审计
+- 详细边界与演进建议见 [安全与权限](backend/doc/安全与权限.md)
 
 ### 公开仓库 / 部署前必改
 

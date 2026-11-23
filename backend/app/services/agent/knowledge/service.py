@@ -22,6 +22,7 @@ from app.models import (
     VectorLog,
 )
 from app.services.agent.runtime.scope_bridge import ROOT
+from app.services.access.tools.tool_config import async_effective as async_tool_config
 from app.services.config.service import async_get_config
 from app.utils.mask import SENTINEL
 
@@ -96,7 +97,24 @@ async def _embedding(session: AsyncSession, library: VectorLibrary) -> dict:
         explicit = {}
     if explicit.get("provider") and explicit.get("model"):
         return explicit
-    return await _system_embedding(session)
+    # 用户级 Embedding 配置：未单独配置时回落到系统默认（工具配置页可覆盖）
+    cfg = await async_tool_config(
+        {"session": session, "user_id": library.user_id, "category": "embedding"}
+    )
+    provider = str(cfg.get("provider") or "").strip()
+    model = str(cfg.get("model") or "").strip()
+    if not provider or not model:
+        raise ApiError("请先在工具配置 → Embedding 或 Agent 配置中填写 Embedding 服务商与模型")
+    result = {
+        "provider": provider,
+        "model": model,
+        "base_url": str(cfg.get("base_url") or ""),
+        "api_key": str(cfg.get("api_key") or ""),
+    }
+    dimensions = int(cfg.get("dimensions") or 0)
+    if dimensions:
+        result["dimensions"] = dimensions
+    return result
 
 
 async def _call(payload: dict) -> dict:

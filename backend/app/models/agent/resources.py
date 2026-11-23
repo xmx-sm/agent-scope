@@ -53,6 +53,7 @@ class UserSubagent(Base):
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     description: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     system_prompt: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    llm_config: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     tools: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     mode: Mapped[str] = mapped_column(String(20), nullable=False, default="auto")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

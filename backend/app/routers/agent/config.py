@@ -112,6 +112,24 @@ async def test_tool_config(
     return ok(data, "连接成功")
 
 
+@router.get("/workspace")
+async def get_workspace(user: CurrentUser):
+    """个人工作区路径（文件工具公网部署已禁用，此接口仅用于展示与排障）。"""
+    from pathlib import Path
+
+    from app.services.agent.runtime.scope_bridge import user_workspace
+
+    workspace = Path(user_workspace({"user_id": user.id}))
+    return ok(
+        {
+            "root": str(workspace.parent),
+            "workspace": str(workspace),
+            "file_tools_enabled": False,
+            "note": "公网部署已禁用 AI 文件工具；目录仍用于附件、知识库与用户数据隔离。",
+        }
+    )
+
+
 
 @router.get("/providers")
 async def user_providers(_: CurrentUser):

@@ -25,6 +25,7 @@ class SubagentSaveIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     description: str = ""
     system_prompt: str
+    llm_config: dict = Field(default_factory=dict)
     tools: list[str] = Field(default_factory=list)
     mode: str = "auto"
     is_active: bool = True

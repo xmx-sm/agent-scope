@@ -3,11 +3,24 @@
     <h2 class="page-title">我的工具</h2>
     <p class="page-desc">默认全部 AI 工具可用；可以自行关闭，恢复需要上级或超管操作</p>
 
+    <div class="config-links">
+      <span class="muted">配置入口：</span>
+      <router-link to="/tool-settings">工具配置</router-link>
+      <router-link to="/agent-settings">Agent 设置</router-link>
+      <router-link to="/tool-settings?tab=super">超级智能体</router-link>
+      <router-link to="/agent-knowledge">知识库</router-link>
+    </div>
+
     <div class="panel" v-loading="loading">
       <div v-for="group in groups" :key="group.name" class="tool-group">
         <div class="tool-group-head">
           <b>{{ group.label }}</b>
-          <span class="muted">{{ group.tools.filter((t) => t.enabled).length }}/{{ group.tools.length }}</span>
+          <div class="group-head-right">
+            <router-link v-if="configTarget(group)" :to="configTarget(group)" class="config-link">
+              {{ configTarget(group).label }}
+            </router-link>
+            <span class="muted">{{ group.tools.filter((t) => t.enabled).length }}/{{ group.tools.length }}</span>
+          </div>
         </div>
         <div class="muted group-desc">{{ group.description }}</div>
         <div class="tool-list">
@@ -56,6 +69,18 @@ const loading = ref(false)
 const savingKey = ref('')
 const requestingKey = ref('')
 const groups = ref([])
+
+const CONFIG_TARGETS = {
+  mail: { label: '配置邮箱', path: '/tool-settings', query: { tab: 'email' } },
+  db: { label: '配置数据库', path: '/tool-settings', query: { tab: 'db' } },
+  mcp: { label: '配置 MCP', path: '/tool-settings', query: { tab: 'mcp' } },
+  a2a: { label: '配置伙伴', path: '/agent-a2a' },
+  rag: { label: '配置知识库', path: '/agent-knowledge' }
+}
+
+function configTarget(group) {
+  return CONFIG_TARGETS[group.name] || null
+}
 
 async function load() {
   loading.value = true
@@ -112,6 +137,36 @@ onMounted(load)
   border-radius: 10px;
   padding: 12px;
   margin-bottom: 10px;
+}
+
+.config-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.config-links a,
+.config-link {
+  color: var(--app-primary);
+  text-decoration: none;
+}
+
+.config-links a:hover,
+.config-link:hover {
+  text-decoration: underline;
+}
+
+.config-link {
+  font-size: 12px;
+}
+
+.group-head-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .tool-group-head {

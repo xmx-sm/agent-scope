@@ -122,6 +122,12 @@ async def init_db() -> None:
                         f"{column} {ddl}"
                     )
                 )
+            await conn.execute(
+                text(
+                    "ALTER TABLE user_subagents ADD COLUMN IF NOT EXISTS "
+                    "llm_config TEXT NOT NULL DEFAULT '{}'"
+                )
+            )
 
 
 async def close_db() -> None:

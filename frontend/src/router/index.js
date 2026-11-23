@@ -176,7 +176,8 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  // 子路径部署：BASE_URL 由 vite.config.js 的 base 注入（默认 /agent_scope/）
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes
 })
 

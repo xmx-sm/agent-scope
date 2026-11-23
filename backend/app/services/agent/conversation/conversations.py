@@ -23,15 +23,30 @@ def _load_json(raw: str | None) -> list:
 async def async_list_conversations(params: dict) -> list[dict]:
     """列出当前用户的会话。
 
-        参数：session / user_id。
+        参数：session / user_id / origin / super_agent_id / parent_conversation_id / q / limit。
         """
     session: AsyncSession = params["session"]
     user_id: str = params["user_id"]
+    stmt = select(AgentConversation).where(AgentConversation.user_id == user_id)
+    origin = params.get("origin")
+    if origin == "chat":
+        stmt = stmt.where(AgentConversation.origin.is_(None))
+    elif origin == "super":
+        stmt = stmt.where(AgentConversation.origin.in_(("super_main", "super_sub")))
+    elif origin:
+        stmt = stmt.where(AgentConversation.origin == origin)
+    if params.get("super_agent_id"):
+        stmt = stmt.where(AgentConversation.super_agent_id == params["super_agent_id"])
+    if params.get("parent_conversation_id"):
+        stmt = stmt.where(
+            AgentConversation.parent_conversation_id == params["parent_conversation_id"]
+        )
+    if params.get("q"):
+        stmt = stmt.where(AgentConversation.title.contains(str(params["q"])[:100]))
+    limit = max(1, min(int(params.get("limit") or 200), 500))
     rows = (
         await session.execute(
-            select(AgentConversation)
-            .where(AgentConversation.user_id == user_id)
-            .order_by(AgentConversation.updated_at.desc())
+            stmt.order_by(AgentConversation.updated_at.desc()).limit(limit)
         )
     ).scalars().all()
     return [

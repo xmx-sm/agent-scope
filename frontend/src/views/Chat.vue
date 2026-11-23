@@ -7,26 +7,46 @@
       </div>
       <div class="conv-list">
         <div
-          v-for="conv in conversations"
+          v-for="conv in filteredConversations"
           :key="conv.id"
           class="conv-item"
           :class="{ active: conv.id === currentId }"
           @click="selectConversation(conv)"
         >
-          <div class="conv-title">{{ conv.title || '新会话' }}</div>
+          <div class="conv-title">
+            <span class="conv-name">{{ conv.title || '新会话' }}</span>
+            <el-tag v-if="originLabel(conv)" size="small" effect="plain" class="conv-origin">
+              {{ originLabel(conv) }}
+            </el-tag>
+          </div>
           <div class="conv-actions">
             <el-button text size="small" :icon="Edit" @click.stop="renameConversation(conv)" />
             <el-button text size="small" :icon="Delete" @click.stop="removeConversation(conv)" />
           </div>
         </div>
-        <el-empty v-if="!conversations.length" description="暂无会话" :image-size="60" />
+        <el-empty v-if="!filteredConversations.length" description="暂无会话" :image-size="60" />
       </div>
     </aside>
 
     <section class="chat-main">
+      <div class="chat-tabs">
+        <button
+          v-for="tab in CHAT_TABS"
+          :key="tab.value"
+          type="button"
+          class="chat-tab"
+          :class="{ active: originFilter === tab.value }"
+          @click="switchOrigin(tab.value)"
+        >
+          {{ tab.label }}
+          <span v-if="tabCount(tab.value)" class="chat-tab-count">{{ tabCount(tab.value) }}</span>
+        </button>
+      </div>
+
       <header class="chat-head">
         <el-button v-if="isMobile" text circle :icon="Menu" @click="convOpen = !convOpen" />
         <div class="chat-title">{{ currentConversation?.title || 'AI 对话' }}</div>
+        <el-tag v-if="currentOrigin" size="small" effect="plain">{{ currentOrigin }}</el-tag>
         <el-tag v-if="stats" size="small" effect="plain">Tokens {{ stats.total_tokens }}</el-tag>
         <el-tag size="small" effect="plain">{{ modelLabel }}</el-tag>
       </header>
@@ -45,7 +65,7 @@
                 </el-collapse-item>
               </el-collapse>
             </div>
-            <pre class="content">{{ msg.content }}</pre>
+            <MarkdownView v-if="msg.content" :content="msg.content" />
             <div v-if="msg.content && !msg.streaming" class="msg-actions">
               <el-button
                 v-if="msg.role === 'assistant'"
@@ -117,7 +137,8 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -130,50 +151,89 @@ import {
   Promotion,
   VideoPause
 } from '@element-plus/icons-vue'
+import { useChatStore } from '../stores/chat'
+import MarkdownView from '../components/MarkdownView.vue'
 import api from '../utils/api'
 
 const isMobile = ref(window.innerWidth < 768)
 const convOpen = ref(false)
 const route = useRoute()
 const router = useRouter()
-const conversations = ref([])
+const chat = useChatStore()
+const {
+  conversations,
+  currentId,
+  messages,
+  stats,
+  streaming,
+  streamText,
+  currentConversation
+} = storeToRefs(chat)
+
 const speakingId = ref('')
 let audioPlayer = null
-const currentId = ref('')
-const messages = ref([])
-const stats = ref(null)
 const input = ref('')
 const fileInput = ref(null)
 const uploading = ref(false)
 const pendingAttachments = ref([])
-const streaming = ref(false)
-const streamText = ref('')
 const listRef = ref(null)
-let controller = null
+const originFilter = ref('chat')
 
-const currentConversation = computed(() =>
-  conversations.value.find((item) => item.id === currentId.value)
-)
-const modelLabel = computed(() => 'AI')
-const toolList = (msg) => {
-  try {
-    return JSON.parse(msg.tool_events || '[]')
-  } catch {
-    return []
-  }
+const CHAT_TABS = [
+  { label: 'AI 对话', value: 'chat' },
+  { label: 'A2A 对话', value: 'a2a' },
+  { label: '超级智能体', value: 'super' },
+  { label: '定时任务', value: 'cron' }
+]
+
+const ORIGIN_LABELS = {
+  super_main: '超级·主',
+  super_sub: '超级·子',
+  a2a: 'A2A',
+  cron: '定时',
+  branch: '分支'
 }
+
+function normalizeOriginFilter(value) {
+  const text = String(value || 'chat')
+  if (text === 'all' || text === 'branch') return 'chat'
+  return ['chat', 'a2a', 'super', 'cron'].includes(text) ? text : 'chat'
+}
+
+function originLabel(conv) {
+  if (!conv?.origin) return ''
+  return ORIGIN_LABELS[conv.origin] || conv.origin
+}
+
+const filteredConversations = computed(() => {
+  const origin = originFilter.value
+  if (origin === 'chat') {
+    return conversations.value.filter((item) => !item.origin || item.origin === 'branch')
+  }
+  if (origin === 'super') {
+    return conversations.value.filter((item) => ['super_main', 'super_sub'].includes(item.origin))
+  }
+  return conversations.value.filter((item) => item.origin === origin)
+})
+
+function tabCount(value) {
+  if (value === 'chat') {
+    return conversations.value.filter((item) => !item.origin || item.origin === 'branch').length
+  }
+  if (value === 'super') {
+    return conversations.value.filter((item) => ['super_main', 'super_sub'].includes(item.origin)).length
+  }
+  return conversations.value.filter((item) => item.origin === value).length
+}
+
+const currentOrigin = computed(() => originLabel(currentConversation.value))
+
+const modelLabel = computed(() => 'AI')
+const toolList = (msg) => chat.toolList(msg)
 
 function onResize() {
   isMobile.value = window.innerWidth < 768
   if (!isMobile.value) convOpen.value = false
-}
-
-async function loadStats() {
-  try {
-    stats.value = await api.get('/agent/stats')
-  } catch {
-    /* ignore */
-  }
 }
 
 async function renameConversation(conv) {
@@ -182,53 +242,61 @@ async function renameConversation(conv) {
       inputValue: conv.title || '',
       inputValidator: (value) => Boolean(value && value.trim()) || '标题不能为空'
     })
-    const data = await api.patch(`/agent/conversations/${conv.id}`, { title: value.trim() })
-    conv.title = data.title
-    await loadConversations()
+    await chat.renameConversation(conv.id, value.trim())
   } catch {
     /* ignore */
   }
 }
 
 async function loadConversations() {
-  try {
-    conversations.value = await api.get('/agent/conversations')
-    const wanted = route.query.conversation
-    if (wanted) {
-      const target = conversations.value.find((item) => item.id === wanted)
-      if (target) {
-        await selectConversation(target)
-        return
-      }
-    }
-    if (!currentId.value && conversations.value.length) {
-      await selectConversation(conversations.value[0])
-    }
-  } catch {
-    /* ignore */
-  }
+  originFilter.value = normalizeOriginFilter(route.query.origin)
+  const wanted = route.query.conversation
+  await chat.loadConversations(wanted ? String(wanted) : '')
+  await ensureFilteredConversation()
+  await chat.resumeIfNeeded()
+  scrollToBottom()
 }
 
-async function selectConversation(conv) {
-  currentId.value = conv.id
-  convOpen.value = false
+async function ensureFilteredConversation() {
+  if (streaming.value) return
+  const list = filteredConversations.value
+  if (!list.length || list.some((item) => item.id === currentId.value)) return
   try {
-    messages.value = await api.get(`/agent/conversations/${conv.id}/messages`)
+    await chat.selectConversation(list[0].id)
     scrollToBottom()
   } catch {
     /* ignore */
   }
 }
 
+function switchOrigin(value) {
+  if (originFilter.value === value) return
+  originFilter.value = value
+  const query = { ...route.query }
+  delete query.conversation
+  if (value === 'chat') delete query.origin
+  else query.origin = value
+  router.replace({ path: route.path, query })
+}
+
+async function selectConversation(conv) {
+  try {
+    await chat.selectConversation(conv.id)
+    convOpen.value = false
+    scrollToBottom()
+    await chat.resumeIfNeeded()
+  } catch (error) {
+    ElMessage.warning(error.message || '切换会话失败')
+  }
+}
+
 async function newConversation() {
   try {
-    const conv = await api.post('/agent/conversations', { title: '新会话' })
-    conversations.value.unshift(conv)
-    currentId.value = conv.id
-    messages.value = []
+    await chat.newConversation()
+    originFilter.value = 'chat'
     convOpen.value = false
-  } catch {
-    /* ignore */
+  } catch (error) {
+    ElMessage.warning(error.message || '新建会话失败')
   }
 }
 
@@ -239,15 +307,9 @@ async function removeConversation(conv) {
     return
   }
   try {
-    await api.delete(`/agent/conversations/${conv.id}`)
-    conversations.value = conversations.value.filter((item) => item.id !== conv.id)
-    if (currentId.value === conv.id) {
-      currentId.value = conversations.value[0]?.id || ''
-      messages.value = []
-      if (currentId.value) await selectConversation(conversations.value[0])
-    }
-  } catch {
-    /* ignore */
+    await chat.removeConversation(conv.id)
+  } catch (error) {
+    ElMessage.warning(error.message || '删除会话失败')
   }
 }
 
@@ -284,169 +346,31 @@ function removePending(id) {
   pendingAttachments.value = pendingAttachments.value.filter((file) => file.id !== id)
 }
 
-function appendDelta(text) {
-  streamText.value += text
-  const last = messages.value[messages.value.length - 1]
-  if (last && last.role === 'assistant' && last.streaming) {
-    last.content = streamText.value
-  } else {
-    messages.value.push({
-      id: `stream-${Date.now()}`,
-      role: 'assistant',
-      content: streamText.value,
-      reasoning: '',
-      tool_events: '[]',
-      streaming: true
-    })
-  }
-  scrollToBottom()
-}
-
-function handleEvent(event, data) {
-  if (event === 'text_delta') appendDelta(data.text || '')
-  else if (event === 'reasoning_delta') {
-    const last = messages.value[messages.value.length - 1]
-    if (last && last.role === 'assistant' && last.streaming) {
-      last.reasoning = (last.reasoning || '') + (data.text || '')
-    }
-  } else if (event === 'tool_result') {
-    const last = messages.value[messages.value.length - 1]
-    if (last && last.role === 'assistant') {
-      const tools = toolList(last)
-      tools.push(data)
-      last.tool_events = JSON.stringify(tools)
-    }
-  } else if (event === 'error') {
-    ElMessage.error(data.error || '生成失败')
-  } else if (event === 'done') {
-    streamText.value = data.content || streamText.value
-  }
-}
-
 async function send() {
   const text = input.value.trim()
   if (!text || streaming.value) return
-  if (!currentId.value) await newConversation()
+  if (!currentId.value) {
+    try {
+      await chat.newConversation()
+    } catch (error) {
+      ElMessage.warning(error.message || '新建会话失败')
+      return
+    }
+  }
   if (!currentId.value) return
+  const attachments = [...pendingAttachments.value]
   input.value = ''
   pendingAttachments.value = []
-  streaming.value = true
-  streamText.value = ''
-  messages.value.push({
-    id: `user-${Date.now()}`,
-    role: 'user',
-    content: text,
-    reasoning: '',
-    tool_events: '[]',
-    attachments: [...pendingAttachments.value]
-  })
-  const streamingMsg = {
-    id: `stream-${Date.now()}`,
-    role: 'assistant',
-    content: '',
-    reasoning: '',
-    tool_events: '[]',
-    streaming: true
-  }
-  messages.value.push(streamingMsg)
   scrollToBottom()
-
-  controller = new AbortController()
-  try {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE || '/api'}/agent/chat/stream`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('access_token') || ''}`
-      },
-      body: JSON.stringify({
-        conversation_id: currentId.value,
-        content: text,
-        attachment_ids: pendingAttachments.value.map((file) => file.id)
-      }),
-      signal: controller.signal
-    })
-    if (!response.ok || !response.body) {
-      throw new Error(`HTTP ${response.status}`)
-    }
-    await readStream(response)
-    await finishStream()
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      ElMessage.info('已停止生成')
-    } else {
-      ElMessage.warning('连接中断，正在尝试续传…')
-      try {
-        const streamingMsg = messages.value[messages.value.length - 1]
-        if (streamingMsg && streamingMsg.streaming) {
-          streamingMsg.content = ''
-          streamingMsg.reasoning = ''
-          streamingMsg.tool_events = '[]'
-        }
-        streamText.value = ''
-        const response = await fetch(
-          `${import.meta.env.VITE_API_BASE || '/api'}/agent/chat/resume/${currentId.value}`,
-          { headers: { Authorization: `Bearer ${localStorage.getItem('access_token') || ''}` } }
-        )
-        if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`)
-        await readStream(response)
-        await finishStream()
-        ElMessage.success('已续传')
-      } catch (resumeError) {
-        ElMessage.error(resumeError.message || '续传失败，请刷新页面查看已生成内容')
-      }
-    }
-  } finally {
-    streaming.value = false
-    controller = null
-    const last = messages.value[messages.value.length - 1]
-    if (last && last.streaming) last.streaming = false
-  }
-}
-
-async function readStream(response) {
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    const frames = buffer.split('\n\n')
-    buffer = frames.pop() || ''
-    for (const frame of frames) {
-      if (!frame.trim()) continue
-      let event = 'message'
-      let data = {}
-      for (const line of frame.split('\n')) {
-        if (line.startsWith('event:')) event = line.slice(6).trim()
-        else if (line.startsWith('data:')) {
-          try {
-            data = JSON.parse(line.slice(5).trim())
-          } catch {
-            data = {}
-          }
-        }
-      }
-      handleEvent(event, data)
-    }
-  }
-}
-
-async function finishStream() {
-  const last = messages.value[messages.value.length - 1]
-  if (last && last.streaming) {
-    last.content = streamText.value
-    last.streaming = false
-  }
-  await loadConversations()
-  await loadStats()
-  await selectConversation({ id: currentId.value })
+  await chat.send({
+    text,
+    attachmentIds: attachments.map((file) => file.id),
+    attachments
+  })
 }
 
 function stop() {
-  if (controller) controller.abort()
-  streaming.value = false
+  chat.stop()
 }
 
 async function createBranch(msg) {
@@ -517,12 +441,44 @@ async function toggleSpeak(msg) {
   }
 }
 
-onMounted(() => {
-  window.addEventListener('resize', onResize)
-  loadConversations()
-  loadStats()
+watch(
+  () => [messages.value.length, streamText.value, streaming.value],
+  () => scrollToBottom()
+)
+
+watch(
+  () => route.query.origin,
+  (value) => {
+    originFilter.value = normalizeOriginFilter(value)
+  }
+)
+
+watch(originFilter, () => {
+  ensureFilteredConversation()
 })
+
+watch(
+  () => route.query.conversation,
+  async (id) => {
+    if (!id || id === currentId.value || streaming.value) return
+    try {
+      await chat.selectConversation(String(id))
+      scrollToBottom()
+      await chat.resumeIfNeeded()
+    } catch {
+      /* ignore */
+    }
+  }
+)
+
+onMounted(async () => {
+  window.addEventListener('resize', onResize)
+  await loadConversations()
+  chat.loadStats()
+})
+
 onBeforeUnmount(() => {
+  // 只清理页面级资源；生成任务由 Pinia store 托管，切换页面不会中断。
   window.removeEventListener('resize', onResize)
   stopSpeak()
 })
@@ -581,6 +537,20 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   padding-right: 22px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.conv-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conv-origin {
+  flex: none;
 }
 
 .conv-actions {
@@ -600,6 +570,38 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   min-width: 0;
+}
+
+.chat-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px 0;
+  background: #fff;
+  border-bottom: 1px solid var(--app-border);
+  overflow-x: auto;
+}
+
+.chat-tab {
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--app-muted);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chat-tab.active {
+  color: var(--app-primary);
+  border-bottom-color: var(--app-primary);
+  font-weight: 600;
+}
+
+.chat-tab-count {
+  margin-left: 4px;
+  font-size: 11px;
+  color: #6b7280;
 }
 
 .chat-head {
@@ -659,15 +661,23 @@ onBeforeUnmount(() => {
   border-color: var(--app-primary);
 }
 
-.content {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-family: inherit;
+.message.user .bubble :deep(.markdown-body) {
+  color: #fff;
 }
 
-.message.user .content {
+.message.user .bubble :deep(.markdown-body a) {
+  color: #dbeafe;
+}
+
+.message.user .bubble :deep(.markdown-body code) {
+  background: rgba(255, 255, 255, 0.2);
   color: #fff;
+}
+
+.message.user .bubble :deep(.markdown-body blockquote) {
+  border-left-color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.12);
+  color: #f3f4f6;
 }
 
 .reasoning {

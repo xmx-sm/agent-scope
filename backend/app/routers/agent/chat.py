@@ -1,6 +1,6 @@
 """Agent 对话路由。"""
 
-from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -67,8 +67,28 @@ async def agent_stats(
 
 
 @router.get("/conversations")
-async def list_conversations(user: CurrentUser, db: AsyncSession = Depends(get_db)):
-    return ok(await conv_service.async_list_conversations({"session": db, "user_id": user.id}))
+async def list_conversations(
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    origin: str | None = Query(default=None),
+    super_agent_id: str | None = Query(default=None),
+    parent_conversation_id: str | None = Query(default=None),
+    q: str | None = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=500),
+):
+    return ok(
+        await conv_service.async_list_conversations(
+            {
+                "session": db,
+                "user_id": user.id,
+                "origin": origin,
+                "super_agent_id": super_agent_id,
+                "parent_conversation_id": parent_conversation_id,
+                "q": q,
+                "limit": limit,
+            }
+        )
+    )
 
 
 @router.post("/conversations")

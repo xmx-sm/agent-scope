@@ -1,7 +1,9 @@
 <template>
-  <div class="page">
-    <h2 class="page-title">子智能体</h2>
-    <p class="page-desc">为 Agent 配置可委派的子智能体；主 Agent 会通过委派工具调用它们</p>
+  <div :class="embedded ? 'embedded-panel' : 'page'">
+    <template v-if="!embedded">
+      <h2 class="page-title">子智能体</h2>
+      <p class="page-desc">为 Agent 配置可委派的子智能体；主 Agent 会通过委派工具调用它们</p>
+    </template>
 
     <div class="panel" v-loading="loading">
       <div class="toolbar">
@@ -12,6 +14,11 @@
       <el-table :data="items" size="small" stripe>
         <el-table-column prop="name" label="名称" min-width="130" />
         <el-table-column prop="description" label="描述" min-width="180" />
+        <el-table-column label="模型" min-width="140">
+          <template #default="{ row }">
+            <span>{{ row.llm_config?.model || '跟随个人配置' }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="工具" min-width="180">
           <template #default="{ row }">
             <el-tag v-for="tool in row.tools" :key="tool" size="small" effect="plain" class="tool-tag">
@@ -42,6 +49,34 @@
         <el-form-item label="系统提示词">
           <el-input v-model="form.system_prompt" type="textarea" :rows="5" />
         </el-form-item>
+        <el-divider content-position="left">模型覆盖（留空跟随个人 Agent 配置）</el-divider>
+        <div class="form-grid">
+          <el-form-item label="服务商">
+            <el-input v-model="form.llm_config.provider" placeholder="openai-compatible" />
+          </el-form-item>
+          <el-form-item label="模型">
+            <el-input v-model="form.llm_config.model" placeholder="gpt-4o-mini" />
+          </el-form-item>
+          <el-form-item label="API 地址">
+            <el-input v-model="form.llm_config.base_url" placeholder="https://.../v1" />
+          </el-form-item>
+          <el-form-item label="API Key">
+            <el-input v-model="form.llm_config.api_key" type="password" show-password />
+          </el-form-item>
+          <el-form-item label="温度">
+            <el-input-number v-model="form.llm_config.temperature" :min="0" :max="2" :step="0.1" />
+          </el-form-item>
+          <el-form-item label="最大输出 tokens">
+            <el-input-number v-model="form.llm_config.max_tokens" :min="64" :step="256" />
+          </el-form-item>
+          <el-form-item label="思考强度">
+            <el-select v-model="form.llm_config.reasoning_effort" clearable style="width: 100%">
+              <el-option label="低" value="low" />
+              <el-option label="中" value="medium" />
+              <el-option label="高" value="high" />
+            </el-select>
+          </el-form-item>
+        </div>
         <el-form-item label="可用工具">
           <el-select v-model="form.tools" multiple filterable style="width: 100%">
             <el-option v-for="tool in toolOptions" :key="tool.name" :label="`${tool.label}（${tool.name}）`" :value="tool.name" />
@@ -70,6 +105,10 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import api from '../utils/api'
 
+defineProps({
+  embedded: { type: Boolean, default: false }
+})
+
 const isMobile = ref(window.innerWidth < 768)
 const loading = ref(false)
 const saving = ref(false)
@@ -79,12 +118,25 @@ const dialogVisible = ref(false)
 const editing = ref(false)
 const form = reactive(emptyForm())
 
+function blankLlm() {
+  return {
+    provider: '',
+    model: '',
+    base_url: '',
+    api_key: '',
+    temperature: null,
+    max_tokens: null,
+    reasoning_effort: ''
+  }
+}
+
 function emptyForm() {
   return {
     id: '',
     name: '',
     description: '',
     system_prompt: '',
+    llm_config: blankLlm(),
     tools: [],
     mode: 'auto',
     is_active: true
@@ -120,6 +172,7 @@ function openEdit(row) {
     name: row.name,
     description: row.description,
     system_prompt: row.system_prompt,
+    llm_config: { ...blankLlm(), ...(row.llm_config || {}) },
     tools: [...(row.tools || [])],
     mode: row.mode,
     is_active: row.is_active
@@ -130,7 +183,11 @@ function openEdit(row) {
 async function save() {
   saving.value = true
   try {
-    await api.post('/agent/subagents', { ...form })
+    const llm = {}
+    Object.entries(form.llm_config || {}).forEach(([key, value]) => {
+      if (value !== '' && value !== null && value !== undefined) llm[key] = value
+    })
+    await api.post('/agent/subagents', { ...form, llm_config: llm })
     ElMessage.success('子智能体已保存')
     dialogVisible.value = false
     await load()
@@ -178,5 +235,11 @@ onMounted(load)
 
 .tool-tag {
   margin-right: 4px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0 18px;
 }
 </style>

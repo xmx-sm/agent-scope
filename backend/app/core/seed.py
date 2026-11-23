@@ -60,18 +60,6 @@ SEED_MENUS: list[dict[str, Any]] = [
     {"key": "menu.knowledge", "parent_key": "group.agent", "title": "知识库",
      "path": "/agent-knowledge", "icon": "Collection", "permission": "ai.use",
      "super_only": False, "sort_order": 34},
-    {"key": "menu.skills", "parent_key": "group.agent", "title": "Skills",
-     "path": "/agent-skills", "icon": "MagicStick", "permission": "ai.use",
-     "super_only": False, "sort_order": 36},
-    {"key": "menu.mcp", "parent_key": "group.agent", "title": "MCP",
-     "path": "/agent-mcp", "icon": "Connection", "permission": "ai.use",
-     "super_only": False, "sort_order": 37},
-    {"key": "menu.subagents", "parent_key": "group.agent", "title": "子智能体",
-     "path": "/agent-subagents", "icon": "UserFilled", "permission": "ai.use",
-     "super_only": False, "sort_order": 38},
-    {"key": "menu.super_agent", "parent_key": "group.agent", "title": "超级智能体",
-     "path": "/agent-super", "icon": "Connection", "permission": "ai.use",
-     "super_only": False, "sort_order": 39},
     {"key": "menu.a2a", "parent_key": "group.agent", "title": "A2A 协作",
      "path": "/agent-a2a", "icon": "Share", "permission": "ai.use",
      "super_only": False, "sort_order": 40},
@@ -182,11 +170,11 @@ async def async_seed(params: dict) -> None:
         created_configs += 1
 
     created_menus = 0
-    layout_marker = await session.get(SystemConfig, "__meta.menu_layout_v6")
+    layout_marker = await session.get(SystemConfig, "__meta.menu_layout_v8")
     if layout_marker is None:
         legacy_keys = [
             "group.permissions", "menu.settings", "menu.team_permissions", "menu.admin",
-            "menu.config",
+            "menu.config", "menu.subagents", "menu.super_agent", "menu.skills", "menu.mcp",
         ]
         for key in legacy_keys:
             row = (
@@ -205,8 +193,8 @@ async def async_seed(params: dict) -> None:
                         setattr(row, field, value)
         session.add(
             SystemConfig(
-                key="__meta.menu_layout_v6",
-                value='"6"',
+                key="__meta.menu_layout_v8",
+                value='"8"',
                 label="内部：菜单布局版本",
                 description="内部迁移标记，不在默认设置中展示",
                 value_type="string",

@@ -1,7 +1,9 @@
 <template>
-  <div class="page">
-    <h2 class="page-title">Skills</h2>
-    <p class="page-desc">上传技能压缩包（根目录或单层子目录包含 SKILL.md），启用后注入 Agent</p>
+  <div :class="embedded ? 'embedded-panel' : 'page'">
+    <template v-if="!embedded">
+      <h2 class="page-title">Skills</h2>
+      <p class="page-desc">上传技能压缩包（根目录或单层子目录包含 SKILL.md），启用后注入 Agent</p>
+    </template>
 
     <div class="panel" v-loading="loading">
       <div class="toolbar">
@@ -38,6 +40,10 @@ import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Upload } from '@element-plus/icons-vue'
 import api from '../utils/api'
+
+defineProps({
+  embedded: { type: Boolean, default: false }
+})
 
 const loading = ref(false)
 const uploading = ref(false)

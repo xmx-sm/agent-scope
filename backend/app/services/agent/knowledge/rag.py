@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import ApiError
 from app.core.database import AsyncSessionLocal
 from app.services.agent.runtime.scope_bridge import ROOT
-from app.services.config.service import async_get_config
+from app.services.access.tools.tool_config import async_effective as async_tool_config
 
 RAG_ROOT = ROOT / "backend" / "uploads" / "agents"
 
@@ -21,25 +21,25 @@ def _base_dir(user_id: str) -> str:
     return str(path)
 
 
-async def _embedding(session: AsyncSession) -> dict:
-    """内部辅助函数：_embedding。
-    参数：session。
-    """
-    async def get(key: str, default=""):
-        """读取系统配置。"""
-        return await async_get_config({"session": session, "key": key, "default": default})
-
-    provider = str(await get("ai.embedding.provider", "") or "")
-    model = str(await get("ai.embedding.model", "") or "")
-    base_url = str(await get("ai.embedding.base_url", "") or "")
-    api_key = str(await get("ai.embedding.api_key", "") or "")
-    dimensions = int(await get("ai.embedding.dimensions", 0) or 0)
+async def _embedding(session: AsyncSession, user_id: str) -> dict:
+    """读取用户级 Embedding 配置（工具配置可覆盖，默认跟随系统 Agent 配置）。"""
+    cfg = await async_tool_config(
+        {"session": session, "user_id": user_id, "category": "embedding"}
+    )
+    provider = str(cfg.get("provider") or "").strip()
+    model = str(cfg.get("model") or "").strip()
     if not provider or not model:
-        raise ApiError("请先在 Agent 配置中填写 Embedding 服务商与模型")
-    cfg = {"provider": provider, "model": model, "base_url": base_url, "api_key": api_key}
+        raise ApiError("请先在工具配置 → Embedding 或 Agent 配置中填写 Embedding 服务商与模型")
+    result = {
+        "provider": provider,
+        "model": model,
+        "base_url": str(cfg.get("base_url") or ""),
+        "api_key": str(cfg.get("api_key") or ""),
+    }
+    dimensions = int(cfg.get("dimensions") or 0)
     if dimensions:
-        cfg["dimensions"] = dimensions
-    return cfg
+        result["dimensions"] = dimensions
+    return result
 
 
 def _rag_config(user_id: str, collection: str) -> dict:
@@ -104,7 +104,7 @@ async def async_upload(params: dict) -> dict:
     collection = str(params.get("collection") or "default")
     filename = str(params.get("filename") or "file")
     content: bytes = params["content"]
-    embedding = await _embedding(session)
+    embedding = await _embedding(session, user_id)
     extension = Path(filename).suffix.lstrip(".").lower()
     data = await _call(
         {
@@ -129,7 +129,7 @@ async def async_search(params: dict) -> list:
         参数：collection / top_k / session / user_id / query。
         """
     session: AsyncSession = params["session"]
-    embedding = await _embedding(session)
+    embedding = await _embedding(session, params["user_id"])
     return await _call(
         {
             "function": "read",

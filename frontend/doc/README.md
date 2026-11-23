@@ -20,11 +20,12 @@
 cd frontend
 cp .env.example .env
 npm install
-npm run dev      # http://127.0.0.1:5182
+npm run dev      # http://127.0.0.1:5182/agent_scope/
 npm run build    # dist/
 ```
 
-开发代理：`/api` → `VITE_PROXY_TARGET`（默认 `http://127.0.0.1:8000`）。
+开发代理：`/agent_scope/api` → `VITE_PROXY_TARGET`（默认 `http://127.0.0.1:8000`，转发前剥掉 `/agent_scope`）。
+生产部署：Nginx 监听 `5080`，路径 `/agent_scope`，规则见 `deploy/nginx/agent_scope.conf`。
 
 ## 关键约定
 

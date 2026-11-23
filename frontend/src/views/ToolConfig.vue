@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <h2 class="page-title">工具配置</h2>
-    <p class="page-desc">邮箱与数据库连接；默认使用系统配置，也可以为自己的账号单独配置</p>
+    <p class="page-desc">统一管理邮箱、数据库、Embedding、工作区、Skills、MCP、子智能体与超级智能体</p>
 
     <el-tabs v-model="activeTab" @tab-change="load">
       <el-tab-pane label="邮箱" name="email">
@@ -85,15 +85,103 @@
           </div>
         </div>
       </el-tab-pane>
+
+      <el-tab-pane label="Embedding" name="embedding">
+        <div class="panel" v-loading="loading">
+          <el-radio-group v-model="useDefault" class="mode-switch">
+            <el-radio-button :value="true">使用系统默认</el-radio-button>
+            <el-radio-button :value="false">自定义配置</el-radio-button>
+          </el-radio-group>
+
+          <div v-if="useDefault" class="system-info">
+            <div class="info-grid">
+              <div><span class="muted">服务商</span><b>{{ view.system.provider || '未配置' }}</b></div>
+              <div><span class="muted">模型</span><b>{{ view.system.model || '未配置' }}</b></div>
+              <div><span class="muted">API 地址</span><b>{{ view.system.base_url || '未配置' }}</b></div>
+              <div><span class="muted">Key</span><b>{{ view.system.api_key || '未配置' }}</b></div>
+            </div>
+          </div>
+
+          <el-form v-else label-position="top">
+            <div class="form-grid">
+              <el-form-item label="服务商">
+                <el-input v-model="form.provider" placeholder="openai-compatible" />
+              </el-form-item>
+              <el-form-item label="模型">
+                <el-input v-model="form.model" placeholder="text-embedding-3-small" />
+              </el-form-item>
+              <el-form-item label="API 地址">
+                <el-input v-model="form.base_url" placeholder="https://.../v1" />
+              </el-form-item>
+              <el-form-item label="API Key">
+                <el-input v-model="form.api_key" type="password" show-password />
+              </el-form-item>
+              <el-form-item label="维度">
+                <el-input-number v-model="form.dimensions" :min="0" />
+              </el-form-item>
+            </div>
+          </el-form>
+
+          <div class="save-bar">
+            <el-button @click="reset" :loading="resetting">恢复系统默认</el-button>
+            <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+          </div>
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane label="工作区" name="workspace">
+        <div class="panel">
+          <div class="workspace-box">
+            <div class="workspace-title">
+              <b>个人工作区</b>
+              <el-button link type="primary" @click="copyWorkspace">复制路径</el-button>
+            </div>
+            <code>{{ workspace.workspace || '加载中…' }}</code>
+            <p class="muted">{{ workspace.note || '公网部署已禁用 AI 文件工具；目录仍用于附件、知识库与用户数据隔离。' }}</p>
+          </div>
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane label="Skills" name="skills">
+        <SkillsPanel v-if="activeTab === 'skills'" embedded />
+      </el-tab-pane>
+
+      <el-tab-pane label="MCP" name="mcp">
+        <McpPanel v-if="activeTab === 'mcp'" embedded />
+      </el-tab-pane>
+
+      <el-tab-pane label="子智能体" name="subagents">
+        <SubagentsPanel v-if="activeTab === 'subagents'" embedded />
+      </el-tab-pane>
+
+      <el-tab-pane label="超级智能体" name="super">
+        <SuperAgentPanel v-if="activeTab === 'super'" embedded />
+      </el-tab-pane>
     </el-tabs>
+
+    <div class="panel extra-panel">
+      <b>其他配置入口</b>
+      <div class="config-links">
+        <router-link to="/agent-settings">个人 Agent 模型</router-link>
+        <router-link to="/tool-settings?tab=super">超级智能体模型</router-link>
+        <router-link to="/agent-knowledge">知识库 / 向量模型</router-link>
+        <router-link to="/tool-settings?tab=subagents">子智能体模型</router-link>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import api from '../utils/api'
+import SubagentsPanel from './Subagents.vue'
+import SuperAgentPanel from './SuperAgent.vue'
+import SkillsPanel from './Skills.vue'
+import McpPanel from './McpSettings.vue'
 
+const route = useRoute()
 const activeTab = ref('email')
 const loading = ref(false)
 const saving = ref(false)
@@ -101,6 +189,7 @@ const resetting = ref(false)
 const testing = ref(false)
 const useDefault = ref(true)
 const view = ref({ system: {}, user: {}, effective: {} })
+const workspace = ref({})
 const form = reactive({
   smtp_host: '',
   smtp_port: 465,
@@ -118,7 +207,11 @@ const form = reactive({
   database: '',
   path: '',
   dir: '',
-  allow_write: false
+  allow_write: false,
+  provider: '',
+  model: '',
+  api_key: '',
+  dimensions: 0
 })
 
 async function load() {
@@ -183,7 +276,51 @@ async function test() {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  const tab = String(route.query.tab || '')
+  if (['email', 'db', 'embedding', 'workspace', 'skills', 'mcp', 'subagents', 'super'].includes(tab)) activeTab.value = tab
+  loadWorkspace()
+  load()
+})
+
+watch(
+  () => route.query.tab,
+  (value) => {
+    const tab = String(value || '')
+    if (['email', 'db', 'embedding', 'workspace', 'skills', 'mcp', 'subagents', 'super'].includes(tab)) {
+      activeTab.value = tab
+    }
+  }
+)
+
+async function loadWorkspace() {
+  try {
+    workspace.value = await api.get('/agent/workspace')
+  } catch {
+    /* ignore */
+  }
+}
+
+async function copyWorkspace() {
+  if (!workspace.value.workspace) return
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(workspace.value.workspace)
+    } else {
+      const area = document.createElement('textarea')
+      area.value = workspace.value.workspace
+      area.style.position = 'fixed'
+      area.style.opacity = '0'
+      document.body.appendChild(area)
+      area.select()
+      document.execCommand('copy')
+      document.body.removeChild(area)
+    }
+    ElMessage.success('已复制工作区路径')
+  } catch {
+    ElMessage.error('复制失败')
+  }
+}
 </script>
 
 <style scoped>
@@ -221,5 +358,53 @@ onMounted(load)
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.extra-panel {
+  margin-top: 14px;
+  padding: 16px;
+}
+
+.config-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.config-links a {
+  color: var(--app-primary);
+  text-decoration: none;
+}
+
+.config-links a:hover {
+  text-decoration: underline;
+}
+
+.workspace-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workspace-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.workspace-box code {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #f8fafc;
+  word-break: break-all;
+  font-size: 12.5px;
+}
+
+.workspace-box p {
+  margin: 0;
+  font-size: 12px;
 }
 </style>

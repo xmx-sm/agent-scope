@@ -118,7 +118,7 @@ async function changePassword() {
     })
     ElMessage.success('密码已修改，请重新登录')
     auth.logout()
-    window.location.href = '/login'
+    window.location.href = `${import.meta.env.BASE_URL}login`
   } catch {
     /* ignore */
   } finally {

@@ -1,8 +1,11 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
+const appBase = import.meta.env.BASE_URL || '/'
+const loginPath = `${appBase}login`
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE || '/api',
+  baseURL: import.meta.env.VITE_API_BASE || `${appBase}api`,
   timeout: 20000
 })
 
@@ -32,8 +35,8 @@ api.interceptors.response.use(
       localStorage.removeItem('refresh_token')
       localStorage.removeItem('user')
       localStorage.removeItem('permissions')
-      if (!window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login'
+      if (!window.location.pathname.startsWith(loginPath)) {
+        window.location.href = loginPath
       }
     } else {
       ElMessage.error(msg || '网络错误')

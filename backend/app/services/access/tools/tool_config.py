@@ -11,8 +11,8 @@ from app.models import User, UserToolConfig
 from app.services.config.service import async_get_config
 from app.utils.mask import SENTINEL, mask_secret
 
-CATEGORIES = ("email", "db")
-SECRET_FIELDS = {"email": ("password",), "db": ("password",)}
+CATEGORIES = ("email", "db", "embedding")
+SECRET_FIELDS = {"email": ("password",), "db": ("password",), "embedding": ("api_key",)}
 
 
 def _mask(category: str, config: dict) -> dict:
@@ -44,6 +44,14 @@ async def _system_config(session: AsyncSession, category: str) -> dict[str, Any]
             "from_address": await get("mail.from_address", ""),
             "from_name": await get("mail.from_name", "Agent Scope"),
             "use_tls": await get("mail.use_tls", True),
+        }
+    if category == "embedding":
+        return {
+            "provider": await get("ai.embedding.provider", ""),
+            "base_url": await get("ai.embedding.base_url", ""),
+            "api_key": await get("ai.embedding.api_key", ""),
+            "model": await get("ai.embedding.model", ""),
+            "dimensions": await get("ai.embedding.dimensions", 0),
         }
     return {
         "db_type": await get("db.default_type", ""),
@@ -158,6 +166,11 @@ async def async_save(params: dict) -> dict[str, Any]:
                 raise ApiError("自定义邮箱配置必须填写 SMTP 服务器")
             if not str(config.get("host_user") or "").strip():
                 raise ApiError("自定义邮箱配置必须填写邮箱账号")
+        elif category == "embedding":
+            if not str(config.get("provider") or "").strip():
+                raise ApiError("自定义 Embedding 配置必须填写服务商")
+            if not str(config.get("model") or "").strip():
+                raise ApiError("自定义 Embedding 配置必须填写模型")
         else:
             db_type = str(config.get("db_type") or "").strip()
             if db_type not in ("postgresql", "mysql", "mongodb", "sqlite"):
