@@ -54,6 +54,9 @@ async def async_save(params: dict) -> dict:
     mcp_type = str(data.get("mcp_type") or "http")
     if mcp_type not in ("http", "stdio"):
         raise ApiError("MCP 类型只支持 http / stdio")
+    # ---- 公网部署安全策略：禁止 stdio MCP（等价于任意命令执行）----
+    if mcp_type == "stdio":
+        raise ApiError("公网部署已禁用 stdio MCP，请使用 HTTP MCP")
     if mcp_type == "http" and not str(data.get("url") or "").strip():
         raise ApiError("HTTP MCP 需要填写 URL")
     if mcp_type == "stdio" and not str(data.get("command") or "").strip():
@@ -113,13 +116,8 @@ async def async_active_servers(params: dict) -> dict:
     ).scalars().all()
     servers = {}
     for row in rows:
-        if row.mcp_type == "http":
-            servers[row.name] = {"type": "http", "url": row.url}
-        else:
-            servers[row.name] = {
-                "type": "stdio",
-                "command": row.command,
-                "args": json.loads(row.args or "[]"),
-                "env": json.loads(row.env or "{}"),
-            }
+        # 公网部署安全策略：stdio MCP 等价于本地任意命令执行，历史配置也一律跳过。
+        if row.mcp_type != "http":
+            continue
+        servers[row.name] = {"type": "http", "url": row.url}
     return servers

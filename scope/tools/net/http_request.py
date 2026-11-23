@@ -10,6 +10,7 @@ from typing import Dict, Any
 
 from ._client import get_http_client, get_timeout
 from config import get as _c, pick_str as _ps
+from common.net_guard import check_url as _check_url
 from ._envelope import _err, _ok
 
 
@@ -40,6 +41,9 @@ async def async_http_request(data: dict) -> Dict[str, Any]:
     url = str(data.get("url", "") or "").strip()
     if not url:
         return _err("data 中缺少 url 字段", "http_request")
+    allowed, reason = await _check_url(url)
+    if not allowed:
+        return _err(f"URL 被拒绝：{reason}", "http_request")
     method = _ps(data.get("method"), "net.http_request.method", "GET").strip().upper()
     if method not in ("GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"):
         return _err(f"错误：暂不支持的 method: {method}", "http_request")

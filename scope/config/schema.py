@@ -199,6 +199,8 @@ MCP: List[Item] = [
     # 故 value=None，由 store._expand_default 在灌库时按运行时上下文展开。
     Item("mcp.config_path", None, "str", "mcp",
          "data['mcp']=True 时读的缺省配置文件路径（可指到 /etc/agent/mcp.json 等，免改源码）"),
+    Item("mcp.allow_stdio", False, "bool", "mcp",
+         "是否允许 stdio MCP；公网部署必须保持关闭（等价于任意命令执行）"),
 ]
 
 # 全部配置项（顺序即灌库顺序）

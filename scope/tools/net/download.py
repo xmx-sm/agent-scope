@@ -11,6 +11,7 @@ from typing import Dict, Any
 
 from ._client import get_http_client, get_timeout
 from config import get as _c, pick as _pk
+from common.net_guard import check_url as _check_url
 from ._envelope import _err, _ok
 from ._fs import _check_write
 
@@ -38,6 +39,9 @@ async def async_req_download(data: dict) -> Dict[str, Any]:
     url = str(data.get("url", "") or "").strip()
     if not url:
         return _err("data 中缺少 url 字段", "download")
+    allowed, reason = await _check_url(url)
+    if not allowed:
+        return _err(f"URL 被拒绝：{reason}", "download")
     save_path = str(data.get("save_path", "") or "").strip()
     if not save_path:
         return _err("data 中缺少 save_path 字段", "download")

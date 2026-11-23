@@ -13,6 +13,7 @@ from typing import Any, Dict
 
 from ._crawler import _get_crawler, _reset_crawler
 from ._envelope import _err, _ok
+from common.net_guard import check_url as _check_url
 from config import pick_str as _ps
 from ._render import _apply_extraction, _apply_wait_for, _build_config, _clamp_configs, _fail, _pick_output, logger
 
@@ -41,14 +42,17 @@ async def async_crawl(data: dict = None) -> Dict[str, Any]:
     """
     if not isinstance(data, dict):
         return _err("data 必须是字典对象", "async_crawl")
+    url = str(data.get("url", "") or "").strip()
+    if not url:
+        return _err("data 中缺少 url 字段", "async_crawl")
+    allowed, reason = await _check_url(url)
+    if not allowed:
+        return _err(f"URL 被拒绝：{reason}", "async_crawl")
     try:
         import crawl4ai
     except ImportError:
         return _err("未安装 crawl4ai（pip install crawl4ai），"
                                    "该工具为可选依赖，其余网络功能不受影响", "async_crawl")
-    url = str(data.get("url", "") or "").strip()
-    if not url:
-        return _err("data 中缺少 url 字段", "async_crawl")
     bc = _build_config({"cls": crawl4ai.CrawlerRunConfig, "d": data.get("run_config"),
                         "where": "async_crawl"})
     if bc.get("code") != 200:

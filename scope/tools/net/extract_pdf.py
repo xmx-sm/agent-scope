@@ -16,6 +16,7 @@ from typing import Any, Dict
 
 from ._envelope import _err, _ok
 from ._fs import _check_read
+from common.net_guard import check_url as _check_url
 from config import get as _c
 from ._render import logger
 
@@ -50,6 +51,10 @@ async def async_extract_pdf(data: dict = None) -> Dict[str, Any]:
             return cr
         if not cr["data"]["allowed"]:
             return _err(f"读取路径被拒：{cr['data']['reason']}", "async_extract_pdf")
+    elif url:
+        allowed, reason = await _check_url(url)
+        if not allowed:
+            return _err(f"URL 被拒绝：{reason}", "async_extract_pdf")
     target = pdf_path or url
     try:
         from bs4 import BeautifulSoup

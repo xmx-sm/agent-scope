@@ -18,6 +18,11 @@ from agentscope.mcp import MCPClient, StdioMCPConfig, HttpMCPConfig
 
 from config import get as _cfg_get
 
+try:  # scope 包导入
+    from ...common.net_guard import check_url_sync
+except ImportError:  # 顶层 tools 导入（scope/ 在 sys.path）
+    from common.net_guard import check_url_sync
+
 
 DEFAULT_MCP_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mcp_servers.json")
 
@@ -163,6 +168,11 @@ def build_client(data: dict = None) -> Dict[str, Any]:
     is_stateful = cfg.get("is_stateful")
 
     if is_stdio:
+        # 公网部署默认禁用 stdio：它等价于在服务器上执行任意命令。
+        # 独立本地使用时可在 config 中显式设置 mcp.allow_stdio=true 恢复。
+        if not bool(_cfg_get("mcp.allow_stdio", False)):
+            return _err(f"stdio MCP 已禁用（server: {name}）；"
+                        "如需本地使用请显式开启 mcp.allow_stdio", "build_client")
         if is_stateful is None:
             is_stateful = True
         command = cfg.get("command")
@@ -180,6 +190,9 @@ def build_client(data: dict = None) -> Dict[str, Any]:
         url = cfg.get("url")
         if not url or not str(url).strip():
             return _err(f"http 传输缺少 url（server: {name}）", "build_client")
+        allowed, reason = check_url_sync(str(url))
+        if not allowed:
+            return _err(f"HTTP MCP URL 被拒绝（server: {name}）：{reason}", "build_client")
         mcp_config = HttpMCPConfig(
             url=str(url),
             headers=cfg.get("headers"),
