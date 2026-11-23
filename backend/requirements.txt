@@ -9,3 +9,6 @@ python-dotenv>=1.0.0
 psutil>=5.9.0
 redis>=5.0.0
 python-multipart>=0.0.9
+# 可选：标准 A2A（Agent Card + JSON-RPC）。需要时安装：
+#   uv pip install --python .venv/bin/python -r backend/requirements-a2a.txt
+# 不安装时仅标准 A2A 不可用，A2A Lite 与其它功能不受影响。

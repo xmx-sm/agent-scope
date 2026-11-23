@@ -1,0 +1,9 @@
+# 可选依赖：标准 A2A（Agent2Agent Protocol 1.0）
+#
+# 安装：
+#   uv pip install --python .venv/bin/python -r backend/requirements-a2a.txt
+#
+# 安装后在 backend/.env 开启：
+#   A2A_STANDARD_ENABLED=true
+#   A2A_PUBLIC_URL=https://your-domain.example.com
+a2a-sdk>=1.1.1

@@ -128,6 +128,12 @@ async def init_db() -> None:
                     "llm_config TEXT NOT NULL DEFAULT '{}'"
                 )
             )
+            await conn.execute(
+                text(
+                    "ALTER TABLE a2a_peers ADD COLUMN IF NOT EXISTS "
+                    "protocol_config TEXT NOT NULL DEFAULT '{}'"
+                )
+            )
 
 
 async def close_db() -> None:

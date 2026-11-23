@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import secrets
 import time
 from datetime import datetime, timezone
+from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from sqlalchemy import func, select
@@ -22,6 +25,17 @@ def _new_key() -> str:
     return "a2a_" + secrets.token_urlsafe(32)
 
 
+def _load_protocol_config(raw: Any) -> dict:
+    """解析非标准协议配置；非法内容回退为空字典。"""
+    if isinstance(raw, dict):
+        return raw
+    try:
+        value = json.loads(raw or "{}")
+        return value if isinstance(value, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
+
 def _public(row: A2APeer) -> dict:
     """内部辅助函数：_public。
     参数：row。
@@ -34,6 +48,7 @@ def _public(row: A2APeer) -> dict:
         "remote_name": row.remote_name,
         "direction": row.direction,
         "protocol": row.protocol,
+        "protocol_config": _load_protocol_config(row.protocol_config),
         "allow_tools": row.allow_tools,
         "max_calls_per_day": row.max_calls_per_day,
         "timeout_seconds": row.timeout_seconds,
@@ -84,9 +99,11 @@ async def async_save_peer(params: dict) -> dict:
     for suffix in ("/a2a/invoke", "/a2a/agents"):
         if endpoint.endswith(suffix):
             endpoint = endpoint[: -len(suffix)].rstrip("/")
-    protocol = str(data.get("protocol") or "lite")
+    protocol = str(data.get("protocol") or "lite").strip().lower()
+    if protocol == "a2a":
+        protocol = "standard"
     if protocol not in ("lite", "standard"):
-        raise ApiError("protocol 只支持 lite/standard（当前实际调用 lite）")
+        raise ApiError("protocol 只支持 lite/standard")
 
     row = None
     if data.get("id"):
@@ -111,6 +128,12 @@ async def async_save_peer(params: dict) -> dict:
     row.remote_name = str(data.get("remote_name") or "")[:100]
     row.direction = direction
     row.protocol = protocol
+    protocol_config = data.get("protocol_config")
+    if protocol_config is None:
+        protocol_config = {}
+    if not isinstance(protocol_config, dict):
+        raise ApiError("protocol_config 必须是 JSON 对象")
+    row.protocol_config = json.dumps(protocol_config, ensure_ascii=False)
     row.allow_tools = bool(data.get("allow_tools"))
     row.max_calls_per_day = max(1, min(int(data.get("max_calls_per_day") or 50), 10000))
     row.timeout_seconds = max(5, min(int(data.get("timeout_seconds") or 120), 300))
@@ -189,6 +212,193 @@ async def _count_today(session: AsyncSession, peer_id: str, direction: str) -> i
     )
 
 
+def _standard_base_candidates(endpoint: str) -> list[str]:
+    """把 endpoint 归一成可能的 A2A 服务根地址（用于拉 Agent Card）。"""
+    raw = str(endpoint or "").strip().rstrip("/")
+    if not raw:
+        return []
+    candidates = [raw]
+    parts = urlsplit(raw)
+    path = parts.path.rstrip("/")
+    if path.endswith("/a2a"):
+        prefix = path[: -len("/a2a")]
+        if prefix:
+            candidates.append(
+                urlunsplit((parts.scheme, parts.netloc, prefix, "", ""))
+            )
+    origin = urlunsplit((parts.scheme, parts.netloc, "", "", ""))
+    if origin not in candidates:
+        candidates.append(origin)
+    return candidates
+
+
+def _render_template(value: Any, ctx: dict[str, Any]) -> Any:
+    """递归替换字典/列表/字符串中的 {message}、{session_hint} 等占位符。"""
+    if isinstance(value, str):
+        for key, item in ctx.items():
+            value = value.replace("{" + key + "}", str(item))
+        return value
+    if isinstance(value, list):
+        return [_render_template(item, ctx) for item in value]
+    if isinstance(value, dict):
+        return {key: _render_template(item, ctx) for key, item in value.items()}
+    return value
+
+
+def _pick_path(payload: Any, path: str | None, default: Any = None) -> Any:
+    """按 ``data.content`` 这样的点路径读取响应字段。"""
+    if not path:
+        return default
+    current = payload
+    for part in str(path).split("."):
+        if not part:
+            continue
+        if isinstance(current, dict):
+            current = current.get(part)
+        elif isinstance(current, list) and part.isdigit():
+            index = int(part)
+            current = current[index] if 0 <= index < len(current) else None
+        else:
+            return default
+        if current is None:
+            return default
+    return current
+
+
+def _lite_config(row: A2APeer) -> dict[str, Any]:
+    """非标准协议请求字典；未配置时沿用旧 A2A Lite 默认值。"""
+    cfg = _load_protocol_config(row.protocol_config)
+    return {
+        "method": str(cfg.get("method") or "POST").upper(),
+        "path": str(cfg.get("path") or "/a2a/invoke"),
+        "headers": cfg.get("headers") if isinstance(cfg.get("headers"), dict) else {},
+        "body": (
+            cfg.get("body")
+            if isinstance(cfg.get("body"), dict)
+            else cfg.get("json")
+            if isinstance(cfg.get("json"), dict)
+            else {
+                "agent_name": "{remote_name}",
+                "message": "{message}",
+                "session_hint": "{session_hint}",
+            }
+        ),
+        "response_content_path": str(cfg.get("response_content_path") or "data.content"),
+        "response_conversation_path": str(
+            cfg.get("response_conversation_path") or "data.conversation_id"
+        ),
+        "response_task_path": str(cfg.get("response_task_path") or ""),
+        "test_method": str(cfg.get("test_method") or "GET").upper(),
+        "test_path": str(cfg.get("test_path") or "/a2a/agents"),
+    }
+
+
+async def _invoke_lite_peer(row: A2APeer, message: str, session_hint: str) -> dict:
+    """按 protocol_config 字典调用非标准 A2A 伙伴。"""
+    cfg = _lite_config(row)
+    ctx = {
+        "message": message,
+        "session_hint": session_hint,
+        "peer_name": row.name,
+        "remote_name": row.remote_name or row.name,
+        "api_key": row.api_key,
+        "endpoint": row.endpoint,
+    }
+    path = str(_render_template(cfg["path"], ctx))
+    url = (
+        path
+        if path.startswith(("http://", "https://"))
+        else row.endpoint.rstrip("/") + "/" + path.lstrip("/")
+    )
+    headers = {"X-Api-Key": row.api_key}
+    headers.update(
+        {
+            str(key): str(value)
+            for key, value in (_render_template(cfg["headers"], ctx) or {}).items()
+        }
+    )
+    body = _render_template(cfg["body"], ctx)
+    method = str(cfg["method"] or "POST").upper()
+    async with httpx.AsyncClient(timeout=row.timeout_seconds) as client:
+        if method in ("GET", "HEAD"):
+            resp = await client.request(method, url, headers=headers, params=body)
+        else:
+            resp = await client.request(method, url, headers=headers, json=body)
+        resp.raise_for_status()
+        payload = resp.json()
+    content = _pick_path(payload, cfg["response_content_path"])
+    if content is None:
+        data = payload.get("data") if isinstance(payload, dict) else payload
+        content = data.get("content") if isinstance(data, dict) else ""
+    return {
+        "content": str(content or ""),
+        "conversation_id": _pick_path(payload, cfg["response_conversation_path"]),
+        "task_id": _pick_path(payload, cfg["response_task_path"]),
+    }
+
+
+async def _invoke_standard_peer(row: A2APeer, message: str) -> dict:
+    """用 AgentScope ``A2AAgent`` 调用标准 A2A 1.0 伙伴。"""
+    try:
+        from a2a.client import A2ACardResolver, ClientConfig, ClientFactory
+        from a2a.client.auth import AuthInterceptor, CredentialService
+        from a2a.utils.constants import TransportProtocol
+        from agentscope.agent import A2AAgent
+        from agentscope.message import UserMsg
+    except ImportError as exc:
+        raise ApiError(
+            "未安装标准 A2A 依赖，请安装 backend/requirements-a2a.txt 后重试"
+        ) from exc
+
+    class _StaticCredentialService(CredentialService):
+        async def get_credentials(self, security_scheme_name: str, context):
+            return row.api_key
+
+    timeout = min(float(row.timeout_seconds or 120), 300)
+    last_error: Exception | None = None
+    async with httpx.AsyncClient(timeout=timeout) as http:
+        card = None
+        for base in _standard_base_candidates(row.endpoint):
+            try:
+                card = await A2ACardResolver(http, base).get_agent_card()
+                break
+            except Exception as exc:  # noqa: BLE001
+                last_error = exc
+        if card is None:
+            raise ApiError(f"无法获取 A2A Agent Card：{last_error}")
+
+        factory = ClientFactory(
+            ClientConfig(
+                streaming=True,
+                polling=False,
+                httpx_client=http,
+                supported_protocol_bindings=[TransportProtocol.JSONRPC],
+            )
+        )
+        client = factory.create(
+            card,
+            interceptors=[AuthInterceptor(_StaticCredentialService())],
+        )
+        adapter = A2AAgent(card, client=client)
+        try:
+            reply = await adapter.reply(UserMsg("user", message))
+        finally:
+            await adapter.aclose()
+        text = ""
+        if hasattr(reply, "get_text_content"):
+            try:
+                text = reply.get_text_content() or ""
+            except Exception:
+                text = ""
+        if not text:
+            text = str(getattr(reply, "content", "") or "")
+        return {
+            "content": text,
+            "conversation_id": adapter.state.context_id,
+            "task_id": adapter.state.task_id,
+        }
+
+
 async def async_test_peer(params: dict) -> dict:
     """测试 A2A 伙伴连通性。
 
@@ -200,10 +410,50 @@ async def async_test_peer(params: dict) -> dict:
         raise ApiError("该伙伴没有配置 endpoint")
     if not row.api_key:
         raise ApiError("该伙伴没有配置 API Key")
-    url = row.endpoint.rstrip("/") + "/a2a/agents"
+    if str(row.protocol or "lite").lower() in ("standard", "a2a"):
+        try:
+            from a2a.client import A2ACardResolver
+            from google.protobuf.json_format import MessageToDict
+        except ImportError as exc:
+            raise ApiError(
+                "未安装标准 A2A 依赖，请安装 backend/requirements-a2a.txt 后重试"
+            ) from exc
+
+        last_error: Exception | None = None
+        try:
+            async with httpx.AsyncClient(timeout=min(row.timeout_seconds, 30)) as client:
+                for base in _standard_base_candidates(row.endpoint):
+                    try:
+                        card = await A2ACardResolver(client, base).get_agent_card()
+                        return {
+                            "peer_id": row.id,
+                            "endpoint": base,
+                            "protocol": "standard",
+                            "response": MessageToDict(
+                                card,
+                                preserving_proto_field_name=False,
+                            ),
+                        }
+                    except Exception as exc:  # noqa: BLE001
+                        last_error = exc
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+        raise ApiError(f"连接失败：{last_error}")
+
+    cfg = _lite_config(row)
+    path = str(cfg["test_path"] or "/a2a/agents")
+    url = (
+        path
+        if path.startswith(("http://", "https://"))
+        else row.endpoint.rstrip("/") + "/" + path.lstrip("/")
+    )
     try:
         async with httpx.AsyncClient(timeout=min(row.timeout_seconds, 30)) as client:
-            resp = await client.get(url, headers={"X-Api-Key": row.api_key})
+            resp = await client.request(
+                str(cfg["test_method"] or "GET"),
+                url,
+                headers={"X-Api-Key": row.api_key},
+            )
             resp.raise_for_status()
             data = resp.json()
     except Exception as exc:  # noqa: BLE001
@@ -239,20 +489,43 @@ async def async_invoke_peer(params: dict) -> dict:
         raise ApiError("该伙伴没有配置 API Key")
     if await _count_today(session, row.id, "out") >= row.max_calls_per_day:
         raise ApiError("该伙伴今日调用额度已用完", code=429)
-    started = time.monotonic()
-    try:
-        async with httpx.AsyncClient(timeout=row.timeout_seconds) as client:
-            resp = await client.post(
-                row.endpoint.rstrip("/") + "/a2a/invoke",
-                headers={"X-Api-Key": row.api_key},
-                json={
-                    "agent_name": row.remote_name or row.name,
-                    "message": message,
-                    "session_hint": str(params.get("session_hint") or "default")[:200],
-                },
+
+    if str(row.protocol or "lite").lower() in ("standard", "a2a"):
+        started = time.monotonic()
+        try:
+            result = await _invoke_standard_peer(row, message)
+        except Exception as exc:  # noqa: BLE001
+            elapsed = int((time.monotonic() - started) * 1000)
+            session.add(
+                A2AInvocation(
+                    peer_id=row.id, direction="out", status="error", prompt=message,
+                    response=str(exc)[:2000], elapsed_ms=elapsed,
+                )
             )
-            resp.raise_for_status()
-            payload = resp.json()
+            await session.commit()
+            raise ApiError(f"调用伙伴失败：{exc}") from exc
+        content = str(result.get("content") or "")
+        elapsed = int((time.monotonic() - started) * 1000)
+        session.add(
+            A2AInvocation(
+                peer_id=row.id, direction="out", status="ok", prompt=message,
+                response=content[:4000], elapsed_ms=elapsed,
+                conversation_id=result.get("conversation_id"),
+            )
+        )
+        await session.commit()
+        return {
+            "peer": row.name,
+            "content": content,
+            "conversation_id": result.get("conversation_id"),
+            "task_id": result.get("task_id"),
+            "protocol": "standard",
+        }
+
+    started = time.monotonic()
+    session_hint = str(params.get("session_hint") or "default")[:200]
+    try:
+        result = await _invoke_lite_peer(row, message, session_hint)
     except Exception as exc:  # noqa: BLE001
         elapsed = int((time.monotonic() - started) * 1000)
         session.add(
@@ -263,18 +536,23 @@ async def async_invoke_peer(params: dict) -> dict:
         )
         await session.commit()
         raise ApiError(f"调用伙伴失败：{exc}") from exc
-    data = payload.get("data") or payload
-    content = str(data.get("content") or "")
+    content = str(result.get("content") or "")
     elapsed = int((time.monotonic() - started) * 1000)
     session.add(
         A2AInvocation(
             peer_id=row.id, direction="out", status="ok", prompt=message,
             response=content[:4000], elapsed_ms=elapsed,
-            conversation_id=data.get("conversation_id"),
+            conversation_id=result.get("conversation_id"),
         )
     )
     await session.commit()
-    return {"peer": row.name, "content": content, "conversation_id": data.get("conversation_id")}
+    return {
+        "peer": row.name,
+        "content": content,
+        "conversation_id": result.get("conversation_id"),
+        "task_id": result.get("task_id"),
+        "protocol": "lite",
+    }
 
 
 async def async_peer_specs(params: dict) -> list[dict]:

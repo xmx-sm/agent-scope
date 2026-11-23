@@ -28,6 +28,7 @@ class A2APeerIn(BaseModel):
     remote_name: str = ""
     direction: str = "outbound"
     protocol: str = "lite"
+    protocol_config: dict = Field(default_factory=dict)
     allow_tools: bool = False
     max_calls_per_day: int = 50
     timeout_seconds: int = 120

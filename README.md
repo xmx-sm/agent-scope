@@ -82,7 +82,10 @@
 - 超级智能体 = 主智能体 + 多个可长期对话的子智能体
 - 每个成员独立模型、提示词、启停
 - 主智能体可通过工具创建子会话、派活、读取结果
-- A2A Lite：
+- A2A 协作：
+  - 标准 A2A 1.0（可选依赖 + 可选开关）：Agent Card、`SendMessage`、`GetTask`、`ListTasks`、`CancelTask`、流式事件
+  - 出站使用 AgentScope 内置 `A2AAgent`，可对接外部标准 A2A Agent
+  - 兼容原 A2A Lite `/a2a/agents`、`/a2a/invoke`；每个伙伴独立选择 `standard` / `lite`
   - 伙伴管理、方向、Endpoint、API Key、额度、超时
   - `X-Api-Key` 入站鉴权
   - 出站调用与连通测试
@@ -183,6 +186,9 @@ cd /path/to/agent_scope
 
 uv pip install --python .venv/bin/python -r backend/requirements.txt
 
+# 可选：标准 A2A 协议（Agent Card + JSON-RPC）
+# uv pip install --python .venv/bin/python -r backend/requirements-a2a.txt
+
 cd frontend
 npm install
 ```
@@ -209,6 +215,7 @@ JWT_SECRET=替换为随机长字符串
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 REDIS_PASSWORD=
+A2A_PUBLIC_URL=https://your-domain.example.com
 ```
 
 前端默认（子路径部署：Nginx `5080` 端口、路径 `/agent_scope`）：
@@ -385,8 +392,23 @@ Agent → A2A 协作
 
 - 出站伙伴：填对方站点根地址 + 对方提供的 API Key
 - 入站伙伴：生成 Key 给对方
-- 注意本平台数据面路径为 `/api/a2a/*`，Endpoint 示例：
-  `http://192.168.1.20:8000/api`
+- 协议选择：
+  - `standard`：标准 A2A 1.0，走 Agent Card + JSON-RPC
+  - `lite`：非标准协议，兼容旧版 A2A Lite
+- 非标准协议支持自定义请求字典 `protocol_config`：
+  - `method` / `path` / `headers` / `body`
+  - `response_content_path` / `response_conversation_path` / `response_task_path`
+  - 支持 `{message}`、`{session_hint}`、`{remote_name}`、`{api_key}` 等占位符
+  - 不填时使用默认 `/a2a/invoke` + `{agent_name, message, session_hint}`
+- 标准 A2A 是可选能力：
+  - 安装依赖：`backend/requirements-a2a.txt`
+  - 开启开关：`A2A_STANDARD_ENABLED=true`
+  - 不安装/不开启时，A2A Lite 与其它功能不受影响
+- 标准 A2A 入口：
+  - Agent Card：`/.well-known/agent-card.json`
+  - JSON-RPC：`/api/a2a`
+- 生产环境必须设置 `A2A_PUBLIC_URL`，否则 Agent Card 会写默认的 `127.0.0.1` 地址
+- 兼容旧 A2A Lite 数据面：`/api/a2a/agents`、`/api/a2a/invoke`
 
 ---
 
@@ -435,7 +457,8 @@ Agent → A2A 协作
 
 ## 七、已知边界
 
-- A2A 当前为 **A2A Lite**，标准 Agent Card / JSON-RPC 任务协议未接入
+- A2A 已接入标准 A2A 1.0（Agent Card + JSON-RPC），旧 A2A Lite 保留兼容
+- 标准 A2A 的 TaskStore 当前为进程内实现，进程重启后 `GetTask` 不保留；多实例部署需换成外置任务存储
 - SSE 断线续传为单进程内存态，进程重启后不保留正在生成的任务
 - 多向量库实际可用性取决于对应 Python 依赖与服务
 - TTS 需要配置真实服务商 Key 才能合成

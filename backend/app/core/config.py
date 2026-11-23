@@ -44,6 +44,14 @@ class Settings(BaseSettings):
     redis_password: str = ""
     rate_limit_enabled: bool = True
 
+    # 标准 A2A 为可选能力：安装 backend/requirements-a2a.txt 后，
+    # 再把 A2A_STANDARD_ENABLED 设为 true；否则仅保留 A2A Lite。
+    # A2A_PUBLIC_URL 为公网可访问的根地址，例如 https://example.com/agent_scope
+    a2a_standard_enabled: bool = False
+    a2a_public_url: str = ""
+    a2a_agent_name: str = "Agent Scope"
+    a2a_agent_description: str = "Agent Scope 标准 A2A 智能体"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [item.strip() for item in self.cors_origins.split(",") if item.strip()]

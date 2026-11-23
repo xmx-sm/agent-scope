@@ -87,7 +87,7 @@
         </div>
         <el-form-item label="描述"><el-input v-model="form.description" /></el-form-item>
         <el-form-item label="Endpoint（站点根地址，不带 /a2a）">
-          <el-input v-model="form.endpoint" placeholder="http://192.168.1.20:8000" />
+          <el-input v-model="form.endpoint" placeholder="https://agent.example.com 或 http://192.168.1.20:8000" />
         </el-form-item>
         <div class="grid">
           <el-form-item label="对方智能体名（出站可填）">
@@ -95,11 +95,19 @@
           </el-form-item>
           <el-form-item label="协议">
             <el-select v-model="form.protocol" style="width: 100%">
-              <el-option label="A2A Lite" value="lite" />
-              <el-option label="Standard（当前按 Lite 调用）" value="standard" />
+              <el-option label="标准 A2A 1.0（Agent Card + JSON-RPC）" value="standard" />
+              <el-option label="A2A Lite（旧版兼容）" value="lite" />
             </el-select>
           </el-form-item>
         </div>
+        <el-form-item v-if="form.protocol === 'lite'" label="非标准协议字典（可选 JSON）">
+          <el-input
+            v-model="form.protocol_config_text"
+            type="textarea"
+            :rows="7"
+            placeholder='留空使用默认：{"method":"POST","path":"/a2a/invoke","headers":{},"body":{"agent_name":"{remote_name}","message":"{message}","session_hint":"{session_hint}"},"response_content_path":"data.content","response_conversation_path":"data.conversation_id"}'
+          />
+        </el-form-item>
         <el-form-item label="API Key（编辑时留空表示不修改）">
           <el-input v-model="form.api_key" type="password" show-password />
         </el-form-item>
@@ -144,14 +152,14 @@ const router = useRouter()
 const dialog = ref(false)
 const form = reactive({
   id: '', name: '', description: '', endpoint: '', api_key: '', remote_name: '',
-  direction: 'outbound', protocol: 'lite', allow_tools: false,
+  direction: 'outbound', protocol: 'lite', protocol_config_text: '', allow_tools: false,
   max_calls_per_day: 50, timeout_seconds: 120, is_active: true
 })
 
 function resetForm() {
   Object.assign(form, {
     id: '', name: '', description: '', endpoint: '', api_key: '', remote_name: '',
-    direction: 'outbound', protocol: 'lite', allow_tools: false,
+    direction: 'outbound', protocol: 'lite', protocol_config_text: '', allow_tools: false,
     max_calls_per_day: 50, timeout_seconds: 120, is_active: true
   })
 }
@@ -177,6 +185,9 @@ function openEdit(row) {
   Object.assign(form, {
     ...row,
     api_key: '',
+    protocol_config_text: row.protocol_config && Object.keys(row.protocol_config).length
+      ? JSON.stringify(row.protocol_config, null, 2)
+      : '',
     max_calls_per_day: row.max_calls_per_day || 50,
     timeout_seconds: row.timeout_seconds || 120
   })
@@ -185,9 +196,21 @@ function openEdit(row) {
 
 async function save() {
   if (!form.name.trim()) return ElMessage.error('名称不能为空')
+  let protocolConfig = {}
+  if (form.protocol_config_text.trim()) {
+    try {
+      protocolConfig = JSON.parse(form.protocol_config_text)
+      if (!protocolConfig || typeof protocolConfig !== 'object' || Array.isArray(protocolConfig)) {
+        throw new Error('必须是 JSON 对象')
+      }
+    } catch (err) {
+      return ElMessage.error(`协议字典不是合法 JSON 对象：${err.message || err}`)
+    }
+  }
   saving.value = true
   try {
-    const data = await api.post('/agent/a2a/peers', { ...form })
+    const { protocol_config_text, ...payload } = form
+    const data = await api.post('/agent/a2a/peers', { ...payload, protocol_config: protocolConfig })
     dialog.value = false
     await load()
     if (data.api_key_plaintext) {

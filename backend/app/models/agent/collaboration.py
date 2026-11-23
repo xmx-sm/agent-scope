@@ -66,6 +66,7 @@ class A2APeer(Base):
     remote_name: Mapped[str] = mapped_column(String(100), nullable=False, default="")
     direction: Mapped[str] = mapped_column(String(20), nullable=False, default="outbound")
     protocol: Mapped[str] = mapped_column(String(20), nullable=False, default="lite")
+    protocol_config: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     allow_tools: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     max_calls_per_day: Mapped[int] = mapped_column(Integer, nullable=False, default=50)
     timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=120)

@@ -107,3 +107,11 @@ for router in (
     agent.public_router,
 ):
     app.include_router(router, prefix=settings.api_prefix)
+
+# 标准 A2A（JSON-RPC 1.0）与现有 A2A Lite 并存；缺少 a2a-sdk 时降级跳过。
+try:
+    from app.services.agent.collaboration.standard_a2a import register_standard_a2a
+
+    register_standard_a2a(app)
+except ImportError:
+    logger.warning("未安装 a2a-sdk，标准 A2A 接口未启用")
