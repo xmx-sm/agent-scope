@@ -242,7 +242,7 @@ async function onCommand(command) {
     } catch {
       return
     }
-    auth.logout()
+    await auth.logout()
     router.replace('/login')
   }
 }

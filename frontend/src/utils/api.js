@@ -35,6 +35,7 @@ api.interceptors.response.use(
       localStorage.removeItem('refresh_token')
       localStorage.removeItem('user')
       localStorage.removeItem('permissions')
+      ElMessage.error(msg || '登录已过期，请重新登录')
       if (!window.location.pathname.startsWith(loginPath)) {
         window.location.href = loginPath
       }

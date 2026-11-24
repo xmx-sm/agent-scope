@@ -52,6 +52,14 @@ async def refresh(body: RefreshIn, db: AsyncSession = Depends(get_db)):
     return ok(result, "刷新成功")
 
 
+@router.post("/logout")
+async def logout(body: RefreshIn, db: AsyncSession = Depends(get_db)):
+    await token_service.async_logout(
+        {"session": db, "refresh_token": body.refresh_token}
+    )
+    return ok(None, "已退出登录")
+
+
 @router.get("/me")
 async def me(user: CurrentUser, db: AsyncSession = Depends(get_db)):
     return ok(await token_service.async_me_payload({"session": db, "user": user}))

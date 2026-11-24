@@ -47,7 +47,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function register(payload) {
     const data = await api.post('/auth/register', payload)
-    persistTokens(data)
+    persistTokens(data.tokens)
     await fetchMe()
     return data
   }
@@ -69,7 +69,8 @@ export const useAuthStore = defineStore('auth', () => {
     return permissions.value.includes(key)
   }
 
-  function logout() {
+  async function logout() {
+    const token = refreshToken.value
     accessToken.value = ''
     refreshToken.value = ''
     user.value = null
@@ -81,6 +82,13 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('user')
     localStorage.removeItem('permissions')
     localStorage.removeItem('menus')
+    if (token) {
+      try {
+        await api.post('/auth/logout', { refresh_token: token })
+      } catch {
+        /* 本地状态已清理，网络失败不阻塞退出 */
+      }
+    }
   }
 
   return {

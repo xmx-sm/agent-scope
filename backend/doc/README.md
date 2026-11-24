@@ -47,6 +47,14 @@ cd backend
 ../.venv/bin/python scripts/generate_service_index.py
 ```
 
+自动化测试（使用隔离 SQLite，不访问业务数据库）：
+
+```bash
+uv pip install --python .venv/bin/python -r backend/requirements-dev.txt
+cd backend
+../.venv/bin/python -m pytest -q
+```
+
 关键约定：
 
 1. **路由层只解析**：`app/routers/<domain>/` 或 `app/routers/<domain>.py` 不写业务。

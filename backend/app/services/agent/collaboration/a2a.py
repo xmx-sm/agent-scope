@@ -352,6 +352,7 @@ async def _invoke_standard_peer(row: A2APeer, message: str) -> dict:
 
     class _StaticCredentialService(CredentialService):
         async def get_credentials(self, security_scheme_name: str, context):
+            """返回当前伙伴配置的 API Key。"""
             return row.api_key
 
     timeout = min(float(row.timeout_seconds or 120), 300)

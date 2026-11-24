@@ -194,7 +194,7 @@ router.beforeEach(async (to) => {
     try {
       await auth.fetchMe()
     } catch {
-      auth.logout()
+      await auth.logout()
       return '/login'
     }
   }

@@ -47,6 +47,8 @@ def create_token(
     role: str,
     token_type: str = "access",
     expires_minutes: int | None = None,
+    jti: str | None = None,
+    family_id: str | None = None,
 ) -> str:
     now = datetime.now(timezone.utc)
     if token_type == "refresh":
@@ -62,6 +64,10 @@ def create_token(
         "iat": now,
         "exp": expire,
     }
+    if jti is not None:
+        payload["jti"] = jti
+    if family_id is not None:
+        payload["fid"] = family_id
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 

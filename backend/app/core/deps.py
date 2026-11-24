@@ -16,13 +16,13 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 class ApiError(Exception):
-    """业务异常：默认 HTTP 200 + code!=200，前端按 code 提示。"""
+    """业务异常：HTTP 状态码与业务 code 默认保持一致。"""
 
     def __init__(self, msg: str, code: int = 400, status_code: int | None = None):
         super().__init__(msg)
         self.msg = msg
         self.code = code
-        self.status_code = status_code if status_code is not None else (401 if code == 401 else 200)
+        self.status_code = status_code if status_code is not None else code
 
 
 def ok(data: Any = None, msg: str = "success") -> dict[str, Any]:

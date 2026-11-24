@@ -14,7 +14,6 @@ import asyncio
 import logging
 from typing import Any
 
-from fastapi import FastAPI
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -51,9 +50,10 @@ from app.services.agent.collaboration.a2a import resolve_inbound_peer
 logger = logging.getLogger("a2a-standard")
 
 
-def build_agent_card(public_base_url: str | None = None) -> AgentCard:
+def build_agent_card(params: dict | None = None) -> AgentCard:
     """构建标准 A2A Agent Card。"""
-    base = (public_base_url or settings.a2a_public_url or "").rstrip("/")
+    params = params or {}
+    base = (params.get("public_base_url") or settings.a2a_public_url or "").rstrip("/")
     if not base:
         base = f"http://127.0.0.1:{settings.port}"
     rpc_url = f"{base}{settings.api_prefix}/a2a"
@@ -94,6 +94,7 @@ def build_agent_card(public_base_url: str | None = None) -> AgentCard:
 
 
 def _header_value(scope: dict[str, Any], name: bytes) -> str:
+    """从 ASGI scope 中读取指定请求头。"""
     for key, value in scope.get("headers") or []:
         if key.lower() == name:
             return value.decode("latin-1")
@@ -101,6 +102,7 @@ def _header_value(scope: dict[str, Any], name: bytes) -> str:
 
 
 async def _resolve_peer_id(api_key: str) -> str:
+    """把入站 API Key 解析为已启用的伙伴 ID。"""
     async with AsyncSessionLocal() as session:
         peer = await resolve_inbound_peer({"session": session, "api_key": api_key})
     return peer.id if peer is not None else ""
@@ -113,9 +115,11 @@ class A2AAuthMiddleware:
     """
 
     def __init__(self, app):
+        """保存下一个 ASGI 应用。"""
         self.app = app
 
     async def __call__(self, scope, receive, send):
+        """拦截标准 A2A JSON-RPC 请求并校验伙伴 Key。"""
         path = str(scope.get("path") or "").rstrip("/")
         rpc_path = f"{settings.api_prefix}/a2a".rstrip("/")
         if (
@@ -147,14 +151,17 @@ class _PeerUser(A2AUser):
     """以 A2APeer.id 作为 A2A TaskStore 的 owner scope，隔离不同伙伴的任务。"""
 
     def __init__(self, peer_id: str) -> None:
+        """绑定负责当前任务隔离的伙伴 ID。"""
         self._peer_id = peer_id
 
     @property
     def is_authenticated(self) -> bool:
+        """标识中间件已通过鉴权。"""
         return bool(self._peer_id)
 
     @property
     def user_name(self) -> str:
+        """返回 A2A SDK 使用的伙伴标识。"""
         return self._peer_id
 
 
@@ -162,6 +169,7 @@ class A2APeerContextBuilder(DefaultServerCallContextBuilder):
     """把中间件解析出的 peer 注入 A2A ServerCallContext。"""
 
     def build(self, request: Request) -> ServerCallContext:
+        """把中间件解析出的伙伴注入任务上下文。"""
         context = super().build(request)
         peer_id = str(request.scope.get("state", {}).get("a2a_peer_id", ""))
         context.state["a2a_peer_id"] = peer_id
@@ -171,6 +179,7 @@ class A2APeerContextBuilder(DefaultServerCallContextBuilder):
 
 
 async def _get_peer(context: RequestContext) -> A2APeer | None:
+    """加载当前请求关联且允许入站的伙伴。"""
     peer_id = str(context.call_context.state.get("a2a_peer_id") or "")
     if not peer_id:
         return None
@@ -214,6 +223,7 @@ class ScopeA2AExecutor(AgentExecutor):
     """把标准 A2A Task 桥接到平台 ``async_run_turn``。"""
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
+        """执行标准 A2A 消息并回传平台 Agent 结果。"""
         peer = await _get_peer(context)
         if peer is None:
             raise InvalidRequestError(message="无效的 A2A 凭据")
@@ -267,6 +277,7 @@ class ScopeA2AExecutor(AgentExecutor):
             )
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
+        """按 A2A SDK 约定取消当前任务。"""
         task = context.current_task
         if task is None:
             return
@@ -276,11 +287,12 @@ class ScopeA2AExecutor(AgentExecutor):
         )
 
 
-def register_standard_a2a(app: FastAPI) -> None:
+def register_standard_a2a(params: dict) -> None:
     """注册标准 A2A routes；未启用或依赖缺失时不影响主服务。"""
     if not settings.a2a_standard_enabled:
         return
     try:
+        app = params["app"]
         card = build_agent_card()
         handler = DefaultRequestHandler(
             agent_executor=ScopeA2AExecutor(),

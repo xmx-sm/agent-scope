@@ -65,6 +65,7 @@ def _sandbox_tool_files(fn: Callable[..., Awaitable[Any]], user_id: str,
     user_root = os.path.dirname(workspace)
 
     async def call(**kwargs):
+        """执行工具前校验用户目录边界。"""
         # 邮件附件默认落在个人 workspace，避免落到服务端 cwd。
         if default_mail_dir and not kwargs.get("attachment_dir"):
             kwargs["attachment_dir"] = os.path.join(workspace, "email_attachments")

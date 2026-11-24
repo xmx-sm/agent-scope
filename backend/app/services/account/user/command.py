@@ -8,6 +8,7 @@ from app.core.permissions import ROLES
 from app.core.security import hash_password
 from app.models import User
 from app.services.access.tools.policy import async_apply_new_user
+from app.services.account.auth.token import async_revoke_refresh_tokens
 from app.services.account.user.common import async_assert_unique, clean_optional
 
 
@@ -93,6 +94,7 @@ async def async_update_user(params: dict) -> dict:
             raise ApiError("仅超级管理员可授予超级管理员角色", code=403)
 
     role = data.get("role")
+    role_changed = role is not None and role != user.role
     if role is not None:
         if role not in ROLES:
             raise ApiError("无效的角色")
@@ -140,14 +142,18 @@ async def async_update_user(params: dict) -> dict:
             raise ApiError("指定的上级不存在")
         user.leader_id = leader_id
 
+    deactivated = False
     if data.get("is_active") is not None:
         is_active = bool(data["is_active"])
+        deactivated = not is_active and user.is_active
         if not is_active and user.role == "super_admin":
             await _async_assert_super_admin_remains(
                 {"session": session, "exclude_id": user.id}
             )
         user.is_active = is_active
 
+    if role_changed or deactivated:
+        await async_revoke_refresh_tokens({"session": session, "user_id": user.id})
     await session.commit()
     await session.refresh(user)
     return user_public(user)
@@ -193,4 +199,5 @@ async def async_reset_password(params: dict) -> None:
     if operator is not None and operator.role != "super_admin" and user.role == "super_admin":
         raise ApiError("无权重置超级管理员密码", code=403)
     user.password_hash = hash_password(params["new_password"])
+    await async_revoke_refresh_tokens({"session": session, "user_id": user.id})
     await session.commit()

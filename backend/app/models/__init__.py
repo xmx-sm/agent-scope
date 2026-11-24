@@ -22,7 +22,7 @@ from app.models.agent import (
     VectorLog,
 )
 from app.models.common import new_id, utc_now
-from app.models.account import User, UserPermissionState
+from app.models.account import RefreshTokenSession, User, UserPermissionState
 from app.models.access import (
     ToolApprovalRequest,
     ToolPermissionAudit,
@@ -53,6 +53,7 @@ __all__ = [
     "A2AInvocation",
     "A2ASessionMap",
     "UserScheduledJob",
+    "RefreshTokenSession",
     "User",
     "UserPermissionState",
     "UserToolMode",

@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
@@ -54,6 +55,37 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.app_name, version="0.26.0", lifespan=lifespan)
 
+
+def _api_openapi() -> dict:
+    """为未声明模型的 JSON 响应补齐统一响应信封。"""
+    if app.openapi_schema is not None:
+        return app.openapi_schema
+    schema = get_openapi(title=app.title, version=app.version, routes=app.routes)
+    envelope = {
+        "type": "object",
+        "properties": {
+            "code": {"type": "integer"},
+            "data": {},
+            "msg": {"type": "string"},
+        },
+        "required": ["code", "data", "msg"],
+    }
+    schema.setdefault("components", {}).setdefault("schemas", {})["ApiResponse"] = envelope
+    for path_item in schema.get("paths", {}).values():
+        for operation in path_item.values():
+            if not isinstance(operation, dict):
+                continue
+            for response in operation.get("responses", {}).values():
+                content = response.get("content", {}) if isinstance(response, dict) else {}
+                media = content.get("application/json")
+                if media and media.get("schema") == {}:
+                    media["schema"] = {"$ref": "#/components/schemas/ApiResponse"}
+    app.openapi_schema = schema
+    return schema
+
+
+app.openapi = _api_openapi
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -84,7 +116,7 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
     first = exc.errors()[0] if exc.errors() else {}
     field = ".".join(str(x) for x in first.get("loc", [])[1:]) or "参数"
     return JSONResponse(
-        status_code=200,
+        status_code=400,
         content={"code": 400, "data": None, "msg": f"{field}：{first.get('msg', '参数不合法')}"},
     )
 
@@ -93,8 +125,8 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
 async def integrity_error_handler(request: Request, exc: IntegrityError):
     logger.warning("数据库唯一约束冲突：%s", exc.orig)
     return JSONResponse(
-        status_code=200,
-        content={"code": 400, "data": None, "msg": "数据冲突：请检查用户名/邮箱/手机号是否重复"},
+        status_code=409,
+        content={"code": 409, "data": None, "msg": "数据冲突：请检查用户名/邮箱/手机号是否重复"},
     )
 
 
@@ -112,6 +144,6 @@ for router in (
 try:
     from app.services.agent.collaboration.standard_a2a import register_standard_a2a
 
-    register_standard_a2a(app)
+    register_standard_a2a({"app": app})
 except ImportError:
     logger.warning("未安装 a2a-sdk，标准 A2A 接口未启用")
