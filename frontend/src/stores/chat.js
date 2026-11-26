@@ -192,12 +192,25 @@ export const useChatStore = defineStore('chat', () => {
         }),
         signal: controller.signal
       })
-      if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`)
+      if (!response.ok || !response.body) {
+        let message = `HTTP ${response.status}`
+        try {
+          const payload = await response.json()
+          message = payload.msg || message
+        } catch {
+          /* 非 JSON 错误保留状态码 */
+        }
+        const error = new Error(message)
+        error.status = response.status
+        throw error
+      }
       await readStream(response)
       await finishStream()
     } catch (error) {
       if (error.name === 'AbortError') {
         ElMessage.info('已停止生成')
+      } else if (error.status === 429 || error.status === 409) {
+        ElMessage.warning(error.message || '当前对话繁忙，请稍后重试')
       } else {
         ElMessage.warning('连接中断，正在尝试续传…')
         const last = messages.value[messages.value.length - 1]

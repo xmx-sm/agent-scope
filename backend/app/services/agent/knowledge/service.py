@@ -25,6 +25,7 @@ from app.services.agent.runtime.scope_bridge import ROOT
 from app.services.access.tools.tool_config import async_effective as async_tool_config
 from app.services.config.service import async_get_config
 from app.utils.mask import SENTINEL
+from app.utils.runtime_limits import runtime_slot
 
 LIBRARY_ROOT = ROOT / "backend" / "uploads" / "agents"
 _NAME_RE = re.compile(r"^[A-Za-z0-9_\-一-龥]{1,64}$")
@@ -903,10 +904,21 @@ async def async_document_file(params: dict) -> tuple[Path, str]:
 
 
 async def async_search(params: dict) -> dict:
-    """跨可访问向量库检索。
+    """跨可访问向量库检索，并应用动态并发限制。
 
         参数：library_ids / top_k / score_threshold / session / user_id / query。
         """
+    async with runtime_slot(
+        "rag_search",
+        "runtime.rag_max_concurrent_searches",
+        4,
+        "知识库检索繁忙，请稍后重试",
+    ):
+        return await _async_search(params)
+
+
+async def _async_search(params: dict) -> dict:
+    """执行跨可访问向量库检索。"""
     session: AsyncSession = params["session"]
     user_id = params["user_id"]
     libraries = []

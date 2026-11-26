@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import ApiError
 from app.services.config.service import async_get_config
 from app.utils.mask import SENTINEL
+from app.utils.runtime_limits import runtime_slot
 
 PROVIDERS: list[dict[str, Any]] = [
     {"value": "openai", "label": "OpenAI", "base_url": "https://api.openai.com/v1"},
@@ -35,10 +36,21 @@ async def async_list_providers(params: dict) -> list[dict[str, Any]]:
 
 
 async def async_fetch_models(params: dict) -> dict[str, Any]:
-    """拉取厂商模型列表
+    """在动态出站并发限制内拉取厂商模型列表。
 
-    参数：provider / base_url / api_key
+    参数：provider / base_url / api_key / key_config / session。
     """
+    async with runtime_slot(
+        "external_call",
+        "runtime.external_call_max_concurrency",
+        16,
+        "模型服务繁忙，请稍后重试",
+    ):
+        return await _async_fetch_models(params)
+
+
+async def _async_fetch_models(params: dict) -> dict[str, Any]:
+    """拉取厂商模型列表。"""
     provider = str(params.get("provider") or "").strip()
     base_url = str(params.get("base_url") or "").strip()
     api_key = str(params.get("api_key") or "").strip()

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import ApiError
 from app.services.config.service import async_get_config
+from app.utils.runtime_limits import runtime_slot
 
 
 async def async_config(params: dict) -> dict:
@@ -29,10 +30,21 @@ async def async_config(params: dict) -> dict:
 
 
 async def async_synthesize(params: dict) -> dict:
-    """把文本合成为音频。
+    """把文本合成为音频，并应用动态出站并发限制。
 
         参数：text / voice / model / session。
         """
+    async with runtime_slot(
+        "external_call",
+        "runtime.external_call_max_concurrency",
+        16,
+        "语音服务繁忙，请稍后重试",
+    ):
+        return await _async_synthesize(params)
+
+
+async def _async_synthesize(params: dict) -> dict:
+    """执行文本转语音。"""
     session: AsyncSession = params["session"]
     text = str(params.get("text") or "").strip()
     if not text:

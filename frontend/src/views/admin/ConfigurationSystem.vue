@@ -1,7 +1,15 @@
 <template>
   <div class="page">
     <h2 class="page-title">系统设置</h2>
-    <p class="page-desc">站点、账号、安全、界面与邮箱（仅超级管理员）</p>
+    <p class="page-desc">站点、账号、安全、运行资源、界面与邮箱（仅超级管理员）</p>
+
+    <el-alert
+      class="runtime-note"
+      type="info"
+      :closable="false"
+      title="运行资源配置"
+      description="AI/RAG 并发与 SSE 限制保存后对新任务立即生效；数据库连接池、Redis 连接上限和 Worker 数通过 .env 配置，需要重启应用。"
+    />
 
     <div v-loading="loading">
       <div class="config-toolbar">
@@ -27,7 +35,8 @@
               <el-input-number
                 v-else-if="item.value_type === 'int' || item.value_type === 'float'"
                 v-model="item.value"
-                :min="0"
+                :min="item.min ?? 0"
+                :max="item.max"
                 :step="item.value_type === 'float' ? 0.1 : 1"
                 :precision="item.value_type === 'float' ? 2 : 0"
                 controls-position="right"
@@ -110,7 +119,7 @@ async function load() {
   loading.value = true
   try {
     configs.value = await api.get('/admin/configs', { params: { domain: 'system' } })
-    if (!openGroups.value.length) openGroups.value = ['站点', '账号']
+    if (!openGroups.value.length) openGroups.value = ['站点', '账号', '运行资源']
   } catch {
     /* ignore */
   } finally {
@@ -129,8 +138,10 @@ function collapseAll() {
 async function save(item) {
   savingKey.value = item.key
   try {
-    await api.put(`/admin/configs/${item.key}`, { value: item.value })
-    ElMessage.success(`${item.label || item.key} 已保存`)
+    const updated = await api.put(`/admin/configs/${item.key}`, { value: item.value })
+    Object.assign(item, updated)
+    const suffix = item.key.startsWith('runtime.') ? '，新任务立即生效' : ''
+    ElMessage.success(`${item.label || item.key} 已保存${suffix}`)
   } catch {
     /* ignore */
   } finally {
@@ -155,6 +166,10 @@ onMounted(load)
 </script>
 
 <style scoped>
+.runtime-note {
+  margin-bottom: 12px;
+}
+
 .config-toolbar {
   display: flex;
   align-items: center;

@@ -46,7 +46,7 @@ from app.services.agent.analytics import stats as stats_service
 from app.services.agent.conversation import attachments as attachment_service
 from app.services.agent.config import user_config as user_config_service
 from app.services.access.tools import tool_config as tool_config_service
-from app.services.agent.runtime.stream_manager import resume_events, stream_events
+from app.services.agent.runtime.stream_manager import resume_events, start_stream, stream_state
 from app.services.llm import providers as agent_config_service
 from app.utils.mask import SENTINEL
 
@@ -181,15 +181,18 @@ async def chat_stream(
     body: ChatStreamIn,
     user: User = Depends(require_permission("ai.use")),
 ):
+    state, started = await start_stream(
+        {
+            "user_id": user.id,
+            "conversation_id": body.conversation_id,
+            "content": body.content,
+            "attachment_ids": body.attachment_ids,
+        }
+    )
+    if not started:
+        raise ApiError("该会话正在生成中，请等待完成或使用断线续传", code=409)
     return StreamingResponse(
-        stream_events(
-            {
-                "user_id": user.id,
-                "conversation_id": body.conversation_id,
-                "content": body.content,
-                "attachment_ids": body.attachment_ids,
-            }
-        ),
+        stream_state({"state": state}),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

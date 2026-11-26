@@ -147,6 +147,37 @@ def test_http_status_matches_business_error(client):
         client.delete(f"/api/admin/users/{user_id}", headers=auth_headers(admin))
 
 
+def test_runtime_config_metadata_and_range_validation(client):
+    admin = login(client, settings.seed_admin_username, settings.seed_admin_password)
+    headers = auth_headers(admin)
+    configs = client.get("/api/admin/configs", headers=headers).json()["data"]
+    item = next(row for row in configs if row["key"] == "runtime.ai_max_concurrent_streams")
+    assert item["group"] == "运行资源"
+    assert item["min"] == 1
+    assert item["max"] == 128
+    assert any(row["key"] == "runtime.external_call_max_concurrency" for row in configs)
+
+    invalid = client.put(
+        "/api/admin/configs/runtime.ai_max_concurrent_streams",
+        json={"value": 0},
+        headers=headers,
+    )
+    assert invalid.status_code == 400
+    assert invalid.json()["code"] == 400
+
+    updated = client.put(
+        "/api/admin/configs/runtime.ai_max_concurrent_streams",
+        json={"value": 2},
+        headers=headers,
+    )
+    assert updated.status_code == 200
+    assert updated.json()["data"]["value"] == 2
+    client.post(
+        "/api/admin/configs/runtime.ai_max_concurrent_streams/reset",
+        headers=headers,
+    )
+
+
 def test_openapi_declares_response_envelope_and_a2a_key(client):
     spec = client.get("/openapi.json").json()
     assert "ApiResponse" in spec["components"]["schemas"]

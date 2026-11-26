@@ -468,11 +468,13 @@ async def async_stream_chat(params: dict) -> AsyncGenerator[str, None]:
                     )
                 )
             await session.commit()
-    yield _sse("done", {
+    done = {
         "conversation_id": conversation_id,
         "message_id": assistant.id,
-        "content": final_text,
-    })
+    }
+    if params.get("include_final_content"):
+        done["content"] = final_text
+    yield _sse("done", done)
 
 
 async def async_run_turn(params: dict) -> dict:
@@ -488,6 +490,7 @@ async def async_run_turn(params: dict) -> dict:
         "super_depth": int(params.get("super_depth") or 1),
         "tools_enabled": bool(params.get("tools_enabled", True)),
         "source": str(params.get("source") or "web"),
+        "include_final_content": True,
     }
     async for frame in async_stream_chat(payload):
         if "event: done" in frame:

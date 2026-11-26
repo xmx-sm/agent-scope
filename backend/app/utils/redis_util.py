@@ -11,6 +11,7 @@ _PROBE_TIMEOUT = 1.0
 _PROBE_TTL = 60.0
 _probe_cache: tuple[float, bool] | None = None
 _client: aioredis.Redis | None = None
+_client_lock = asyncio.Lock()
 
 
 async def async_redis_reachable(timeout: float = _PROBE_TIMEOUT, force: bool = False) -> bool:
@@ -47,6 +48,7 @@ async def async_create_redis_client(force: bool = False) -> aioredis.Redis | Non
         port=settings.redis_port,
         password=settings.redis_password or None,
         decode_responses=True,
+        max_connections=settings.redis_max_connections,
         socket_connect_timeout=2,
     )
     try:
@@ -65,7 +67,9 @@ async def async_get_redis_client(force: bool = False) -> aioredis.Redis | None:
     """进程级单例；Redis 不可用返回 None（限流自动降级为进程内）。"""
     global _client
     if _client is None:
-        _client = await async_create_redis_client(force=force)
+        async with _client_lock:
+            if _client is None:
+                _client = await async_create_redis_client(force=force)
     return _client
 
 

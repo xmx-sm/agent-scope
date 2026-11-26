@@ -13,6 +13,7 @@ from app.core.deps import ApiError
 from app.models import SystemConfig
 from app.services.config.meta import CONFIG_BY_KEY, config_domain
 from app.utils.mask import SENTINEL, mask_secret
+from app.utils.runtime_config import invalidate_runtime_config
 
 
 async def async_get_config(params: dict) -> Any:
@@ -65,6 +66,8 @@ async def async_list_configs(params: dict) -> list[dict[str, Any]]:
                 "group": meta.get("group", "其他"),
                 "domain": config_domain({"key": row.key}),
                 "default": meta.get("value"),
+                "min": meta.get("min"),
+                "max": meta.get("max"),
                 "secret": secret,
                 "updated_at": row.updated_at.isoformat() if row.updated_at else None,
             }
@@ -110,10 +113,17 @@ async def async_update_config(params: dict) -> dict:
     except (ValueError, TypeError):
         raise ApiError(f"配置 {key} 的值类型应为 {expected}")
 
+    if expected in ("int", "float"):
+        if "min" in meta and value < meta["min"]:
+            raise ApiError(f"配置 {key} 不能小于 {meta['min']}")
+        if "max" in meta and value > meta["max"]:
+            raise ApiError(f"配置 {key} 不能大于 {meta['max']}")
+
     row.value = json.dumps(value, ensure_ascii=False)
     row.updated_by = operator_id
     await session.commit()
     await session.refresh(row)
+    invalidate_runtime_config()
     display_value = mask_secret(value) if meta.get("secret") else value
     return {
         "key": row.key,
@@ -124,6 +134,8 @@ async def async_update_config(params: dict) -> dict:
         "group": meta.get("group", "其他"),
         "domain": config_domain({"key": row.key}),
         "default": meta.get("value"),
+        "min": meta.get("min"),
+        "max": meta.get("max"),
         "secret": bool(meta.get("secret")),
     }
 

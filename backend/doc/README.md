@@ -80,9 +80,11 @@ cd backend
 uv pip install --python .venv/bin/python -r backend/requirements.txt
 
 cd backend
-cp .env.example .env          # 按需修改数据库账号、JWT_SECRET、Redis
+cp .env.example .env          # 按需修改数据库账号、连接池、JWT_SECRET、Redis
 ../.venv/bin/python run.py    # http://127.0.0.1:8000 ，文档 /docs
 ```
+
+数据库连接池参数（`DB_POOL_SIZE`、`DB_MAX_OVERFLOW`、`DB_POOL_TIMEOUT`、`DB_POOL_RECYCLE`）和 Redis 连接上限属于启动参数，修改后需要重启。AI/SSE、RAG 与外部调用并发等运行资源由超管在「系统设置 → 运行资源」动态调整，详见《配置说明.md》。
 
 数据库不存在时先创建：
 
@@ -109,7 +111,7 @@ backend/app/
 ├── schemas/                   # 请求模型：account / access / system / agent / integrations
 ├── routers/                   # 路由：account / access / system / agent
 ├── services/                  # 业务：account / access / system / agent / llm / integrations
-└── utils/                     # Redis / 限流 / 脱敏
+└── utils/                     # Redis / 限流 / 运行配置快照 / 动态并发名额 / 脱敏
 ```
 
 Agent 领域再按子域拆分：

@@ -46,7 +46,7 @@ from app.services.agent.analytics import stats as stats_service
 from app.services.agent.conversation import attachments as attachment_service
 from app.services.agent.config import user_config as user_config_service
 from app.services.access.tools import tool_config as tool_config_service
-from app.services.agent.runtime.stream_manager import resume_events, stream_events
+from app.services.agent.runtime.stream_manager import resume_events
 from app.services.llm import providers as agent_config_service
 from app.utils.mask import SENTINEL
 

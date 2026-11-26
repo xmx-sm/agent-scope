@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import ApiError
 from app.models import A2AInvocation, A2APeer, A2ASessionMap, AgentConversation, User
 from app.utils.mask import SENTINEL
+from app.utils.runtime_limits import runtime_slot
 
 
 def _new_key() -> str:
@@ -463,10 +464,21 @@ async def async_test_peer(params: dict) -> dict:
 
 
 async def async_invoke_peer(params: dict) -> dict:
-    """出站调用 A2A 伙伴。
+    """在动态出站并发限制内调用 A2A 伙伴。
 
         参数：peer / message / session_hint / session / user。
         """
+    async with runtime_slot(
+        "external_call",
+        "runtime.external_call_max_concurrency",
+        16,
+        "外部服务调用繁忙，请稍后重试",
+    ):
+        return await _async_invoke_peer(params)
+
+
+async def _async_invoke_peer(params: dict) -> dict:
+    """执行 A2A 伙伴出站调用并记录结果。"""
     session: AsyncSession = params["session"]
     user: User = params["user"]
     name = str(params.get("peer") or "").strip()
