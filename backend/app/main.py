@@ -11,7 +11,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
-from app.routers import access_router, account_router, system_router
+from app.routers import access_router, account_router, integrations_router, system_router
 from app.routers import agent
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, close_db, init_db
@@ -134,6 +134,7 @@ for router in (
     system_router,
     account_router,
     access_router,
+    integrations_router,
     agent.router,
     agent.admin_router,
     agent.public_router,

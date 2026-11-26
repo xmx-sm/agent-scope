@@ -100,6 +100,12 @@ const routes = [
         meta: { title: '工具审批', permission: 'permissions.team' }
       },
       {
+        path: 'agent-bots',
+        name: 'AgentBots',
+        component: () => import('../views/Bots.vue'),
+        meta: { title: '机器人', permission: 'bots.manage' }
+      },
+      {
         path: 'agent-scheduled',
         name: 'AgentScheduled',
         component: () => import('../views/Scheduled.vue'),

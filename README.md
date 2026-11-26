@@ -36,6 +36,7 @@
 ### AI / Agent
 
 - SSE 流式对话，会话持久化、重命名、删除
+- 第三方机器人：通用 Webhook 接入、签名验签、事件去重、会话隔离与 AI 问答
 - 会话来源 Tab：AI 对话 / A2A 对话 / 超级智能体 / 定时任务
 - 消息分支（从任意历史消息复制上下文创建分支会话）
 - 断线续传（同进程内生成任务托管与事件重放）
@@ -214,6 +215,7 @@ cp frontend/.env.example frontend/.env
 ```env
 DATABASE_URL=postgresql+asyncpg://your_db_user:your_db_password@127.0.0.1:5432/agent_scope
 JWT_SECRET=替换为随机长字符串
+BOT_CREDENTIAL_KEY=替换为独立的随机长字符串
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 REDIS_PASSWORD=
@@ -259,6 +261,8 @@ rsync -a --delete dist/ /var/www/html/agent_scope/
 nginx -t && systemctl reload nginx
 # 访问 http://127.0.0.1:5080/agent_scope/
 ```
+
+前端新增菜单或路由后，必须重新构建并同步 `dist` 到 Nginx 静态目录；否则会出现“菜单已显示但点击无反应”的前后端资源不一致问题。入口 HTML 不缓存，带 hash 的静态资源可长期缓存。
 
 Nginx 规则：`/agent_scope/` 提供静态产物并回落 `index.html`；
 `/agent_scope/api/` 剥掉 `/agent_scope` 前缀后转发到后端 `127.0.0.1:8000/api/`。
@@ -445,7 +449,7 @@ Agent → A2A 协作
 - 数据库建表、种子账号、登录、菜单
 - 刷新令牌轮换、重放撤销、改密/禁用/重置密码/角色变更撤销
 - 前端登录错误提示、注册与退出登录
-- 后端 pytest：认证、动态运行限制与接口契约回归（隔离 SQLite）
+- 后端 pytest：认证、动态运行限制、机器人接入与接口契约回归（隔离 SQLite）
 - 超管运行资源配置、范围校验与即时生效
 - 全部 GET 接口冒烟与并发刷新验证
 - 真实模型对话（OpenAI 兼容接口 + 流式）
@@ -458,6 +462,7 @@ Agent → A2A 协作
 - 消息分支
 - SSE 断线续传
 - 前端 `npm run build`
+- Nginx 部署后机器人菜单与新建按钮实测
 - 后端 `import app.main`、OpenAPI 响应信封与 A2A 鉴权声明
 
 ---
@@ -471,6 +476,7 @@ Agent → A2A 协作
 - 多向量库实际可用性取决于对应 Python 依赖与服务
 - TTS 需要配置真实服务商 Key 才能合成
 - 钉钉未接入
+- QQ、微信、钉钉机器人尚未实现平台协议适配，当前仅支持通用 Webhook
 - 知识库召回率 / MRR / NDCG 评测未实现
 - 超级智能体编排依赖真实模型工具调用能力
 - 升级到刷新令牌会话机制后，旧刷新令牌需要重新登录；新表会在后端启动时自动创建

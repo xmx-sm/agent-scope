@@ -107,9 +107,9 @@ PGPASSWORD=your_db_password psql -h 127.0.0.1 -U your_db_user -d postgres \
 backend/app/
 ├── main.py                    # 应用装配、生命周期、异常处理
 ├── core/                      # 基础设施（不写业务）
-├── models/                    # ORM：account / access / system / agent
+├── models/                    # ORM：account / access / system / agent / integrations
 ├── schemas/                   # 请求模型：account / access / system / agent / integrations
-├── routers/                   # 路由：account / access / system / agent
+├── routers/                   # 路由：account / access / system / agent / integrations
 ├── services/                  # 业务：account / access / system / agent / llm / integrations
 └── utils/                     # Redis / 限流 / 运行配置快照 / 动态并发名额 / 脱敏
 ```

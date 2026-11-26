@@ -63,6 +63,9 @@ SEED_MENUS: list[dict[str, Any]] = [
     {"key": "menu.a2a", "parent_key": "group.agent", "title": "A2A 协作",
      "path": "/agent-a2a", "icon": "Share", "permission": "ai.use",
      "super_only": False, "sort_order": 40},
+    {"key": "menu.bots", "parent_key": "group.agent", "title": "机器人",
+     "path": "/agent-bots", "icon": "ChatLineSquare", "permission": "bots.manage",
+     "super_only": False, "sort_order": 42},
     {"key": "menu.approvals", "parent_key": "group.agent", "title": "工具审批",
      "path": "/tool-approvals", "icon": "Checked", "permission": "permissions.team",
      "super_only": False, "leader_only": True, "sort_order": 41},
@@ -244,6 +247,9 @@ async def async_seed(params: dict) -> None:
             changed = True
         if "ai.use" not in current:
             current.append("ai.use")
+            changed = True
+        if "bots.manage" not in current:
+            current.append("bots.manage")
             changed = True
         filtered = sorted(item for item in current if item in assignable)
         if filtered != sorted(json.loads(row.permissions or "[]")):

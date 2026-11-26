@@ -31,6 +31,7 @@ from app.models.access import (
     UserToolMode,
     UserToolPermission,
 )
+from app.models.integrations import BotSessionMap, UserBot
 from app.models.system import Menu, RolePermission, SystemConfig, UserMenuPref
 
 __all__ = [
@@ -62,6 +63,8 @@ __all__ = [
     "ToolPermissionAudit",
     "ToolApprovalRequest",
     "ToolPolicy",
+    "BotSessionMap",
+    "UserBot",
     "SystemConfig",
     "RolePermission",
     "Menu",

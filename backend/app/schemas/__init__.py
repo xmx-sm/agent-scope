@@ -49,7 +49,7 @@ from app.schemas.agent import (
     TtsIn,
     UserAgentConfigIn,
 )
-from app.schemas.integrations import EmailSendIn
+from app.schemas.integrations import BotCreateIn, BotUpdateIn, EmailSendIn
 from app.schemas.system import ConfigUpdateIn, MenuCreateIn, MenuPrefIn, MenuReorderIn, MenuUpdateIn
 
 __all__ = [
@@ -69,6 +69,8 @@ __all__ = [
     "ConversationBranchIn",
     "ChatStreamIn",
     "TtsIn",
+    "BotCreateIn",
+    "BotUpdateIn",
     "EmailSendIn",
     "MenuCreateIn",
     "MenuUpdateIn",

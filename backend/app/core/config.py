@@ -31,6 +31,7 @@ class Settings(BaseSettings):
 
     jwt_secret: str = "change-me-to-a-long-random-string"
     jwt_algorithm: str = "HS256"
+    bot_credential_key: str = ""
     access_token_expire_minutes: int = 480
     refresh_token_expire_days: int = 7
 

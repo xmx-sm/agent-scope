@@ -1,8 +1,12 @@
 """认证与接口契约回归测试，使用隔离的 SQLite 数据库。"""
 
 import atexit
+import hashlib
+import hmac
+import json
 import os
 import tempfile
+import time
 import uuid
 from pathlib import Path
 
@@ -192,3 +196,119 @@ def test_openapi_declares_response_envelope_and_a2a_key(client):
             assert schema not in (None, {})
     security = spec["paths"]["/api/a2a/agents"]["get"]["security"]
     assert security == [{"APIKeyHeader": []}]
+
+
+def signed_bot_request(client, bot, secret, payload):
+    """生成带 HMAC 签名的机器人请求。"""
+    raw = json.dumps(payload, separators=(",", ":")).encode()
+    timestamp = str(int(time.time()))
+    signature = hmac.new(
+        secret.encode(),
+        timestamp.encode() + b"." + raw,
+        hashlib.sha256,
+    ).hexdigest()
+    return client.post(
+        f"/api/public/bots/{bot['id']}/webhook",
+        content=raw,
+        headers={
+            "Content-Type": "application/json",
+            "X-Webhook-Timestamp": timestamp,
+            "X-Webhook-Event-Id": payload["event_id"],
+            "X-Webhook-Signature": signature,
+        },
+    )
+
+
+def test_bot_management_is_user_scoped(client):
+    admin = login(client, settings.seed_admin_username, settings.seed_admin_password)
+    password = "Test-Password-123!"
+    user_id, username = create_user(client, admin, password)
+    other_id = None
+    try:
+        user = login(client, username, password)
+        created = client.post(
+            "/api/bots",
+            json={"name": "CRM 机器人", "platform": "webhook"},
+            headers=auth_headers(user),
+        )
+        assert created.status_code == 200
+        bot = created.json()["data"]
+        assert bot["secret"]
+        assert bot["tools_enabled"] is False
+        assert bot["platform"] == "webhook"
+
+        listed = client.get("/api/bots", headers=auth_headers(user)).json()["data"]
+        assert [item["id"] for item in listed] == [bot["id"]]
+        assert "secret" not in listed[0]
+
+        other_id, other_name = create_user(client, admin, password)
+        other = login(client, other_name, password)
+        missing = client.get(f"/api/bots/{bot['id']}", headers=auth_headers(other))
+        assert missing.status_code == 404
+    finally:
+        client.delete(f"/api/admin/users/{user_id}", headers=auth_headers(admin))
+        if other_id:
+            client.delete(f"/api/admin/users/{other_id}", headers=auth_headers(admin))
+
+
+def test_bot_webhook_signature_dedupe_and_session_isolation(client, monkeypatch):
+    from app.services.integrations.bots import webhook
+
+    admin = login(client, settings.seed_admin_username, settings.seed_admin_password)
+    password = "Test-Password-123!"
+    user_id, username = create_user(client, admin, password)
+    try:
+        user = login(client, username, password)
+        bot = client.post(
+            "/api/bots",
+            json={"name": "Webhook 测试机器人"},
+            headers=auth_headers(user),
+        ).json()["data"]
+        calls = []
+
+        async def fake_run_turn(params):
+            """记录 Agent 调用参数。"""
+            calls.append(params)
+            return "机器人回复"
+
+        monkeypatch.setattr(webhook, "async_run_turn", fake_run_turn)
+        payload = {
+            "event_id": "event-1",
+            "sender_id": "sender-1",
+            "chat_id": "chat-1",
+            "chat_type": "private",
+            "text": "你好",
+        }
+        invalid = signed_bot_request(client, bot, "wrong-secret", payload)
+        assert invalid.status_code == 401
+
+        valid = signed_bot_request(client, bot, bot["secret"], payload)
+        assert valid.status_code == 200
+        assert valid.json()["data"]["reply"] == "机器人回复"
+        assert calls[0]["source"] == "bot"
+        assert calls[0]["tools_enabled"] is False
+
+        duplicate = signed_bot_request(client, bot, bot["secret"], payload)
+        assert duplicate.status_code == 409
+
+        payload["event_id"] = "event-2"
+        payload["sender_id"] = "sender-2"
+        second = signed_bot_request(client, bot, bot["secret"], payload)
+        assert second.status_code == 200
+        assert second.json()["data"]["conversation_id"] != valid.json()["data"]["conversation_id"]
+
+        rotated = client.post(
+            f"/api/bots/{bot['id']}/rotate-secret", headers=auth_headers(user)
+        ).json()["data"]
+        payload["event_id"] = "event-3"
+        old_secret = signed_bot_request(client, bot, bot["secret"], payload)
+        assert old_secret.status_code == 401
+        new_secret = signed_bot_request(client, bot, rotated["secret"], payload)
+        assert new_secret.status_code == 200
+
+        client.patch(f"/api/bots/{bot['id']}", json={"enabled": False}, headers=auth_headers(user))
+        payload["event_id"] = "event-4"
+        disabled = signed_bot_request(client, bot, rotated["secret"], payload)
+        assert disabled.status_code == 403
+    finally:
+        client.delete(f"/api/admin/users/{user_id}", headers=auth_headers(admin))
